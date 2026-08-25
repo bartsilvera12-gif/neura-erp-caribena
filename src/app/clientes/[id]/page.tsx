@@ -2,12 +2,7 @@
 
 import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Clock, Folder, Trash2 } from "lucide-react";
-import {
-  btnChico,
-  btnIconoPeligro,
-  btnPrimario,
-  btnSecundario,
-} from "@/lib/ui/estilos";
+import { btnChico, btnIconoPeligro, btnSecundario } from "@/lib/ui/estilos";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -1004,25 +999,6 @@ export default function ClienteDetailPage() {
                 </button>
               )}
             </div>
-          </div>
-
-          {/* Lo que se hace CON el cliente, separado de lo que se le hace AL
-              cliente (dar de baja, eliminar), que vive arriba. */}
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setFormFacturaContado({ monto: "", descripcion: "Venta al contado", iva_tipo: "iva_10" });
-                setErrorFacturaContado(null);
-                setModalFacturaContado(true);
-              }}
-              className={`${btnSecundario} ${btnChico}`}
-            >
-              Factura al contado
-            </button>
-            <button type="button" onClick={abrirRegistrarPago} className={`${btnPrimario} ${btnChico}`}>
-              Registrar pago
-            </button>
           </div>
         </div>
 
