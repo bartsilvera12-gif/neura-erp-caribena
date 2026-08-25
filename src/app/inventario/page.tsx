@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, ChefHat, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChefHat, Package, PackageX, Pencil, Plus, Trash2 } from "lucide-react";
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -72,6 +72,56 @@ export default function InventarioPage() {
    * ofrece darlo de baja: deja de aparecer para operar, pero el historial
    * sigue entero.
    */
+  /**
+   * Enciende o apaga el control de stock del producto.
+   *
+   * No es un detalle menor: define todo el circuito. Un producto que lleva
+   * stock se compra o se produce y al venderlo se descuenta él mismo; uno que no
+   * lo lleva se arma al momento y descuenta los insumos de su receta cuando la
+   * comanda entra a cocina.
+   *
+   * En los vendibles además decide en qué pestaña vive (Reventa lleva stock,
+   * Menú no), así que se avisa antes de moverlo de lugar.
+   */
+  async function toggleControlaStock(p: Producto) {
+    const controla = p.controla_stock !== false;
+    const destino = !controla;
+    const esVendible = p.es_vendible !== false;
+    const esInsumo = p.es_insumo === true;
+
+    const explicacion = destino
+      ? `"${p.nombre}" va a llevar stock: se carga por compra o producción y al venderlo se descuenta él mismo.`
+      : `"${p.nombre}" deja de llevar stock: se va a poder vender sin límite, y si tiene receta sus insumos se descontarán cuando la comanda entre a cocina.`;
+
+    const mudanza =
+      esVendible && !esInsumo
+        ? `\n\nAdemás pasa a la pestaña ${destino ? "Reventa" : "Menú"}.`
+        : "";
+
+    if (!(await confirmar(explicacion + mudanza, {
+      confirmLabel: destino ? "Activar control" : "Quitar control",
+      destructivo: false,
+    }))) return;
+
+    setErrorAccion(null);
+    try {
+      const res = await fetch(`/api/productos/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ controla_stock: destino }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        setErrorAccion(body?.error ?? "No se pudo cambiar el control de stock.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setErrorAccion(e instanceof Error ? e.message : "Error de red");
+    }
+  }
+
   async function eliminarProducto(p: Producto) {
     if (eliminandoId) return;
     if (!(await confirmar(`¿Eliminar "${p.nombre}"?`, { confirmLabel: "Eliminar" }))) return;
@@ -454,7 +504,7 @@ export default function InventarioPage() {
                 <th className={`${th} hidden lg:table-cell`}>SKU</th>
                 <th className={`${th} text-right`}>Costo prom.</th>
                 <th className={`${th} text-right`}>Precio venta</th>
-                <th className={`${th} text-center ${tab === "reventa" ? "" : "hidden"}`}>Stock</th>
+                <th className={`${th} text-center`}>Stock</th>
                 <th className={`${th} text-center ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>Stock mín.</th>
                 <th className={`${th} hidden lg:table-cell`}>Unidad</th>
                 <th className={`${th} hidden text-right lg:table-cell`}>
@@ -495,10 +545,33 @@ export default function InventarioPage() {
                     <td className="hidden px-5 py-3.5 font-mono text-xs text-slate-500 lg:table-cell">{p.sku}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{formatGs(p.costo_promedio)}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{formatGs(p.precio_venta)}</td>
-                    <td className={`px-5 py-3.5 text-center ${tab === "reventa" ? "" : "hidden"}`}>
-                      <span className={`font-semibold tabular-nums ${stockBajo ? "text-red-600" : "text-slate-800"}`}>
-                        {p.stock_actual}
-                      </span>
+                    {/* El modo de stock estaba invisible fuera de Reventa, que es
+                        justo donde importa: en Materia prima decide si el insumo
+                        baja al cocinar. Ahora la celda lo dice y deja cambiarlo. */}
+                    <td className="px-5 py-3.5 text-center">
+                      {p.controla_stock === false ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleControlaStock(p)}
+                          title="Sin control de stock — clic para activarlo"
+                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-inset ring-slate-500/15 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                        >
+                          <PackageX className="h-3 w-3" aria-hidden />
+                          Sin control
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleControlaStock(p)}
+                          title="Lleva stock — clic para quitarle el control"
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold tabular-nums transition-colors hover:bg-slate-100 ${
+                            stockBajo ? "text-red-600" : "text-slate-800"
+                          }`}
+                        >
+                          <Package className="h-3 w-3 opacity-50" aria-hidden />
+                          {p.stock_actual}
+                        </button>
+                      )}
                     </td>
                     <td className={`px-5 py-3.5 text-center tabular-nums text-slate-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
                     <td className="hidden px-5 py-3.5 text-slate-600 lg:table-cell">{p.unidad_medida}</td>
