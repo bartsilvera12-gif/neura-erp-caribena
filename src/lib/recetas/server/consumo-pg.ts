@@ -59,6 +59,10 @@ interface LineaPedida {
  * usa el costeo, para que lo que se descuenta y lo que se costea nunca digan
  * cosas distintas.
  *
+ * Solo se descuentan los insumos con control de stock activo. Ese interruptor,
+ * por insumo, es lo que permite seguir el queso de cerca y no llevar la cuenta
+ * de la sal.
+ *
  * Se permite dejar stock en negativo a propósito. En un local a la noche,
  * bloquear una comanda porque el sistema cree que no queda queso es peor que un
  * negativo visible que después se corrige con un ajuste.
@@ -113,6 +117,11 @@ async function descontarInsumos(
                     AND r.activa
        JOIN ${tRI} ri ON ri.receta_id = r.id
        JOIN ${tP} pi  ON pi.id = ri.insumo_producto_id
+                    -- Solo baja lo que el local decidió controlar. Un insumo
+                    -- marcado "Sin control" (la sal, el agua) no se cuenta: si
+                    -- se descontara igual, terminaría en un negativo enorme que
+                    -- nadie va a corregir y que ensucia Movimientos.
+                    AND pi.controla_stock
       GROUP BY ri.insumo_producto_id, pi.nombre, pi.sku, pi.costo_promedio`,
     [empresaId, productoIds, cantidades]
   );
