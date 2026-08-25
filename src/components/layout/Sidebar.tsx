@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronRight, ClipboardList, FileText, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, PanelLeft, PanelLeftClose, Percent, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
+import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, Percent, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { getCurrentUser } from "@/lib/auth";
@@ -697,14 +697,15 @@ export default function Sidebar() {
             : "fixed inset-y-0 left-0 z-50 -translate-x-full lg:translate-x-0 transition-transform duration-200"
         }`}
       >
-      {/* Logo oficial ZENTRA (blanco sobre azul marca) */}
-      <div className="flex h-[7.25rem] shrink-0 items-center justify-between gap-2 border-b border-[color:var(--zentra-sidebar-border)] bg-[color:var(--zentra-sidebar-elevated)]/35 px-3 py-2.5">
-        <Link href="/" className={`flex items-center justify-center min-w-0 flex-1 overflow-hidden`}>
+      {/* Logo oficial ZENTRA (blanco sobre azul marca).
+          Colapsado se cambia por el isotipo: el wordmark no entra en 44px. */}
+      <div className="flex h-[7.25rem] shrink-0 items-center justify-center border-b border-[color:var(--zentra-sidebar-border)] bg-[color:var(--zentra-sidebar-elevated)]/35 px-3 py-2.5">
+        <Link href="/" className="flex min-w-0 items-center justify-center overflow-hidden">
           <div
             className={`relative flex items-center justify-center ${collapsed ? "h-11 w-11" : "h-[4.5rem] w-full max-w-[200px]"}`}
           >
             <Image
-              src="/brand/zentra-logo-official.png"
+              src={collapsed ? "/brand/zentra-icon.png" : "/brand/zentra-logo-official.png"}
               alt="ZENTRA"
               width={400}
               height={220}
@@ -714,15 +715,19 @@ export default function Sidebar() {
             />
           </div>
         </Link>
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-[color:var(--zentra-sidebar-hover)] hover:text-white"
-          aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-        >
-          {collapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-        </button>
       </div>
+
+      {/* Colapsar/expandir: círculo sobre el borde derecho, a la altura del
+          buscador. Sólo en desktop — en mobile el sidebar se abre y cierra con
+          el botón del header, no colapsa. */}
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="absolute -right-3 top-[8.25rem] z-20 hidden h-7 w-7 items-center justify-center rounded-full border border-[#104A4E] bg-[#104A4E] text-white shadow-md transition-colors hover:bg-[#0d3d40] lg:flex"
+        aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+      >
+        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+      </button>
 
       {!collapsed && (
         <div className="shrink-0 border-b border-[color:var(--zentra-sidebar-border)] px-3 py-2.5">

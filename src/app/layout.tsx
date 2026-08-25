@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Neura ERP",
-  description: "Sistema de gestión empresarial de Neura",
+  title: "La Caribeña Fast Food",
+  description: "Sistema de gestión — La Caribeña Fast Food",
 };
 
 export const viewport: Viewport = {
