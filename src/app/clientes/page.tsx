@@ -285,7 +285,6 @@ export default function ClientesPage() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "activo" | "inactivo">("");
   const [filtroOrigen, setFiltroOrigen] = useState<"" | "CRM" | "VENTA" | "MANUAL">("");
   const [filtroTipo,   setFiltroTipo]   = useState<"" | "empresa" | "persona">("");
-  const [filtroTipoServicio, setFiltroTipoServicio] = useState<"" | string>("");
   const [columnasOpen, setColumnasOpen] = useState(false);
   const [columnasInicializadas, setColumnasInicializadas] = useState(false);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ClienteColumnKey[]>(DEFAULT_VISIBLE_COLUMN_KEYS);
@@ -334,16 +333,6 @@ export default function ClientesPage() {
     }
   }, [visibleColumnKeys, columnasInicializadas]);
 
-  const slugsExtraFiltro = useMemo(() => {
-    const known = new Set(filasTipoCatalogo.map((f) => f.slug));
-    const u = new Set<string>();
-    for (const c of clientes) {
-      const t = (c.tipo_servicio_cliente ?? "").trim();
-      if (t && !known.has(t)) u.add(t);
-    }
-    return Array.from(u).sort();
-  }, [clientes, filasTipoCatalogo]);
-
   useEffect(() => {
     if (searchParams?.get("baja_ok") === "1") {
       setBajaOk(true);
@@ -369,11 +358,10 @@ export default function ClientesPage() {
     if (filtroEstado       && c.estado              !== filtroEstado) return false;
     if (filtroOrigen       && c.origen              !== filtroOrigen) return false;
     if (filtroTipo         && c.tipo_cliente        !== filtroTipo) return false;
-    if (filtroTipoServicio && c.tipo_servicio_cliente !== filtroTipoServicio) return false;
     return true;
   });
 
-  const hayFiltros = busqueda || filtroEstado || filtroOrigen || filtroTipo || filtroTipoServicio;
+  const hayFiltros = busqueda || filtroEstado || filtroOrigen || filtroTipo;
 
   function toggleColumn(key: ClienteColumnKey) {
     const col = clienteColumns.find((c) => c.key === key);
@@ -394,7 +382,7 @@ export default function ClientesPage() {
       {/* Mensaje de éxito baja operativa */}
       {bajaOk && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-800">
-          <span className=""><Check className="h-5 w-5" aria-hidden /></span>
+          <span className="inline-flex"><Check className="h-5 w-5" aria-hidden /></span>
           <p className="text-sm font-medium">Baja procesada correctamente</p>
         </div>
       )}
@@ -472,24 +460,9 @@ export default function ClientesPage() {
             { value: "MANUAL", label: "Manual" },
           ]}
         />
-        <FancySelect
-          value={filtroTipoServicio}
-          onChange={(v) => setFiltroTipoServicio(v)}
-          ariaLabel="Filtrar por tipo de servicio"
-          className="w-44"
-          size="sm"
-          options={[
-            { value: "", label: "Tipo servicio" },
-            ...filasTipoCatalogo.map((t) => ({ value: t.slug, label: t.nombre })),
-            ...slugsExtraFiltro.map((slug) => ({
-              value: slug,
-              label: etiquetaVisibleTipoServicio(slug, mapNombreTipo),
-            })),
-          ]}
-        />
         {hayFiltros && (
           <button
-            onClick={() => { setBusqueda(""); setFiltroEstado(""); setFiltroOrigen(""); setFiltroTipo(""); setFiltroTipoServicio(""); }}
+            onClick={() => { setBusqueda(""); setFiltroEstado(""); setFiltroOrigen(""); setFiltroTipo(""); }}
             className="text-xs text-gray-500 hover:text-gray-900 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
           >
             Limpiar
@@ -571,7 +544,7 @@ export default function ClientesPage() {
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Cargando clientes…</div>
         ) : filtrados.length === 0 ? (
           <div className="py-16 text-center text-gray-400">
-            <p className="mb-3"><Users className="h-10 w-10" aria-hidden /></p>
+            <p className="mb-3 flex justify-center text-slate-300"><Users className="h-10 w-10" aria-hidden /></p>
             <p className="font-medium text-gray-600">
               {clientes.length === 0 ? "No hay clientes registrados" : "Sin resultados para los filtros aplicados"}
             </p>

@@ -1839,7 +1839,7 @@ const DashVentas = memo(function DashVentas({
       {/* KPIs rentabilidad */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-start gap-3">
-          <span className=""><Wallet className="h-6 w-6" aria-hidden /></span>
+          <span className="inline-flex text-slate-400"><Wallet className="h-6 w-6" aria-hidden /></span>
           <div>
             <p className={`text-2xl font-bold tabular-nums ${gananciaHoy >= 0 ? "text-green-600" : "text-red-600"}`}>
               Gs. {formatGsFull(gananciaHoy)}
@@ -1849,7 +1849,7 @@ const DashVentas = memo(function DashVentas({
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-start gap-3">
-          <span className=""><BarChart3 className="h-6 w-6" aria-hidden /></span>
+          <span className="inline-flex text-slate-400"><BarChart3 className="h-6 w-6" aria-hidden /></span>
           <div>
             <p className={`text-2xl font-bold tabular-nums ${margenProm >= 20 ? "text-green-600" : margenProm >= 10 ? "text-amber-600" : "text-red-600"}`}>
               {margenProm.toFixed(1)}%
@@ -2109,7 +2109,7 @@ export default function DashboardPage() {
   if (nivel === "usuario") {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <span className=""><Lock className="h-10 w-10" aria-hidden /></span>
+        <span className="flex justify-center text-slate-300"><Lock className="h-10 w-10" aria-hidden /></span>
         <h2 className="text-lg font-bold text-gray-800">Acceso restringido</h2>
         <p className="text-sm text-gray-500 text-center max-w-sm">
           El dashboard solo está disponible para usuarios con nivel <strong>Supervisor</strong> o <strong>Administrador</strong>.

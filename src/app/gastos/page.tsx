@@ -86,7 +86,7 @@ export default function GastosPage() {
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Cargando gastos…</div>
         ) : gastos.length === 0 ? (
           <div className="py-16 text-center text-gray-400">
-            <p className="mb-3"><ClipboardList className="h-10 w-10" aria-hidden /></p>
+            <p className="mb-3 flex justify-center text-slate-300"><ClipboardList className="h-10 w-10" aria-hidden /></p>
             <p className="font-medium text-gray-600">No hay gastos registrados</p>
             <Link
               href="/gastos/nuevo"

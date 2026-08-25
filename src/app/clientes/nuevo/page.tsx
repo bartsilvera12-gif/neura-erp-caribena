@@ -400,7 +400,7 @@ function NuevoClienteForm() {
       {/* Banner CRM */}
       {crmBanner && (
         <div className="flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-5 py-3">
-          <span className="text-violet-500"><Link2 className="h-5 w-5" aria-hidden /></span>
+          <span className="inline-flex text-violet-500"><Link2 className="h-5 w-5" aria-hidden /></span>
           <div>
             <p className="text-sm font-semibold text-violet-800">Creando desde CRM</p>
             <p className="text-xs text-violet-600">{crmBanner}</p>
