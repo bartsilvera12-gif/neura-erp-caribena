@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Pizza } from "lucide-react";
+import { AlertTriangle, Minus, Pizza, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
@@ -28,55 +28,16 @@ function formatGs(valor: number) {
 
 const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none bg-white text-sm";
-const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
 
-function SegmentedControl<T extends string>({
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className={`flex border border-slate-200 rounded-lg overflow-hidden ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(opt.value)}
-          className={`flex-1 py-2 text-sm font-medium transition-colors ${
-            value === opt.value
-              ? "bg-[#0EA5E9] text-white"
-              : "bg-white text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
       {children}
     </p>
   );
 }
-
-const ivaLabel: Record<TipoIvaVenta, string> = {
-  EXENTA: "Exenta",
-  "5%":   "5%",
-  "10%":  "10%",
-};
 
 // ── Componente principal ───────────────────────────────────────────────────────
 
@@ -109,16 +70,17 @@ export default function NuevaVentaPage() {
   const [montoRecibido, setMontoRecibido] = useState("");
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo");
 
-  // ── Línea en construcción ─────────────────────────────────────────────────
-  const [lineaProdId, setLineaProdId] = useState("");
-  const [lineaCant,   setLineaCant]   = useState("");
-  const [lineaPrecio, setLineaPrecio] = useState("");
-  const [lineaIva,    setLineaIva]    = useState<TipoIvaVenta>("10%");
+  // ── IVA por defecto de las líneas nuevas ──────────────────────────────────
+  // Ya no hay "línea en construcción": el producto se agrega al carrito apenas
+  // se lo elige en el buscador, y cantidad, precio e IVA se ajustan sobre la
+  // fila. Un paso menos por producto, que en caja se nota.
+  const lineaIva: TipoIvaVenta = "10%";
 
-  // ── Buscador de producto ───────────────────────────────────────────────────
-  // Se incrementa para devolverle el foco al buscador después de agregar una
-  // línea: es el ciclo normal de caja (buscar → agregar → buscar el siguiente).
-  const [focoBuscador, setFocoBuscador] = useState(1);
+  // ── Buscador de producto ──────────────────────────────────────────────────
+  // Señal para que el buscador tome el foco al entrar a la pantalla. Después de
+  // cada alta el propio buscador se queda con el foco, así que no hace falta
+  // volver a emitirla.
+  const focoBuscador = 1;
 
   // ── Modal buscador avanzado (catálogo con imagen y filtros) ───────────────
   // Ya no arranca abierto: el buscador inline toma el foco al entrar, así el
@@ -172,13 +134,6 @@ export default function NuevaVentaPage() {
       imagen_path: null,
       imagen_url: p.imagen_url,
     };
-  }
-
-  function handleSelectFromPicker(p: ProductoPickerItem) {
-    const prod = pickerToProducto(p);
-    setProductos((prev) => (prev.find((x) => x.id === prod.id) ? prev : [...prev, prod]));
-    seleccionarProducto(prod);
-    setPickerOpen(false);
   }
 
   /**
@@ -247,28 +202,6 @@ export default function NuevaVentaPage() {
   // ── Cálculos ───────────────────────────────────────────────────────────────
   const tipoCambioNum = 1;
 
-  const prodSel     = productos.find((p) => p.id === lineaProdId);
-  const cantNum     = parseInt(lineaCant) || 0;
-  const precioInput = parseFloat(lineaPrecio) || 0;
-  const precioGs    = precioInput;
-
-  const enCarrito = items
-    .filter((i) => i.producto_id === lineaProdId)
-    .reduce((s, i) => s + i.cantidad, 0);
-  const prodSelControlaStock = prodSel ? prodSel.controla_stock !== false : true;
-  const stockDisp = (prodSel?.stock_actual ?? 0) - enCarrito;
-
-  // IVA incluido: total línea = precio × cantidad; base e IVA se deducen.
-  const lineaDesglose   = calcularLineaVenta(precioGs, cantNum, lineaIva);
-  const lineaSubtotal   = lineaDesglose.subtotal;     // base imponible
-  const lineaMontoIva   = lineaDesglose.monto_iva;    // IVA incluido
-  const lineaTotalLinea = lineaDesglose.total_linea;  // precio × cantidad
-
-  // Solo validar stock para productos que lo controlan (Reventa).
-  // Productos del Menú (controla_stock=false) se venden sin restricción de stock.
-  const stockInsuf  = prodSel !== undefined && prodSelControlaStock && cantNum > 0 && cantNum > stockDisp;
-  const lineaValida =
-    !!prodSel && cantNum > 0 && precioGs > 0 && !stockInsuf;
 
   const totalSubtotal = items.reduce((s, i) => s + i.subtotal, 0);
   const totalIva      = items.reduce((s, i) => s + i.monto_iva, 0);
@@ -305,61 +238,103 @@ export default function NuevaVentaPage() {
     };
   });
 
-  // ── Selección de un producto ──────────────────────────────────────────────
-  function seleccionarProducto(p: Producto) {
-    setLineaProdId(String(p.id));
-    setLineaPrecio(String(p.precio_venta));
-    setLineaCant("1");
-    setLineaIva("10%");
+  /**
+   * Elegir en el buscador ya agrega el producto a la venta, con cantidad 1 y su
+   * precio de lista. Si ya estaba en el carrito suma una unidad en vez de
+   * repetir la fila, que es lo que espera cualquiera que escanea o busca dos
+   * veces el mismo ítem.
+   */
+  function agregarProductoPorId(id: string) {
+    const p = productosVendibles.find((x) => String(x.id) === id);
+    if (!p) return;
     setErrorLinea(null);
-  }
 
-  function seleccionarProductoPorId(id: string) {
-    if (!id) {
-      setLineaProdId("");
-      setLineaPrecio("");
-      setLineaCant("");
+    const yaIdx = items.findIndex((i) => i.producto_id === p.id && !i.es_mitad_mitad);
+    const yaEnCarrito = items
+      .filter((i) => i.producto_id === p.id)
+      .reduce((s, i) => s + i.cantidad, 0);
+
+    // El Menú (controla_stock=false) se vende sin restricción: se produce al momento.
+    if (p.controla_stock !== false && yaEnCarrito + 1 > p.stock_actual) {
+      setErrorLinea(
+        `Stock insuficiente para "${p.nombre}". Disponible: ${p.stock_actual - yaEnCarrito} u.`
+      );
       return;
     }
-    const p = productosVendibles.find((x) => String(x.id) === id);
-    if (p) seleccionarProducto(p);
-  }
 
+    if (yaIdx >= 0) {
+      cambiarCantidad(yaIdx, 1);
+      return;
+    }
 
-  // ── Agregar línea al carrito ──────────────────────────────────────────────
-  function handleAgregarLinea() {
-    setErrorLinea(null);
-    if (!prodSel)          return setErrorLinea("Seleccioná un producto.");
-    if (cantNum <= 0)      return setErrorLinea("La cantidad debe ser mayor a 0.");
-    if (precioGs <= 0)     return setErrorLinea("El precio de venta debe ser mayor a 0.");
-    if (stockInsuf)
-      return setErrorLinea(
-        `Stock insuficiente para "${prodSel.nombre}". Disponible: ${stockDisp} u.`
-      );
-
+    const d = calcularLineaVenta(p.precio_venta, 1, lineaIva);
     setItems((prev) => [
       ...prev,
       {
-        producto_id:           prodSel.id,
-        producto_nombre:       prodSel.nombre,
-        sku:                   prodSel.sku,
-        cantidad:              cantNum,
-        precio_venta_original: precioInput,
-        precio_venta:          precioGs,
-        tipo_iva:              lineaIva,
-        subtotal:              lineaSubtotal,
-        monto_iva:             lineaMontoIva,
-        total_linea:           lineaTotalLinea,
+        producto_id: p.id,
+        producto_nombre: p.nombre,
+        sku: p.sku,
+        cantidad: 1,
+        precio_venta_original: p.precio_venta,
+        precio_venta: p.precio_venta,
+        tipo_iva: lineaIva,
+        subtotal: d.subtotal,
+        monto_iva: d.monto_iva,
+        total_linea: d.total_linea,
       },
     ]);
-
-    // Limpiar línea y devolver foco al buscador de producto
-    setLineaProdId("");
-    setLineaCant("");
-    setLineaPrecio("");
-    setLineaIva("10%");
-    setFocoBuscador((n) => n + 1);
+    setErrorVenta(null);
   }
+
+  /** Recalcula el desglose de una fila después de tocarle cantidad, precio o IVA. */
+  function actualizarLinea(idx: number, patch: { cantidad?: number; precio_venta?: number; tipo_iva?: TipoIvaVenta }) {
+    setItems((prev) =>
+      prev.map((l, i) => {
+        if (i !== idx) return l;
+        const cantidad = patch.cantidad ?? l.cantidad;
+        const precio = patch.precio_venta ?? l.precio_venta;
+        const iva = patch.tipo_iva ?? l.tipo_iva;
+        const d = calcularLineaVenta(precio, cantidad, iva);
+        return {
+          ...l,
+          cantidad,
+          precio_venta: precio,
+          precio_venta_original: precio,
+          tipo_iva: iva,
+          subtotal: d.subtotal,
+          monto_iva: d.monto_iva,
+          total_linea: d.total_linea,
+        };
+      })
+    );
+  }
+
+  /**
+   * Suma o resta unidades. Corta contra el stock disponible salvo para el Menú,
+   * y en 1 por abajo: para sacar la línea está el botón de borrar.
+   */
+  function cambiarCantidad(idx: number, delta: number) {
+    const l = items[idx];
+    if (!l) return;
+    const destino = l.cantidad + delta;
+    if (destino < 1) return;
+
+    const prod = productos.find((x) => x.id === l.producto_id);
+    const controla = prod ? prod.controla_stock !== false : false;
+    if (controla && prod && delta > 0) {
+      const otras = items
+        .filter((_, i) => i !== idx)
+        .filter((i) => i.producto_id === l.producto_id)
+        .reduce((s, i) => s + i.cantidad, 0);
+      if (otras + destino > prod.stock_actual) {
+        setErrorLinea(`Stock insuficiente para "${l.producto_nombre}". Disponible: ${prod.stock_actual - otras} u.`);
+        return;
+      }
+    }
+    setErrorLinea(null);
+    actualizarLinea(idx, { cantidad: destino });
+  }
+
 
   function handleEliminarLinea(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
@@ -448,207 +423,297 @@ export default function NuevaVentaPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-7xl">
 
-        {/* ── SECCIÓN 1: Agregar producto ───────────────────────────────────── */}
+        {/* ── Datos del pedido ─────────────────────────────────────────────
+            Va primero y en su propia tarjeta porque define el resto: sin
+            modalidad no se puede confirmar, y de ella dependen mesa, dirección
+            o nombre de retiro. Antes vivía al final del carrito, después de los
+            totales, donde era fácil pasarla por alto. */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <SectionTitle>Agregar producto</SectionTitle>
-            <button
-              type="button"
-              onClick={() => setMitadOpen(true)}
-              className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-            >
-              <Pizza className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Pizza mitad y mitad
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-end">
-
-            {/* ── Buscador de producto — 4 cols ─────────────────────────────── */}
-            <div className="lg:col-span-4">
-              <label className={labelClass}>
-                Producto
-                <span className="ml-1 text-gray-400 font-normal normal-case tracking-normal text-xs">
-                  — escribí nombre o SKU
-                </span>
-              </label>
-
-              <div className="flex gap-2">
-                <SmartSearchSelect
-                  options={opcionesProducto}
-                  value={lineaProdId}
-                  onChange={seleccionarProductoPorId}
-                  placeholder="Buscar producto por nombre o SKU…"
-                  emptyText="Ningún producto coincide"
-                  focusSignal={focoBuscador}
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  title="Abrir buscador avanzado (catálogo completo, con imagen)"
-                  className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-[#4FAEB2]/50 hover:bg-slate-50"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
-                  </svg>
-                  Buscar
-                </button>
+          <SectionTitle>Datos del pedido</SectionTitle>
+          <div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800 mb-3">
+                Modalidad del pedido <span className="text-red-500">*</span>
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {([
+                  { v: "local",     label: "En local" },
+                  { v: "delivery",  label: "Delivery" },
+                  { v: "carry_out", label: "Retiro / Carry out" },
+                ] as Array<{ v: Modalidad; label: string }>).map((opt) => (
+                  <label
+                    key={opt.v}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition ${
+                      modalidad === opt.v
+                        ? "border-amber-500 bg-white text-amber-700 font-medium"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="modalidad"
+                      value={opt.v}
+                      checked={modalidad === opt.v}
+                      onChange={() => setModalidad(opt.v)}
+                      className="h-4 w-4 text-amber-600 focus:ring-amber-500"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
               </div>
-
-              {/* Info del producto seleccionado */}
-              {prodSel && (
-                <div className="mt-1.5 flex gap-3 text-xs text-gray-500">
-                  <span>Precio: <strong>{formatGs(prodSel.precio_venta)}</strong></span>
-                  {prodSelControlaStock ? (
-                    <span>Disp: <strong className={stockDisp <= 0 ? "text-red-600" : "text-gray-700"}>
-                      {stockDisp} u.
-                    </strong></span>
-                  ) : (
-                    <span><span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 font-medium px-2 py-0.5">Menú</span></span>
-                  )}
+  
+              {modalidad === "local" && (
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Número de mesa</label>
+                    <input
+                      type="text"
+                      value={pedidoMesa}
+                      onChange={(e) => setPedidoMesa(e.target.value)}
+                      placeholder="Opcional — ej: 3"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
+                    <input
+                      type="text"
+                      value={pedidoObservacion}
+                      onChange={(e) => setPedidoObservacion(e.target.value)}
+                      placeholder='Ej: "sin cebolla"'
+                      className={inputClass}
+                    />
+                  </div>
                 </div>
               )}
+  
+              {modalidad === "delivery" && (
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre cliente</label>
+                    <input
+                      type="text"
+                      value={pedidoClienteNombre}
+                      onChange={(e) => setPedidoClienteNombre(e.target.value)}
+                      placeholder="Opcional"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Teléfono
+                    </label>
+                    <input
+                      type="text"
+                      value={pedidoClienteTelefono}
+                      onChange={(e) => setPedidoClienteTelefono(e.target.value)}
+                      placeholder="09xx xxx xxx"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Dirección de entrega
+                    </label>
+                    <input
+                      type="text"
+                      value={pedidoDireccion}
+                      onChange={(e) => setPedidoDireccion(e.target.value)}
+                      placeholder="Calle, número, referencia"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
+                    <input
+                      type="text"
+                      value={pedidoObservacion}
+                      onChange={(e) => setPedidoObservacion(e.target.value)}
+                      placeholder="Notas para el repartidor o la cocina"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
+  
+              {modalidad === "carry_out" && (
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre cliente</label>
+                    <input
+                      type="text"
+                      value={pedidoClienteNombre}
+                      onChange={(e) => setPedidoClienteNombre(e.target.value)}
+                      placeholder="Opcional"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+                    <input
+                      type="text"
+                      value={pedidoClienteTelefono}
+                      onChange={(e) => setPedidoClienteTelefono(e.target.value)}
+                      placeholder="Opcional"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
+                    <input
+                      type="text"
+                      value={pedidoObservacion}
+                      onChange={(e) => setPedidoObservacion(e.target.value)}
+                      placeholder='Ej: "pasa en 20 min"'
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
+  
+              {modalidad === "" && (
+                <p className="mt-2 text-xs text-amber-700">
+                  Elegí una modalidad antes de confirmar la venta.
+                </p>
+              )}
             </div>
-
-            {/* Cantidad — 2 cols */}
-            <div className="lg:col-span-2">
-              <label className={labelClass}>Cantidad</label>
-              <input
-                type="number"
-                value={lineaCant}
-                onChange={(e) => { setErrorLinea(null); setLineaCant(e.target.value); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAgregarLinea(); }}}
-                placeholder="Cant."
-                className={`${inputClass} ${stockInsuf ? "border-red-400 bg-red-50" : ""}`}
-                min={1} step={1}
-              />
-            </div>
-
-            {/* Precio — 2 cols */}
-            <div className="lg:col-span-2">
-              <label className={labelClass}>Precio (Gs.)</label>
-              <MontoInput
-                value={lineaPrecio}
-                onChange={(n) => { setErrorLinea(null); setLineaPrecio(String(n)); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAgregarLinea(); }}}
-                placeholder="Precio"
-                className={inputClass}
-                decimals={false}
-              />
-            </div>
-
-            {/* IVA — 2 cols */}
-            <div className="lg:col-span-2">
-              <label className={labelClass}>IVA</label>
-              <SegmentedControl<TipoIvaVenta>
-                value={lineaIva}
-                options={[
-                  { value: "EXENTA", label: "Ex"  },
-                  { value: "5%",     label: "5%"  },
-                  { value: "10%",    label: "10%" },
-                ]}
-                onChange={setLineaIva}
-              />
-            </div>
-
-            {/* Botón — 2 cols */}
-            <div className="flex flex-col lg:col-span-2">
-              <label className="invisible text-xs mb-1.5">.</label>
-              <button
-                type="button"
-                onClick={handleAgregarLinea}
-                disabled={!lineaValida}
-                className="flex items-center justify-center gap-1.5 w-full bg-[#0EA5E9] hover:bg-[#0284C7] text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-                  <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-                </svg>
-                Agregar producto
-              </button>
-            </div>
-
           </div>
-
-          {/* Preview totales de la línea */}
-          {lineaSubtotal > 0 && (
-            <div className="mt-3 flex gap-4 text-xs text-gray-500">
-              <span>Subtotal: <strong className="text-gray-800">{formatGs(lineaSubtotal)}</strong></span>
-              <span>IVA: <strong className="text-gray-800">
-                {lineaIva === "EXENTA" ? "—" : formatGs(lineaMontoIva)}
-              </strong></span>
-              <span>Total línea: <strong className="text-gray-900">{formatGs(lineaTotalLinea)}</strong></span>
-            </div>
-          )}
-
-          {/* Error agregar */}
-          {errorLinea && (
-            <div className="mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
-              <span><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span><span className="font-medium">{errorLinea}</span>
-            </div>
-          )}
         </div>
 
-        {/* ── SECCIÓN 3: Carrito + totales + confirmar ─────────────────────── */}
+        {/* ── Carrito: buscar, ajustar, cobrar ────────────────────────────── */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
-          <SectionTitle>Productos en esta venta</SectionTitle>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 [&>p]:mb-0">
+            <SectionTitle>Productos en esta venta</SectionTitle>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMitadOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                title="Armar una pizza con dos sabores"
+              >
+                <Pizza className="h-4 w-4" aria-hidden />
+                Pizza mitad y mitad
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-[#4FAEB2] hover:text-[#3F8E91]"
+                title="Buscador avanzado: catálogo con imágenes y filtros"
+              >
+                Buscador avanzado
+              </button>
+            </div>
+          </div>
+
+          {/* El buscador es la acción principal de la pantalla: elegir un producto
+              lo agrega al instante y deja el foco listo para el siguiente. */}
+          <SmartSearchSelect
+            variant="buscador"
+            options={opcionesProducto}
+            value=""
+            onChange={agregarProductoPorId}
+            placeholder="Buscar producto por nombre o SKU…"
+            emptyText="Ningún producto coincide"
+            focusSignal={focoBuscador}
+          />
+
+          {errorLinea && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="font-medium">{errorLinea}</span>
+            </div>
+          )}
 
           {items.length === 0 ? (
-            <div className="py-10 text-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
-              Todavía no agregaste productos a esta venta.
+            <div className="mt-4 rounded-xl border-2 border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
+              Buscá un producto arriba y se agrega solo a la venta.
             </div>
           ) : (
             <>
               {/* min-w fuerza scroll horizontal en mobile (9 columnas).
                   Columnas secundarias (SKU, Subtotal, IVA Gs) se ocultan
                   progresivamente: en mobile solo Producto/Cant/Precio/Total/eliminar. */}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] sm:min-w-0 text-sm text-left">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 text-sm font-semibold">
-                      <th className="py-2.5 pr-3 font-medium">Producto</th>
-                      <th className="hidden py-2.5 pr-3 font-medium lg:table-cell">SKU</th>
-                      <th className="py-2.5 pr-3 font-medium text-right">Cant.</th>
-                      <th className="py-2.5 pr-3 font-medium text-right">Precio unit.</th>
-                      <th className="hidden py-2.5 pr-3 text-center font-medium lg:table-cell">IVA</th>
-                      <th className="py-2.5 pr-3 font-medium text-right hidden lg:table-cell">Subtotal</th>
-                      <th className="py-2.5 pr-3 font-medium text-right hidden lg:table-cell">IVA Gs.</th>
-                      <th className="py-2.5 pr-3 font-medium text-right">Total</th>
-                      <th className="py-2.5 font-medium"></th>
+              <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-3">Producto</th>
+                      <th className="hidden px-3 py-3 lg:table-cell">SKU</th>
+                      <th className="px-3 py-3 text-center">Cant.</th>
+                      <th className="px-3 py-3 text-right">Precio unit.</th>
+                      <th className="hidden px-3 py-3 text-center lg:table-cell">IVA</th>
+                      <th className="hidden px-3 py-3 text-right lg:table-cell">Gravada</th>
+                      <th className="hidden px-3 py-3 text-right lg:table-cell">IVA Gs.</th>
+                      <th className="px-3 py-3 text-right">Total</th>
+                      <th className="px-3 py-3"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {items.map((item, idx) => (
-                      <tr key={idx} className="border-b border-slate-200 last:border-0 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 pr-3 font-medium text-gray-800">
+                      <tr key={idx} className="transition-colors hover:bg-slate-50/70">
+                        <td className="px-3 py-3 font-medium text-slate-800">
                           {item.producto_nombre}
                           {item.es_mitad_mitad && item.mitad_1_nombre && item.mitad_2_nombre && (
                             <span className="block text-xs font-normal text-amber-700">½ {item.mitad_1_nombre} + ½ {item.mitad_2_nombre}</span>
                           )}
                         </td>
-                        <td className="hidden py-3 pr-3 font-mono text-xs text-gray-500 lg:table-cell">
+                        <td className="hidden px-3 py-3 font-mono text-xs text-slate-500 lg:table-cell">
                           {item.sku}
                         </td>
-                        <td className="py-3 pr-3 text-right tabular-nums">
-                          {item.cantidad}
+                        {/* Cantidad: se ajusta acá, no antes de agregar. */}
+                        <td className="px-3 py-3">
+                          <div className="mx-auto inline-flex items-center rounded-lg border border-slate-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => cambiarCantidad(idx, -1)}
+                              disabled={item.cantidad <= 1}
+                              className="flex h-8 w-8 items-center justify-center rounded-l-lg text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
+                              aria-label="Quitar una unidad"
+                            >
+                              <Minus className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                            <span className="w-10 text-center text-sm font-semibold tabular-nums text-slate-800">
+                              {item.cantidad}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => cambiarCantidad(idx, 1)}
+                              className="flex h-8 w-8 items-center justify-center rounded-r-lg text-slate-500 transition-colors hover:bg-slate-100"
+                              aria-label="Agregar una unidad"
+                            >
+                              <Plus className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                          </div>
                         </td>
-                        <td className="py-3 pr-3 text-right tabular-nums text-gray-600 text-xs">
-                          {formatGs(item.precio_venta)}
+                        <td className="px-3 py-3">
+                          <MontoInput
+                            value={String(item.precio_venta)}
+                            onChange={(n) => actualizarLinea(idx, { precio_venta: Number(n) || 0 })}
+                            className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-right text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                          />
                         </td>
-                        <td className="hidden py-3 pr-3 text-center lg:table-cell">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                            {ivaLabel[item.tipo_iva]}
-                          </span>
+                        <td className="hidden px-3 py-3 text-center lg:table-cell">
+                          <select
+                            value={item.tipo_iva}
+                            onChange={(e) => actualizarLinea(idx, { tipo_iva: e.target.value as TipoIvaVenta })}
+                            aria-label={`IVA de ${item.producto_nombre}`}
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                          >
+                            <option value="EXENTA">Exenta</option>
+                            <option value="5%">5%</option>
+                            <option value="10%">10%</option>
+                          </select>
                         </td>
-                        <td className="py-3 pr-3 text-right tabular-nums text-gray-600 text-xs hidden lg:table-cell">
+                        <td className="hidden px-3 py-3 text-right text-xs tabular-nums text-slate-600 lg:table-cell">
                           {formatGs(item.subtotal)}
                         </td>
-                        <td className="py-3 pr-3 text-right tabular-nums text-gray-500 text-xs hidden lg:table-cell">
+                        <td className="hidden px-3 py-3 text-right text-xs tabular-nums text-slate-500 lg:table-cell">
                           {item.monto_iva > 0 ? formatGs(item.monto_iva) : "—"}
                         </td>
-                        <td className="py-3 pr-3 text-right tabular-nums font-semibold text-gray-800">
+                        <td className="px-3 py-3 text-right font-semibold tabular-nums text-slate-800">
                           {formatGs(item.total_linea)}
                         </td>
-                        <td className="py-3 text-center">
+                        <td className="px-3 py-3 text-center">
                           <button
                             type="button"
                             onClick={() => handleEliminarLinea(idx)}
@@ -701,7 +766,7 @@ export default function NuevaVentaPage() {
                               onClick={() => setMetodoPago(m)}
                               className={`text-xs py-1.5 rounded-md border transition-colors ${
                                 metodoPago === m
-                                  ? "border-[#0EA5E9] bg-[#0EA5E9]/10 text-[#0EA5E9] font-medium"
+                                  ? "border-[#4FAEB2] bg-[#4FAEB2]/10 font-semibold text-[#3F8E91]"
                                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                               }`}
                             >
@@ -751,154 +816,6 @@ export default function NuevaVentaPage() {
             </>
           )}
 
-          {/* Modalidad del pedido (gastronómico) */}
-          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-4">
-            <p className="text-sm font-semibold text-slate-800 mb-3">
-              Modalidad del pedido <span className="text-red-500">*</span>
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {([
-                { v: "local",     label: "En local" },
-                { v: "delivery",  label: "Delivery" },
-                { v: "carry_out", label: "Retiro / Carry out" },
-              ] as Array<{ v: Modalidad; label: string }>).map((opt) => (
-                <label
-                  key={opt.v}
-                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition ${
-                    modalidad === opt.v
-                      ? "border-amber-500 bg-white text-amber-700 font-medium"
-                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="modalidad"
-                    value={opt.v}
-                    checked={modalidad === opt.v}
-                    onChange={() => setModalidad(opt.v)}
-                    className="h-4 w-4 text-amber-600 focus:ring-amber-500"
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-
-            {modalidad === "local" && (
-              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Número de mesa</label>
-                  <input
-                    type="text"
-                    value={pedidoMesa}
-                    onChange={(e) => setPedidoMesa(e.target.value)}
-                    placeholder="Opcional — ej: 3"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
-                  <input
-                    type="text"
-                    value={pedidoObservacion}
-                    onChange={(e) => setPedidoObservacion(e.target.value)}
-                    placeholder='Ej: "sin cebolla"'
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            )}
-
-            {modalidad === "delivery" && (
-              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nombre cliente</label>
-                  <input
-                    type="text"
-                    value={pedidoClienteNombre}
-                    onChange={(e) => setPedidoClienteNombre(e.target.value)}
-                    placeholder="Opcional"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Teléfono
-                  </label>
-                  <input
-                    type="text"
-                    value={pedidoClienteTelefono}
-                    onChange={(e) => setPedidoClienteTelefono(e.target.value)}
-                    placeholder="09xx xxx xxx"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="lg:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Dirección de entrega
-                  </label>
-                  <input
-                    type="text"
-                    value={pedidoDireccion}
-                    onChange={(e) => setPedidoDireccion(e.target.value)}
-                    placeholder="Calle, número, referencia"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="lg:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
-                  <input
-                    type="text"
-                    value={pedidoObservacion}
-                    onChange={(e) => setPedidoObservacion(e.target.value)}
-                    placeholder="Notas para el repartidor o la cocina"
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            )}
-
-            {modalidad === "carry_out" && (
-              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nombre cliente</label>
-                  <input
-                    type="text"
-                    value={pedidoClienteNombre}
-                    onChange={(e) => setPedidoClienteNombre(e.target.value)}
-                    placeholder="Opcional"
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-                  <input
-                    type="text"
-                    value={pedidoClienteTelefono}
-                    onChange={(e) => setPedidoClienteTelefono(e.target.value)}
-                    placeholder="Opcional"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="lg:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
-                  <input
-                    type="text"
-                    value={pedidoObservacion}
-                    onChange={(e) => setPedidoObservacion(e.target.value)}
-                    placeholder='Ej: "pasa en 20 min"'
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            )}
-
-            {modalidad === "" && (
-              <p className="mt-2 text-xs text-amber-700">
-                Elegí una modalidad antes de confirmar la venta.
-              </p>
-            )}
-          </div>
-
           {/* Error confirmar */}
           {errorVenta && (
             <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-700">
@@ -913,14 +830,14 @@ export default function NuevaVentaPage() {
             <button
               type="button"
               onClick={() => router.push("/ventas")}
-              className="border border-slate-200 px-6 py-3 rounded-lg text-sm hover:bg-slate-50 transition-colors min-h-[48px] w-full sm:w-auto"
+              className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!ventaValida}
-              className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 min-h-[48px] w-full sm:w-auto"
+              className="min-h-[48px] w-full rounded-xl bg-[#4FAEB2] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
             >
               Confirmar venta
             </button>

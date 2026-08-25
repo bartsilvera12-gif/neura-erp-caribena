@@ -95,6 +95,13 @@ function highlight(text: string, terms: string[]) {
  * - `focusSignal`: cada vez que cambia el número, se abre y toma el foco. Sirve
  *   para volver al buscador después de agregar un ítem al carrito, que es el
  *   ciclo normal de una caja.
+ *
+ * Dos variantes:
+ * - "select": se ve como un campo con el valor elegido, y se abre al hacer clic.
+ *   Sirve cuando el formulario tiene que mostrar qué quedó seleccionado.
+ * - "buscador": la caja de búsqueda queda siempre visible y grande, y al elegir
+ *   se limpia y conserva el foco. Sirve cuando elegir NO es seleccionar sino
+ *   ejecutar una acción — agregar el producto a la venta y seguir buscando.
  */
 export default function SmartSearchSelect({
   options,
@@ -107,6 +114,7 @@ export default function SmartSearchSelect({
   maxResults = 50,
   focusSignal,
   className = "",
+  variant = "select",
 }: {
   options: SmartOption[];
   value: string;
@@ -118,8 +126,10 @@ export default function SmartSearchSelect({
   maxResults?: number;
   focusSignal?: number;
   className?: string;
+  variant?: "select" | "buscador";
 }) {
-  const [open, setOpen] = useState(false);
+  const esBuscador = variant === "buscador";
+  const [open, setOpen] = useState(esBuscador);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -141,11 +151,13 @@ export default function SmartSearchSelect({
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+      if (boxRef.current?.contains(e.target as Node)) return;
+      if (esBuscador) setQuery("");
+      else setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
+  }, [esBuscador]);
 
   /** Mantener la opción activa a la vista al navegar con el teclado. */
   useEffect(() => {
@@ -167,8 +179,10 @@ export default function SmartSearchSelect({
   function choose(o: SmartOption) {
     if (o.disabled) return;
     onChange(o.id);
-    setOpen(false);
     setQuery("");
+    setActive(0);
+    if (esBuscador) inputRef.current?.focus();
+    else setOpen(false);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -188,14 +202,18 @@ export default function SmartSearchSelect({
       const r = results[active];
       if (r) choose(r);
     } else if (e.key === "Escape") {
-      setOpen(false);
+      if (esBuscador) setQuery("");
+      else setOpen(false);
     }
   }
 
-  const base =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm " +
-    "outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 " +
-    "focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20";
+  const base = esBuscador
+    ? "h-12 w-full rounded-xl border-2 border-[#4FAEB2]/35 bg-white px-3 text-base text-slate-900 " +
+      "outline-none transition-all placeholder:text-slate-400 focus:border-[#4FAEB2] " +
+      "focus:ring-4 focus:ring-[#4FAEB2]/15"
+    : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm " +
+      "outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 " +
+      "focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20";
 
   return (
     <div ref={boxRef} className={`relative ${className}`}>
@@ -215,7 +233,11 @@ export default function SmartSearchSelect({
 
       {open ? (
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search
+            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${
+              esBuscador ? "left-4 h-5 w-5 text-[#4FAEB2]" : "left-3 h-4 w-4 text-slate-400"
+            }`}
+          />
           <input
             ref={inputRef}
             autoFocus
@@ -225,7 +247,7 @@ export default function SmartSearchSelect({
             onKeyDown={onKeyDown}
             placeholder={placeholder}
             autoComplete="off"
-            className={`${base} pl-9 pr-9`}
+            className={`${base} ${esBuscador ? "pl-12 pr-10" : "pl-9 pr-9"}`}
           />
           {query && (
             <button
@@ -253,7 +275,7 @@ export default function SmartSearchSelect({
         </button>
       )}
 
-      {open && (
+      {open && (!esBuscador || query.trim() !== "") && (
         <ul
           ref={listRef}
           role="listbox"
@@ -263,7 +285,7 @@ export default function SmartSearchSelect({
             <li className="px-3 py-6 text-center text-xs text-slate-400">{emptyText}</li>
           ) : (
             results.map((o, i) => {
-              const isSel = o.id === value;
+              const isSel = !esBuscador && o.id === value;
               return (
                 <li
                   key={o.id}
