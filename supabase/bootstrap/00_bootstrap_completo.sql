@@ -862,24 +862,24 @@ BEGIN
 
   IF EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = (dst || '.empresas')::regclass
              AND a.attname = 'id' AND a.attnum > 0 AND NOT a.attisdropped) THEN
-    col_names := col_names || 'id';        col_vals := col_vals || quote_literal(nueva_id::text) || '::uuid';
+    col_names := col_names || 'id'::text;          col_vals := col_vals || (quote_literal(nueva_id::text) || '::uuid');
   END IF;
   IF EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = (dst || '.empresas')::regclass
              AND a.attname = 'nombre' AND a.attnum > 0 AND NOT a.attisdropped) THEN
-    col_names := col_names || 'nombre';    col_vals := col_vals || quote_literal(nombre_emp);
+    col_names := col_names || 'nombre'::text;      col_vals := col_vals || quote_literal(nombre_emp);
   END IF;
   IF ruc_emp IS NOT NULL AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = (dst || '.empresas')::regclass
              AND a.attname = 'ruc' AND a.attnum > 0 AND NOT a.attisdropped) THEN
-    col_names := col_names || 'ruc';       col_vals := col_vals || quote_literal(ruc_emp);
+    col_names := col_names || 'ruc'::text;         col_vals := col_vals || quote_literal(ruc_emp);
   END IF;
   IF EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = (dst || '.empresas')::regclass
              AND a.attname = 'activo' AND a.attnum > 0 AND NOT a.attisdropped) THEN
-    col_names := col_names || 'activo';    col_vals := col_vals || 'true';
+    col_names := col_names || 'activo'::text;      col_vals := col_vals || 'true'::text;
   END IF;
   -- `data_schema`: en instancia dedicada apunta al schema propio.
   IF EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = (dst || '.empresas')::regclass
              AND a.attname = 'data_schema' AND a.attnum > 0 AND NOT a.attisdropped) THEN
-    col_names := col_names || 'data_schema'; col_vals := col_vals || quote_literal(dst);
+    col_names := col_names || 'data_schema'::text; col_vals := col_vals || quote_literal(dst);
   END IF;
 
   -- ¿Queda alguna columna obligatoria que no sepamos llenar?
@@ -891,7 +891,7 @@ BEGIN
     AND a.attnum > 0 AND NOT a.attisdropped
     AND a.attnotnull AND ad.adbin IS NULL
     AND a.attidentity = '' AND a.attgenerated = ''
-    AND NOT (a.attname = ANY (col_names));
+    AND NOT (a.attname::text = ANY (col_names));
 
   IF faltantes IS NOT NULL THEN
     RAISE EXCEPTION
