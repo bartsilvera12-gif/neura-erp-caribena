@@ -537,21 +537,9 @@ export default function NuevaCompraPage() {
                         onChange={handleProductoInputChange} placeholder="Ej: 5" min={0}
                         className={inputSmClass} />
                     </div>
-                    <div className="col-span-2">
-                      <label className={labelSmClass}>Método de valuación</label>
-                      <SegmentedControl<MetodoValuacion>
-                        small
-                        value={formProducto.metodo_valuacion}
-                        options={[
-                          { value: "CPP",  label: "CPP" },
-                          { value: "FIFO", label: "FIFO" },
-                          { value: "LIFO", label: "LIFO" },
-                        ]}
-                        onChange={(v) =>
-                          setFormProducto((prev) => ({ ...prev, metodo_valuacion: v }))
-                        }
-                      />
-                    </div>
+                    {/* Método de valuación oculto: en esta instancia siempre es CPP,
+                        igual que en el alta de Inventario. El valor sigue viajando
+                        en el payload con su default. */}
                     <div className="col-span-2">
                       <label className={labelSmClass}>Precio de venta sugerido (Gs.)</label>
                       <MontoInput
