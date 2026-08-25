@@ -53,7 +53,7 @@ CREATE FUNCTION pg_temp.remap(t text, src text, dst text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
   SELECT pg_catalog.regexp_replace(
            pg_catalog.regexp_replace(
-             pg_catalog.coalesce(t, ''),
+             coalesce(t, ''),
              '"' || src || '"', '"' || dst || '"', 'g'),
            '(^|[^A-Za-z0-9_$."])' || src || '(?=[^A-Za-z0-9_$]|$)',
            '\1' || dst, 'g')
@@ -66,7 +66,7 @@ CREATE FUNCTION pg_temp.localizar(t text, dst text)
 RETURNS text LANGUAGE plpgsql STABLE AS $lz$
 DECLARE
   m     text[];
-  out_t text := pg_catalog.coalesce(t, '');
+  out_t text := coalesce(t, '');
   sch   text;
   obj   text;
 BEGIN
@@ -76,7 +76,7 @@ BEGIN
   FOR m IN
     SELECT DISTINCT x
     FROM pg_catalog.regexp_matches(out_t,
-           '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+           '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
   LOOP
     sch := m[1];
     obj := m[2];
@@ -128,7 +128,7 @@ RETURNS text LANGUAGE sql STABLE AS $inv$
       JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = dst AND NOT t.tgisinternal
     UNION ALL
-    SELECT pg_catalog.coalesce(pol.qual,'') || ' ' || pg_catalog.coalesce(pol.with_check,'')
+    SELECT coalesce(pol.qual,'') || ' ' || coalesce(pol.with_check,'')
       FROM pg_catalog.pg_policies pol
      WHERE pol.schemaname = dst
   ) q
@@ -188,7 +188,7 @@ BEGIN
       IF r.typnotnull THEN
         stmt := stmt || ' NOT NULL';
       END IF;
-      SELECT pg_catalog.coalesce(
+      SELECT coalesce(
                pg_catalog.string_agg(' CONSTRAINT ' || pg_catalog.quote_ident(c.conname)
                  || ' ' || pg_temp.remap(pg_catalog.pg_get_constraintdef(c.oid), src, dst), ' '),
                '')
@@ -436,13 +436,13 @@ BEGIN
     SELECT pg_catalog.string_agg(
              CASE WHEN x IN ('public', '-') THEN 'public' ELSE pg_catalog.quote_ident(x) END, ', ')
       INTO cols
-    FROM pg_catalog.unnest(r.roles::text[]) AS x;
+    FROM pg_catalog.unnest(r.roles::text[]) AS u(x);
 
     EXECUTE pg_catalog.format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s %s %s',
       r.policyname, dst, r.tablename,
       CASE WHEN pg_catalog.upper(r.permissive) = 'PERMISSIVE' THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
       r.cmd,
-      pg_catalog.coalesce(cols, 'public'),
+      coalesce(cols, 'public'),
       CASE WHEN r.qual IS NOT NULL
            THEN 'USING (' || pg_temp.remap(r.qual, src, dst) || ')' ELSE '' END,
       CASE WHEN r.with_check IS NOT NULL
@@ -511,12 +511,12 @@ BEGIN
     clonadas := 0;
     EXIT WHEN pasada > 6;
 
-    inv := pg_catalog.coalesce(pg_temp.inventario(dst), '');
+    inv := coalesce(pg_temp.inventario(dst), '');
 
     FOR r IN
       SELECT DISTINCT x[1] AS sch, x[2] AS fname
       FROM pg_catalog.regexp_matches(inv,
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(', 'g') AS g(x)
     LOOP
       -- Sólo si allá es realmente una función y acá no hay gemela.
       CONTINUE WHEN NOT EXISTS (
@@ -549,7 +549,7 @@ BEGIN
 
           -- Si la original fijaba search_path, ponerlo con el schema propio primero.
           IF p2.proconfig IS NOT NULL
-             AND EXISTS (SELECT 1 FROM pg_catalog.unnest(p2.proconfig) AS cfg
+             AND EXISTS (SELECT 1 FROM pg_catalog.unnest(p2.proconfig) AS pc(cfg)
                          WHERE cfg LIKE 'search\_path=%') THEN
             EXECUTE pg_catalog.format(
               'ALTER ROUTINE %I.%I(%s) SET search_path TO %I, public, extensions',
@@ -675,22 +675,22 @@ BEGIN
     WHERE p.schemaname = dst
     ORDER BY p.tablename, p.policyname
   LOOP
-    CONTINUE WHEN pg_temp.localizar(pg_catalog.coalesce(r.qual,''), dst)
-                    IS NOT DISTINCT FROM pg_catalog.coalesce(r.qual,'')
-                  AND pg_temp.localizar(pg_catalog.coalesce(r.with_check,''), dst)
-                    IS NOT DISTINCT FROM pg_catalog.coalesce(r.with_check,'');
+    CONTINUE WHEN pg_temp.localizar(coalesce(r.qual,''), dst)
+                    IS NOT DISTINCT FROM coalesce(r.qual,'')
+                  AND pg_temp.localizar(coalesce(r.with_check,''), dst)
+                    IS NOT DISTINCT FROM coalesce(r.with_check,'');
 
     SELECT pg_catalog.string_agg(
              CASE WHEN x IN ('public','-') THEN 'public' ELSE pg_catalog.quote_ident(x) END, ', ')
       INTO stmt
-    FROM pg_catalog.unnest(r.roles::text[]) AS x;
+    FROM pg_catalog.unnest(r.roles::text[]) AS u(x);
 
     EXECUTE pg_catalog.format('DROP POLICY %I ON %I.%I', r.policyname, dst, r.tablename);
     EXECUTE pg_catalog.format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s %s %s',
       r.policyname, dst, r.tablename,
       CASE WHEN pg_catalog.upper(r.permissive) = 'PERMISSIVE' THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
       r.cmd,
-      pg_catalog.coalesce(stmt, 'public'),
+      coalesce(stmt, 'public'),
       CASE WHEN r.qual IS NOT NULL
            THEN 'USING (' || pg_temp.localizar(r.qual, dst) || ')' ELSE '' END,
       CASE WHEN r.with_check IS NOT NULL
@@ -786,7 +786,7 @@ DECLARE
 BEGIN
   SELECT pg_catalog.array_agg(x)
     INTO destinos
-  FROM pg_catalog.unnest(ARRAY['anon','authenticated','service_role','postgres']) AS x
+  FROM pg_catalog.unnest(ARRAY['anon','authenticated','service_role','postgres']) AS u(x)
   WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = x);
 
   IF destinos IS NULL THEN
@@ -901,7 +901,7 @@ BEGIN
 
   EXECUTE format('INSERT INTO %I.empresas (%s) VALUES (%s)',
                  dst,
-                 (SELECT string_agg(quote_ident(x), ', ') FROM unnest(col_names) x),
+                 (SELECT string_agg(quote_ident(x), ', ') FROM unnest(col_names) AS u(x)),
                  array_to_string(col_vals, ', '));
 
   RAISE NOTICE '────────────────────────────────────────────────────────';
@@ -1029,7 +1029,7 @@ SELECT 'funcion', p.proname, x[1] || '.' || x[2], x[1] || '.' || x[2],
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 CROSS JOIN LATERAL regexp_matches(pg_get_functiondef(p.oid),
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
 WHERE n.nspname = 'caribenaerp' AND p.prokind IN ('f','p')
 
 UNION ALL
@@ -1041,7 +1041,7 @@ SELECT 'policy', pol.tablename, pol.policyname, x[1] || '.' || x[2],
   END
 FROM pg_policies pol
 CROSS JOIN LATERAL regexp_matches(coalesce(pol.qual,'') || ' ' || coalesce(pol.with_check,''),
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
 WHERE pol.schemaname = 'caribenaerp'
 
 UNION ALL
@@ -1055,7 +1055,7 @@ FROM pg_trigger t
 JOIN pg_class c     ON c.oid = t.tgrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 CROSS JOIN LATERAL regexp_matches(pg_get_triggerdef(t.oid),
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
 WHERE n.nspname = 'caribenaerp' AND NOT t.tgisinternal
 
 UNION ALL
@@ -1066,7 +1066,7 @@ JOIN pg_class c     ON c.oid = ad.adrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 JOIN pg_attribute a ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
 CROSS JOIN LATERAL regexp_matches(pg_get_expr(ad.adbin, ad.adrelid),
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
 WHERE n.nspname = 'caribenaerp'
 
 UNION ALL
@@ -1075,7 +1075,7 @@ SELECT 'vista', c.relname, '', x[1] || '.' || x[2],
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 CROSS JOIN LATERAL regexp_matches(pg_get_viewdef(c.oid, true),
-             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS g(x)
 WHERE n.nspname = 'caribenaerp' AND c.relkind IN ('v','m')
 
 ORDER BY 1, 2, 3;

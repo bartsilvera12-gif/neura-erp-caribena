@@ -38,7 +38,7 @@ CREATE FUNCTION pg_temp.remap(t text, src text, dst text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
   SELECT pg_catalog.regexp_replace(
            pg_catalog.regexp_replace(
-             pg_catalog.coalesce(t, ''),
+             coalesce(t, ''),
              '"' || src || '"', '"' || dst || '"', 'g'),
            '(^|[^A-Za-z0-9_$."])' || src || '(?=[^A-Za-z0-9_$]|$)',
            '\1' || dst, 'g')
@@ -93,7 +93,7 @@ BEGIN
       IF r.typnotnull THEN
         stmt := stmt || ' NOT NULL';
       END IF;
-      SELECT pg_catalog.coalesce(
+      SELECT coalesce(
                pg_catalog.string_agg(' CONSTRAINT ' || pg_catalog.quote_ident(c.conname)
                  || ' ' || pg_temp.remap(pg_catalog.pg_get_constraintdef(c.oid), src, dst), ' '),
                '')
@@ -341,13 +341,13 @@ BEGIN
     SELECT pg_catalog.string_agg(
              CASE WHEN x IN ('public', '-') THEN 'public' ELSE pg_catalog.quote_ident(x) END, ', ')
       INTO cols
-    FROM pg_catalog.unnest(r.roles::text[]) AS x;
+    FROM pg_catalog.unnest(r.roles::text[]) AS u(x);
 
     EXECUTE pg_catalog.format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s %s %s',
       r.policyname, dst, r.tablename,
       CASE WHEN pg_catalog.upper(r.permissive) = 'PERMISSIVE' THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
       r.cmd,
-      pg_catalog.coalesce(cols, 'public'),
+      coalesce(cols, 'public'),
       CASE WHEN r.qual IS NOT NULL
            THEN 'USING (' || pg_temp.remap(r.qual, src, dst) || ')' ELSE '' END,
       CASE WHEN r.with_check IS NOT NULL

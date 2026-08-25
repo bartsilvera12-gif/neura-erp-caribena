@@ -76,7 +76,7 @@ BEGIN
 
   EXECUTE format('INSERT INTO %I.empresas (%s) VALUES (%s)',
                  dst,
-                 (SELECT string_agg(quote_ident(x), ', ') FROM unnest(col_names) x),
+                 (SELECT string_agg(quote_ident(x), ', ') FROM unnest(col_names) AS u(x)),
                  array_to_string(col_vals, ', '));
 
   RAISE NOTICE '────────────────────────────────────────────────────────';
