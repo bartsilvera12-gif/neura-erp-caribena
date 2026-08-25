@@ -1,7 +1,13 @@
 "use client";
 
 import SelectField from "@/components/ui/SelectField";
-import { AlertTriangle, Clock, Folder } from "lucide-react";
+import { AlertTriangle, Clock, Folder, Trash2 } from "lucide-react";
+import {
+  btnChico,
+  btnIconoPeligro,
+  btnPrimario,
+  btnSecundario,
+} from "@/lib/ui/estilos";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -122,9 +128,9 @@ function ClienteFichaSkeleton() {
   return (
     <div className="space-y-6 max-w-5xl">
       <div className={`h-3 w-28 ${bar}`} aria-hidden />
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <div className="h-40 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse" aria-hidden />
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-t border-gray-100">
+        <div className="grid grid-cols-2 divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-4 sm:divide-y-0 sm:divide-x lg:grid-cols-7">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="px-5 py-3 space-y-2">
               <div className={`h-2.5 w-16 ${bar}`} />
@@ -133,7 +139,7 @@ function ClienteFichaSkeleton() {
           ))}
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <div className="flex gap-2 px-3 py-3 border-b border-gray-100">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className={`h-8 flex-1 max-w-[7rem] ${bar}`} />
@@ -947,64 +953,70 @@ export default function ClienteDetailPage() {
       </button>
 
       {/* ── Panel resumen ─────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0EA5E9] to-[#0284C7] px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {/* Avatar */}
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold text-white shrink-0 ${
-                cliente.tipo_cliente === "empresa" ? "bg-blue-500/80" : "bg-violet-500/80"
-              }`}>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        {/* Cabecera de la ficha.
+            Antes era una banda con un degradado celeste fuerte, el único lugar
+            del ERP con ese color: el reemplazo global de marca actúa sobre
+            `background-color` y un degradado no pasa por ahí, así que se quedó
+            en el azul de la plantilla original. Pasa a superficie blanca con los
+            acentos en turquesa, como el resto de las pantallas. */}
+        <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50/70 to-white px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              {/* Iniciales. El tipo de cliente se dice con palabras abajo, no con
+                  un color que hay que decodificar. */}
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4FAEB2] to-[#3F8E91] text-xl font-bold text-white shadow-sm ring-1 ring-[#4FAEB2]/25">
                 {nombre.slice(0, 2).toUpperCase()}
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-white leading-tight">{nombre}</h1>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <span className="text-gray-300 font-mono text-xs">{cliente.codigo_cliente}</span>
-                  {cliente.ruc && (
-                    <span className="text-gray-300 text-xs">RUC: {cliente.ruc}</span>
-                  )}
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    cliente.estado === "activo"
-                      ? "bg-green-500/20 text-green-300"
-                      : "bg-gray-500/30 text-gray-300"
-                  }`}>
-                    ● {cliente.estado === "activo" ? "Activo" : "Inactivo"}
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-bold leading-tight text-slate-900">{nombre}</h1>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="font-mono text-xs text-slate-500">{cliente.codigo_cliente}</span>
+                  {cliente.ruc && <span className="text-xs text-slate-500">RUC: {cliente.ruc}</span>}
+                  <span
+                    className={
+                      cliente.estado === "activo"
+                        ? "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15"
+                        : "inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-500/15"
+                    }
+                  >
+                    <span
+                      aria-hidden
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        cliente.estado === "activo" ? "bg-emerald-500" : "bg-slate-400"
+                      }`}
+                    />
+                    {cliente.estado === "activo" ? "Activo" : "Inactivo"}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-500/15">
+                    {cliente.tipo_cliente === "empresa" ? "Empresa" : "Particular"}
                   </span>
                   {cliente.perfil_tributario_activo && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/15 text-white border border-white/25">
+                    <span className="inline-flex items-center rounded-full bg-[#4FAEB2]/12 px-2 py-0.5 text-[11px] font-semibold text-[#2F6E71] ring-1 ring-inset ring-[#4FAEB2]/25">
                       Tributario
                     </span>
                   )}
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-slate-400">
                     Cliente desde {formatFecha(cliente.created_at)}
                   </span>
                 </div>
               </div>
             </div>
-            {/* Acciones del header */}
-            <div className="flex items-center gap-2 shrink-0">
+
+            {/* Acciones sobre el cliente */}
+            <div className="flex shrink-0 items-center gap-2">
               {cliente.estado === "activo" ? (
                 esAdmin ? (
-                  <button
-                    onClick={abrirModalBajaOperativa}
-                    className="text-xs font-medium border border-amber-400/60 text-amber-200 hover:bg-amber-500/20 px-3 py-1.5 rounded-lg transition-colors"
-                  >
+                  <button type="button" onClick={abrirModalBajaOperativa} className={`${btnSecundario} ${btnChico}`}>
                     Dar de baja cliente
                   </button>
                 ) : (
-                  <button
-                    onClick={handleToggleEstado}
-                    className="text-xs font-medium border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
-                  >
+                  <button type="button" onClick={handleToggleEstado} className={`${btnSecundario} ${btnChico}`}>
                     Desactivar
                   </button>
                 )
               ) : (
-                <button
-                  onClick={handleToggleEstado}
-                  className="text-xs font-medium border border-white/20 text-white/80 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
-                >
+                <button type="button" onClick={handleToggleEstado} className={`${btnSecundario} ${btnChico}`}>
                   Reactivar
                 </button>
               )}
@@ -1012,18 +1024,19 @@ export default function ClienteDetailPage() {
                 <button
                   type="button"
                   onClick={() => void abrirModalEliminar()}
-                  className="text-red-200 hover:text-white hover:bg-red-900/40 border border-red-400/40 flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors text-xs font-medium"
-                  title="Eliminar cliente (baja lógica)"
+                  className={btnIconoPeligro}
+                  title="Eliminar cliente"
+                  aria-label={`Eliminar ${nombre}`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0" aria-hidden>
-                    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
-                  </svg>
-                  Eliminar
+                  <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               )}
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-white/15 flex flex-wrap gap-2">
+
+          {/* Lo que se hace CON el cliente, separado de lo que se le hace AL
+              cliente (dar de baja, eliminar), que vive arriba. */}
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
             <button
               type="button"
               onClick={() => {
@@ -1038,7 +1051,7 @@ export default function ClienteDetailPage() {
                 });
                 setModalSuscripcion(true);
               }}
-              className="text-xs font-medium bg-white/15 hover:bg-white/25 text-white border border-white/30 px-3 py-1.5 rounded-lg transition-colors"
+              className={`${btnSecundario} ${btnChico}`}
             >
               Nueva suscripción
             </button>
@@ -1049,22 +1062,18 @@ export default function ClienteDetailPage() {
                 setErrorFacturaContado(null);
                 setModalFacturaContado(true);
               }}
-              className="text-xs font-medium bg-white/15 hover:bg-white/25 text-white border border-white/30 px-3 py-1.5 rounded-lg transition-colors"
+              className={`${btnSecundario} ${btnChico}`}
             >
               Factura al contado
             </button>
-            <button
-              type="button"
-              onClick={abrirRegistrarPago}
-              className="text-xs font-medium bg-white/15 hover:bg-white/25 text-white border border-white/30 px-3 py-1.5 rounded-lg transition-colors"
-            >
+            <button type="button" onClick={abrirRegistrarPago} className={`${btnPrimario} ${btnChico}`}>
               Registrar pago
             </button>
           </div>
         </div>
 
         {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 border-t border-gray-100">
+        <div className="grid grid-cols-2 divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-4 sm:divide-y-0 sm:divide-x lg:grid-cols-7">
           {(
             [
               { label: "Origen", value: cliente.origen },
@@ -1103,8 +1112,8 @@ export default function ClienteDetailPage() {
             ] as { label: string; value: ReactNode }[]
           ).map((item) => (
             <div key={item.label} className="px-5 py-3">
-              <p className="text-xs text-gray-400">{item.label}</p>
-              <div className="text-sm font-semibold text-gray-700 mt-0.5">{item.value}</div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{item.label}</p>
+              <div className="mt-0.5 text-sm font-semibold text-slate-700">{item.value}</div>
             </div>
           ))}
         </div>
@@ -1382,7 +1391,7 @@ export default function ClienteDetailPage() {
       )}
 
       {/* ── Pestañas ──────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         {/* Tab nav */}
         <div className="border-b border-gray-200 flex overflow-x-auto">
           {TABS.filter((tab) => !tab.showWhen || tab.showWhen(cliente)).map((tab) => (
