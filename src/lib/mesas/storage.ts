@@ -28,6 +28,28 @@ export async function getMesas(): Promise<MesaConResumen[]> {
   return r.success ? r.mesas : [];
 }
 
+/** Mesas + el número más alto en uso, para proponer desde dónde seguir numerando. */
+export async function getMesasConUltimoNumero(): Promise<{ mesas: MesaConResumen[]; ultimoNumero: number }> {
+  const r = await call<{ mesas: MesaConResumen[]; ultimoNumero: number }>("/api/mesas", "GET");
+  return r.success ? { mesas: r.mesas, ultimoNumero: r.ultimoNumero ?? 0 } : { mesas: [], ultimoNumero: 0 };
+}
+
+/** Alta de mesas numeradas de `desde` a `desde + cantidad - 1`. */
+export async function crearMesas(
+  desde: number,
+  cantidad: number,
+  nombre?: string | null
+): Promise<{ ok: true; creadas: number[]; existentes: number[] } | { ok: false; error: string }> {
+  const r = await call<{ creadas: number[]; existentes: number[] }>("/api/mesas", "POST", {
+    desde,
+    cantidad,
+    nombre: nombre ?? null,
+  });
+  return r.success
+    ? { ok: true, creadas: r.creadas, existentes: r.existentes }
+    : { ok: false, error: r.error };
+}
+
 export async function getMesaDetalle(mesaId: string): Promise<MesaDetalle | null> {
   const r = await call<{ detalle: MesaDetalle }>(`/api/mesas/${encodeURIComponent(mesaId)}`, "GET");
   return r.success ? r.detalle : null;

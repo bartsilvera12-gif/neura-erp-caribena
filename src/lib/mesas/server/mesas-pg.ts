@@ -114,6 +114,70 @@ async function totalesPorSesion(sb: Sb, empresaId: string, sesionIds: string[]) 
 // ── Lecturas ──────────────────────────────────────────────────────────────────
 
 /** Todas las mesas (activas) con el resumen de su sesión viva. */
+/** Número de mesa más alto de la empresa. 0 si todavía no hay ninguna. */
+export async function ultimoNumeroMesaPg(schema: string, empresaId: string): Promise<number> {
+  const sb = createServiceRoleClientWithDbSchema(schema);
+  const q = await sb
+    .from("mesas")
+    .select("numero")
+    .eq("empresa_id", empresaId)
+    .order("numero", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (q.error) throw new Error(q.error.message);
+  return q.data ? num((q.data as { numero: unknown }).numero) : 0;
+}
+
+/**
+ * Alta de mesas por rango `[desde, desde+cantidad)`.
+ *
+ * Los números ya existentes se saltean en vez de fallar: `mesas` tiene UNIQUE
+ * (empresa_id, numero), y crear un rango que pisa una mesa existente es un error
+ * de dedo esperable, no algo que deba abortar el alta entera.
+ *
+ * Devuelve qué se creó y qué se salteó para poder informarlo en la UI.
+ */
+export async function crearMesasPg(
+  schema: string,
+  empresaId: string,
+  desde: number,
+  cantidad: number,
+  nombre?: string | null
+): Promise<{ creadas: number[]; existentes: number[] }> {
+  if (!Number.isInteger(desde) || desde < 1) throw new Error("El número inicial debe ser un entero ≥ 1.");
+  if (!Number.isInteger(cantidad) || cantidad < 1) throw new Error("La cantidad debe ser un entero ≥ 1.");
+  if (cantidad > 100) throw new Error("No se pueden crear más de 100 mesas por vez.");
+  if (desde + cantidad - 1 > 9999) throw new Error("El número de mesa no puede superar 9999.");
+
+  const sb = createServiceRoleClientWithDbSchema(schema);
+  const numeros = Array.from({ length: cantidad }, (_, i) => desde + i);
+
+  const yaQ = await sb.from("mesas").select("numero").eq("empresa_id", empresaId).in("numero", numeros);
+  if (yaQ.error) throw new Error(yaQ.error.message);
+  const existentes = ((yaQ.data ?? []) as { numero: unknown }[]).map((r) => num(r.numero));
+  const existentesSet = new Set(existentes);
+
+  const aCrear = numeros.filter((n) => !existentesSet.has(n));
+  if (aCrear.length === 0) return { creadas: [], existentes: existentes.sort((a, b) => a - b) };
+
+  // El nombre sólo aplica al alta individual: en un rango sería el mismo para todas.
+  const nombreFinal = aCrear.length === 1 ? (nombre?.trim() || null) : null;
+
+  const insQ = await sb.from("mesas").insert(
+    aCrear.map((n) => ({
+      id: randomUUID(),
+      empresa_id: empresaId,
+      numero: n,
+      nombre: nombreFinal,
+      estado: "libre",
+      activo: true,
+    }))
+  );
+  if (insQ.error) throw new Error(insQ.error.message);
+
+  return { creadas: aCrear, existentes: existentes.sort((a, b) => a - b) };
+}
+
 export async function listarMesasPg(schema: string, empresaId: string): Promise<MesaConResumen[]> {
   const sb = createServiceRoleClientWithDbSchema(schema);
   const mQ = await sb
