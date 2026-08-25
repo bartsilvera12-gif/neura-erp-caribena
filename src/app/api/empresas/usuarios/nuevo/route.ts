@@ -30,7 +30,7 @@ async function findAuthUserIdByEmail(supabase: any, email: string): Promise<stri
 }
 
 /**
- * Crea usuario en Auth + `zentra_erp.usuarios`, o si el correo ya existe en Auth,
+ * Crea usuario en Auth + `caribenaerp.usuarios`, o si el correo ya existe en Auth,
  * vincula ese usuario a la empresa del administrador (útil tras pruebas u otra empresa).
  */
 export async function POST(req: Request) {
