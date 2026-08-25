@@ -285,8 +285,10 @@ export default function EditarProductoPage() {
         sku: form.sku.trim().toUpperCase(),
         costo_promedio: parseFloat(form.costo_promedio) || 0,
         precio_venta: parseFloat(form.precio_venta) || 0,
-        stock_actual: parseInt(form.stock_actual) || 0,
-        stock_minimo: parseInt(form.stock_minimo) || 0,
+        // parseFloat y no parseInt: un insumo se mide en KG o LT y 0,5 kg de
+        // queso se guardaba como 0.
+        stock_actual: parseFloat(form.stock_actual) || 0,
+        stock_minimo: parseFloat(form.stock_minimo) || 0,
         unidad_medida: form.unidad_medida.trim().toUpperCase() || "UNIDAD",
         metodo_valuacion: form.metodo_valuacion,
         categoria_principal_id: categoriaId,
@@ -347,7 +349,10 @@ export default function EditarProductoPage() {
   }
 
   const summary = TIPO_SUMMARY[tipoGastro];
-  const showStock = tipoGastro === "reventa";
+  // La materia prima también lleva stock: es lo que se descuenta cuando una
+  // comanda con receta entra a cocina. Antes se ocultaba porque las recetas
+  // solo calculaban un costo teórico y el insumo nunca bajaba.
+  const showStock = tipoGastro === "reventa" || tipoGastro === "materia";
   const showPrecioVenta = tipoGastro !== "materia";
 
   return (
@@ -753,6 +758,7 @@ export default function EditarProductoPage() {
                 onChange={handleChange}
                 className={inputClass}
                 min={0}
+                step="any"
                 required={showStock}
               />
               <p className="mt-1 text-xs text-gray-400">
@@ -768,6 +774,7 @@ export default function EditarProductoPage() {
                 onChange={handleChange}
                 className={inputClass}
                 min={0}
+                step="any"
                 required={showStock}
               />
             </div>

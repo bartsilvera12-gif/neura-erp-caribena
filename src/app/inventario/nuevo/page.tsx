@@ -78,7 +78,9 @@ export default function NuevoProductoPage() {
     } else {
       setEsVendible(false);
       setEsInsumo(true);
-      setControlaStock(false);
+      // Un insumo nace controlando stock: existe justamente para que la receta
+      // tenga de dónde descontar. Nacía sin control y no bajaba nunca.
+      setControlaStock(true);
       setForm((prev) => ({ ...prev, unidad_medida: prev.unidad_medida || "G" }));
     }
   }
@@ -359,8 +361,10 @@ export default function NuevoProductoPage() {
           sku: form.sku.trim().toUpperCase(),
           costo_promedio: parseFloat(form.costo_promedio) || 0,
           precio_venta: parseFloat(form.precio_venta) || 0,
-          stock_actual: parseInt(form.stock_actual) || 0,
-          stock_minimo: parseInt(form.stock_minimo) || 0,
+          // parseFloat y no parseInt: un insumo se mide en KG o LT y 0,5 kg de
+          // queso se guardaba como 0.
+          stock_actual: parseFloat(form.stock_actual) || 0,
+          stock_minimo: parseFloat(form.stock_minimo) || 0,
           unidad_medida: form.unidad_medida.trim().toUpperCase(),
           metodo_valuacion: form.metodo_valuacion,
           codigo_barras: codigo,
@@ -498,7 +502,10 @@ export default function NuevoProductoPage() {
   }
 
   const summary = TIPO_SUMMARY[tipoGastro];
-  const showStock = tipoGastro === "reventa";
+  // La materia prima también lleva stock: es lo que se descuenta cuando una
+  // comanda con receta entra a cocina. Antes se ocultaba porque las recetas
+  // solo calculaban un costo teórico y el insumo nunca bajaba.
+  const showStock = tipoGastro === "reventa" || tipoGastro === "materia";
   const showPrecioVenta = tipoGastro !== "materia";
 
   return (
@@ -1022,6 +1029,7 @@ export default function NuevoProductoPage() {
                   placeholder="Ej: 50"
                   className={inputClass}
                   min={0}
+                  step="any"
                   required={showStock}
                 />
               </div>
@@ -1036,11 +1044,12 @@ export default function NuevoProductoPage() {
                   placeholder="Ej: 10"
                   className={inputClass}
                   min={0}
+                  step="any"
                   required={showStock}
                 />
               </div>
             </div>
-            {parseInt(form.stock_actual) > 0 && (
+            {parseFloat(form.stock_actual) > 0 && (
               <p className="mt-2 text-xs text-gray-400">
                 Se generará automáticamente un movimiento de inventario inicial con {form.stock_actual} unidades al guardar.
               </p>
