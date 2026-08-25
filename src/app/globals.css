@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/**
+ * En Tailwind v4 el variante `dark:` se dispara por defecto con
+ * `@media (prefers-color-scheme: dark)`, NO con la clase `.dark`.
+ *
+ * El ERP está forzado a modo día (ver components/ThemeProvider.tsx), y ese
+ * provider se limita a quitar la clase `.dark` del <html> — algo que no tenía
+ * ningún efecto, porque la clase no era lo que activaba el variante. Resultado:
+ * a cualquiera con el sistema operativo en modo oscuro se le aplicaban los
+ * `dark:text-*` sobre fondos `bg-white` fijos, y el texto quedaba casi
+ * invisible (se veía sobre todo en las tablas del dashboard).
+ *
+ * Atando el variante a la clase, y no habiendo clase, `dark:` no se aplica
+ * nunca. Si alguna vez se reintroduce el modo oscuro, esto es lo primero
+ * que hay que revisar.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Neura ERP — Zentra (paleta turquesa rediseño 2026: #4FAEB2 primary) */
 :root {
   --background: #F8FAFC;
