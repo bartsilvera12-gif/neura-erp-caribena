@@ -79,7 +79,13 @@ export async function apiCreateCliente(data: {
   ruc?: string;
   documento?: string;
   telefono?: string;
+  telefono_secundario?: string;
   email?: string;
+  email_secundario?: string;
+  sitio_web?: string;
+  instagram?: string;
+  linkedin?: string;
+  valor_cliente?: number;
   direccion?: string;
   ciudad?: string;
   pais?: string;

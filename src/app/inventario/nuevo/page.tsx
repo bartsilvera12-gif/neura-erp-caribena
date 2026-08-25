@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle, CupSoda, Pizza, Wheat } from "lucide-react";
+import { AlertTriangle, CupSoda, Pizza, Wand2, Wheat } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
 import SelectFromList from "@/components/inventario/SelectFromList";
-import { productoExiste, saveProducto } from "@/lib/inventario/storage";
+import { getProductos, productoExiste, saveProducto } from "@/lib/inventario/storage";
 import type { MetodoValuacion } from "@/lib/inventario/types";
 
 // Opciones estándar de unidad de medida para gastro
@@ -44,6 +44,7 @@ export default function NuevoProductoPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [generandoCodigo, setGenerandoCodigo] = useState(false);
+  const [generandoSku, setGenerandoSku] = useState(false);
   const [codigoGeneradoInterno, setCodigoGeneradoInterno] = useState(false);
 
   // Relaciones opcionales
@@ -149,6 +150,52 @@ export default function NuevoProductoPage() {
     setImagenFile(null);
     setImagenPreview(null);
     setImagenError(null);
+  }
+
+  /**
+   * SKU sugerido a partir del nombre: hasta 4 letras de la primera palabra y 3
+   * de la segunda, más un correlativo de 3 dígitos.  "Coca Cola 500ml" → COCA-COL-001.
+   *
+   * El correlativo se calcula contra los SKU existentes con la misma base, así
+   * dos productos parecidos no chocan. Queda editable: es una sugerencia, no
+   * un código impuesto.
+   */
+  async function handleGenerarSku() {
+    if (generandoSku) return;
+    const nombre = form.nombre.trim();
+    if (!nombre) {
+      setErrorGeneral("Escribí primero el nombre del producto para generar el SKU.");
+      return;
+    }
+    setGenerandoSku(true);
+    setErrorDuplicado(null);
+    setErrorGeneral(null);
+    try {
+      const tokens = nombre
+        .normalize("NFD")
+        .replace(/\p{M}/gu, "")
+        .toUpperCase()
+        .split(/[^A-Z0-9]+/)
+        .filter(Boolean);
+      const base =
+        tokens.length === 0
+          ? "PROD"
+          : [tokens[0].slice(0, 4), tokens[1]?.slice(0, 3)].filter(Boolean).join("-");
+
+      const productos = await getProductos();
+      const usados = new Set(productos.map((p) => (p.sku ?? "").trim().toUpperCase()));
+      let n = 1;
+      let candidato = `${base}-${String(n).padStart(3, "0")}`;
+      while (usados.has(candidato) && n < 1000) {
+        n += 1;
+        candidato = `${base}-${String(n).padStart(3, "0")}`;
+      }
+      setForm((prev) => ({ ...prev, sku: candidato }));
+    } catch (err) {
+      setErrorGeneral(err instanceof Error ? err.message : "No se pudo generar el SKU.");
+    } finally {
+      setGenerandoSku(false);
+    }
   }
 
   async function handleGenerarCodigoInterno() {
@@ -555,6 +602,17 @@ export default function NuevoProductoPage() {
                 className={`${inputClass} uppercase`}
                 required={tipoGastro === "reventa"}
               />
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={handleGenerarSku}
+                  disabled={generandoSku}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-50 hover:text-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Wand2 className="h-3.5 w-3.5" aria-hidden />
+                  {generandoSku ? "Generando…" : "Generar SKU"}
+                </button>
+              </div>
             </div>
 
             <div className={tipoGastro === "menu" ? "hidden" : ""}>

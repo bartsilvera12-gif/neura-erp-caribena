@@ -53,8 +53,6 @@ function NuevoClienteForm() {
   const [error,      setError]      = useState<string | null>(null);
   const [guardando,  setGuardando]  = useState(false);
   const [planes,     setPlanes]     = useState<Plan[]>([]);
-  const [usuariosEmpresa, setUsuariosEmpresa] = useState<UsuarioEmpresa[]>([]);
-  const [usuariosEmpresaError, setUsuariosEmpresaError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     tipo_cliente:        "empresa" as TipoCliente,
@@ -114,33 +112,9 @@ function NuevoClienteForm() {
     { id: string; slug: string; nombre: string; requiere_detalle_otro: boolean }[]
   >([]);
   const [formTributario, setFormTributario] = useState<TributarioFormState>(() => emptyTributarioForm());
-  const [filasTipoServicio, setFilasTipoServicio] = useState<ClienteTipoServicioRow[]>(() => filasTiposDesdeSistemaEstatico());
 
   useEffect(() => {
     getPlanes().then(setPlanes);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const usuarios = await getUsuariosActivosEmpresa();
-        if (cancelled) return;
-        setUsuariosEmpresa(usuarios);
-        setUsuariosEmpresaError(null);
-      } catch (e) {
-        if (cancelled) return;
-        setUsuariosEmpresa([]);
-        setUsuariosEmpresaError(e instanceof Error ? e.message : "No se pudieron cargar usuarios activos.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    void fetchTiposFormCliente().then(setFilasTipoServicio);
   }, []);
 
   useEffect(() => {
@@ -313,7 +287,13 @@ function NuevoClienteForm() {
       ruc: form.ruc.trim() || undefined,
       documento: form.documento.trim() || undefined,
       telefono: form.telefono.trim() || undefined,
+      telefono_secundario: form.telefono_secundario.trim() || undefined,
       email: form.email.trim() || undefined,
+      email_secundario: form.email_secundario.trim() || undefined,
+      sitio_web: form.sitio_web.trim() || undefined,
+      instagram: form.instagram.trim() || undefined,
+      linkedin: form.linkedin.trim() || undefined,
+      valor_cliente: form.valor_cliente.trim() ? Number(form.valor_cliente) : undefined,
       direccion: form.direccion.trim() || undefined,
       ciudad: form.ciudad.trim().toUpperCase() || undefined,
       pais: form.pais.trim().toUpperCase() || undefined,
@@ -452,22 +432,9 @@ function NuevoClienteForm() {
               </div>
             )}
 
-            <div>
-              <label className={labelClass}>Tipo de servicio</label>
-              <select
-                name="tipo_servicio_cliente"
-                value={form.tipo_servicio_cliente}
-                onChange={(e) => setForm((prev) => ({ ...prev, tipo_servicio_cliente: e.target.value }))}
-                className={inputClass}
-              >
-                <option value="">— Ninguno —</option>
-                {filasTipoServicio.map((f) => (
-                  <option key={f.slug} value={f.slug}>
-                    {f.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* "Tipo de servicio" (Marketing, SaaS, Branding…) no aplica a un
+                negocio gastronómico: se quita del alta. La columna sigue
+                existiendo y el valor viaja como null. */}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -703,27 +670,8 @@ function NuevoClienteForm() {
                   <option value="USD">Dólares (USD)</option>
                 </select>
               </div>
-              <div>
-                <label className={labelClass}>Vendedor responsable (usuario ERP)</label>
-                <select
-                  name="vendedor_usuario_id"
-                  value={form.vendedor_usuario_id}
-                  onChange={(e) => setForm((prev) => ({ ...prev, vendedor_usuario_id: e.target.value }))}
-                  className={inputClass}
-                >
-                  <option value="">— Sin asignar —</option>
-                  {usuariosEmpresa.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {(u.nombre ?? "").trim() || u.email}
-                    </option>
-                  ))}
-                </select>
-                {usuariosEmpresaError ? (
-                  <p className="mt-1 text-xs text-red-600">{usuariosEmpresaError}</p>
-                ) : usuariosEmpresa.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">No hay usuarios activos disponibles para asignar.</p>
-                ) : null}
-              </div>
+              {/* "Vendedor responsable (usuario ERP)" se quita del alta: el
+                  campo de texto libre de abajo cubre el caso. */}
               <div>
                 <label className={labelClass}>Vendedor asignado (texto libre)</label>
                 <input
