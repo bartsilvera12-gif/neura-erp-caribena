@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -199,7 +200,7 @@ export default function CampanasNuevoClient() {
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Canal WhatsApp</span>
-          <select
+          <SelectField
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             value={channelId}
             onChange={(e) => {
@@ -215,12 +216,12 @@ export default function CampanasNuevoClient() {
                 {c.nombre || c.id} ({c.provider || "meta"})
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Cola de respuesta</span>
-          <select
+          <SelectField
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             value={queueId}
             onChange={(e) => setQueueId(e.target.value)}
@@ -231,7 +232,7 @@ export default function CampanasNuevoClient() {
                 {q.nombre || q.id}
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -248,7 +249,7 @@ export default function CampanasNuevoClient() {
 
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Plantilla</span>
-          <select
+          <SelectField
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
@@ -259,7 +260,7 @@ export default function CampanasNuevoClient() {
                 {t.name} ({t.language})
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
 
         {slots.length > 0 ? (

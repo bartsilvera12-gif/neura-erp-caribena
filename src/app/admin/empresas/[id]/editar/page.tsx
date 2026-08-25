@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { BarChart3, Building2, Package, User } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -311,7 +312,7 @@ export default function EditarEmpresaPage() {
             </div>
             <div>
               <label className={fLabel}>Estado</label>
-              <select
+              <SelectField
                 name="estado"
                 value={form.estado}
                 onChange={handleChange}
@@ -319,7 +320,7 @@ export default function EditarEmpresaPage() {
               >
                 <option value="activo">Activo</option>
                 <option value="inactivo">Inactivo</option>
-              </select>
+              </SelectField>
             </div>
           </div>
         </section>
@@ -363,7 +364,7 @@ export default function EditarEmpresaPage() {
               </div>
               <div>
                 <label className={fLabel}>Estado</label>
-                <select
+                <SelectField
                   value={adminForm.estado}
                   onChange={(e) =>
                     setAdminForm((p) => ({ ...p, estado: e.target.value as "activo" | "inactivo" }))
@@ -372,7 +373,7 @@ export default function EditarEmpresaPage() {
                 >
                   <option value="activo">Activo</option>
                   <option value="inactivo">Inactivo</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={fLabel}>Módulos visibles para este usuario</label>

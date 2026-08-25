@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -360,7 +361,7 @@ export default function ProyectoDetalleInner({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select
+          <SelectField
             className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100"
             value={String(proyecto.estado_id ?? "")}
             onChange={(e) => void cambiarEstado(e.target.value)}
@@ -370,7 +371,7 @@ export default function ProyectoDetalleInner({
                 {e.nombre}
               </option>
             ))}
-          </select>
+          </SelectField>
           {variant === "modal" ? (
             <button
               type="button"
@@ -544,7 +545,7 @@ export default function ProyectoDetalleInner({
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm">
                 <span className={labelCls}>Técnico responsable</span>
-                <select
+                <SelectField
                   className={inputCls}
                   value={responsableTecnicoId}
                   onChange={(e) => setResponsableTecnicoId(e.target.value)}
@@ -555,7 +556,7 @@ export default function ProyectoDetalleInner({
                       {u.nombre || u.email || u.id.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </label>
               {esWeb ? (
                 <label className="block text-sm sm:col-span-2">
@@ -675,7 +676,7 @@ export default function ProyectoDetalleInner({
                 return (
                   <li key={tid} className="flex flex-wrap items-center gap-2 py-3 text-sm">
                     <span className="flex-1 font-medium text-slate-100">{String(t.titulo ?? "")}</span>
-                    <select
+                    <SelectField
                       className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
                       value={estado}
                       onChange={(e) => void patchTarea(tid, { estado: e.target.value })}
@@ -684,7 +685,7 @@ export default function ProyectoDetalleInner({
                       <option value="en_proceso">en_proceso</option>
                       <option value="completada">completada</option>
                       <option value="bloqueada">bloqueada</option>
-                    </select>
+                    </SelectField>
                   </li>
                 );
               })}

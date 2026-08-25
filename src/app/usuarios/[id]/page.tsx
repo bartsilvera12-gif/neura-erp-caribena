@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { BarChart3, Briefcase, KeyRound, MessageCircle, Package, ShieldCheck, User } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
@@ -793,7 +794,7 @@ function UsuarioDetailContent() {
                     {form.dashboard_view_ids.length > 1 ? (
                       <div className="mt-4 max-w-md">
                         <label className={usuarioFormLabel}>Vista por defecto</label>
-                        <select
+                        <SelectField
                           value={
                             form.default_dashboard_view_id &&
                             form.dashboard_view_ids.includes(form.default_dashboard_view_id)
@@ -813,7 +814,7 @@ function UsuarioDetailContent() {
                                 {m.nombre}
                               </option>
                             ))}
-                        </select>
+                        </SelectField>
                       </div>
                     ) : null}
                   </SectionCard>
@@ -845,7 +846,7 @@ function UsuarioDetailContent() {
                     {omniAgent ? (
                       <div className="mt-4 max-w-md">
                         <label className={usuarioFormLabel}>Horario de trabajo</label>
-                        <select
+                        <SelectField
                           value={omniScheduleId}
                           onChange={(e) => setOmniScheduleId(e.target.value)}
                           className={`${usuarioFormInputGray} mt-1 w-full`}
@@ -859,7 +860,7 @@ function UsuarioDetailContent() {
                                 {String(s.time_end ?? "").slice(0, 5)})
                               </option>
                             ))}
-                        </select>
+                        </SelectField>
                         {usuario.omnicanal.schedules.length === 0 ? (
                           <p className="mt-2 text-xs text-amber-700">
                             No hay plantillas de horario. Creá una en{" "}

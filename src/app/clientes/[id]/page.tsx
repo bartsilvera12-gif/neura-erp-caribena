@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Clock, Folder } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -1474,7 +1475,7 @@ export default function ClienteDetailPage() {
 
                 <div>
                   <label className={labelClass}>Tipo de servicio</label>
-                  <select
+                  <SelectField
                     name="tipo_servicio_cliente"
                     value={form.tipo_servicio_cliente}
                     onChange={handleChange}
@@ -1487,7 +1488,7 @@ export default function ClienteDetailPage() {
                         {!f.activo && (form.tipo_servicio_cliente || "").trim() === f.slug ? " (inactivo)" : ""}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
 
                 {form.tipo_cliente === "empresa" && (
@@ -1669,7 +1670,7 @@ export default function ClienteDetailPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className={labelClass}>Condición de pago</label>
-                    <select
+                    <SelectField
                       name="condicion_pago"
                       value={form.condicion_pago}
                       onChange={handleChange}
@@ -1682,11 +1683,11 @@ export default function ClienteDetailPage() {
                       <option value="60 DÍAS">60 días</option>
                       <option value="90 DÍAS">90 días</option>
                       <option value="MENSUAL">Mensual</option>
-                    </select>
+                    </SelectField>
                   </div>
                   <div>
                     <label className={labelClass}>Moneda preferida</label>
-                    <select
+                    <SelectField
                       name="moneda_preferida"
                       value={form.moneda_preferida}
                       onChange={(e) => setForm((p) => ({ ...p, moneda_preferida: e.target.value as "GS" | "USD" }))}
@@ -1694,7 +1695,7 @@ export default function ClienteDetailPage() {
                     >
                       <option value="GS">Guaraníes (GS)</option>
                       <option value="USD">Dólares (USD)</option>
-                    </select>
+                    </SelectField>
                   </div>
                   <div>
                     <label className={labelClass}>Valor anual estimado (Gs.)</label>
@@ -1705,7 +1706,7 @@ export default function ClienteDetailPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Vendedor responsable (usuario ERP)</label>
-                    <select
+                    <SelectField
                       name="vendedor_usuario_id"
                       value={form.vendedor_usuario_id}
                       onChange={(e) => setForm((p) => ({ ...p, vendedor_usuario_id: e.target.value }))}
@@ -1717,7 +1718,7 @@ export default function ClienteDetailPage() {
                           {(u.nombre ?? "").trim() || u.email}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                     {usuariosEmpresaError ? (
                       <p className="mt-1 text-xs text-red-600">{usuariosEmpresaError}</p>
                     ) : usuariosEmpresa.length === 0 ? (
@@ -1733,7 +1734,7 @@ export default function ClienteDetailPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Estado</label>
-                    <select
+                    <SelectField
                       name="estado"
                       value={form.estado}
                       onChange={(e) => setForm((p) => ({ ...p, estado: e.target.value as Cliente["estado"] }))}
@@ -1741,7 +1742,7 @@ export default function ClienteDetailPage() {
                     >
                       <option value="activo">Activo</option>
                       <option value="inactivo">Inactivo</option>
-                    </select>
+                    </SelectField>
                   </div>
                 </div>
 
@@ -1800,7 +1801,7 @@ export default function ClienteDetailPage() {
                       <>
                         <div>
                           <label className={labelClass}>Plan</label>
-                          <select
+                          <SelectField
                             value={formSuscEdit.plan_id}
                             onChange={(e) => {
                               const p = planes.find((x) => x.id === e.target.value);
@@ -1812,7 +1813,7 @@ export default function ClienteDetailPage() {
                             {planes.filter((p) => p.estado === "activo").map((p) => (
                               <option key={p.id} value={p.id}>{p.nombre} — Gs. {p.precio.toLocaleString("es-PY")}</option>
                             ))}
-                          </select>
+                          </SelectField>
                         </div>
                         <div>
                           <label className={labelClass}>Precio (Gs.)</label>
@@ -2121,7 +2122,7 @@ export default function ClienteDetailPage() {
                             </td>
                             <td className="px-4 py-3 text-slate-600 capitalize">{t.tipo_contenido}</td>
                             <td className="px-4 py-3">
-                              <select
+                              <SelectField
                                 value={t.estado}
                                 onChange={(e) => handleCambiarEstadoTask(t.id, e.target.value as MarketingTask["estado"])}
                                 className="text-xs border border-slate-200 rounded px-2 py-1 bg-white"
@@ -2129,7 +2130,7 @@ export default function ClienteDetailPage() {
                                 {ESTADOS_TASK.map((est) => (
                                   <option key={est} value={est}>{est.replace("_", " ")}</option>
                                 ))}
-                              </select>
+                              </SelectField>
                             </td>
                             <td className="px-4 py-3 text-slate-600">{formatFecha(t.fecha_entrega)}</td>
                             <td className="px-4 py-3 text-slate-600">
@@ -2254,7 +2255,7 @@ export default function ClienteDetailPage() {
               </div>
               <div>
                 <label className={labelClass}>IVA de esta factura</label>
-                <select
+                <SelectField
                   value={formFacturaContado.iva_tipo}
                   onChange={(e) =>
                     setFormFacturaContado((p) => ({
@@ -2267,7 +2268,7 @@ export default function ClienteDetailPage() {
                   <option value="iva_10">IVA 10%</option>
                   <option value="iva_5">IVA 5%</option>
                   <option value="exenta">Exenta</option>
-                </select>
+                </SelectField>
                 <p className="text-[11px] text-slate-500 mt-1">
                   Aplica solo a esta factura. Default IVA 10%.
                 </p>
@@ -2328,7 +2329,7 @@ export default function ClienteDetailPage() {
             }} className="space-y-4">
               <div>
                 <label className={labelClass}>Plan</label>
-                <select
+                <SelectField
                   value={formSusc.plan_id}
                   onChange={(e) => {
                     const p = planes.find((x) => x.id === e.target.value);
@@ -2340,7 +2341,7 @@ export default function ClienteDetailPage() {
                   {planes.filter((p) => p.estado === "activo").map((p) => (
                     <option key={p.id} value={p.id}>{p.nombre} — Gs. {p.precio.toLocaleString("es-PY")}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Precio</label>
@@ -2400,7 +2401,7 @@ export default function ClienteDetailPage() {
               </div>
               <div>
                 <label className={labelClass}>Tipo de contenido</label>
-                <select
+                <SelectField
                   value={formTarea.tipo_contenido}
                   onChange={(e) => setFormTarea((p) => ({ ...p, tipo_contenido: e.target.value as typeof formTarea.tipo_contenido }))}
                   className={inputClass}
@@ -2408,7 +2409,7 @@ export default function ClienteDetailPage() {
                   {TIPOS_CONTENIDO.map((tc) => (
                     <option key={tc} value={tc}>{tc.charAt(0).toUpperCase() + tc.slice(1)}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Fecha de entrega *</label>
@@ -2422,7 +2423,7 @@ export default function ClienteDetailPage() {
               </div>
               <div>
                 <label className={labelClass}>Responsable</label>
-                <select
+                <SelectField
                   value={formTarea.responsable_user_id}
                   onChange={(e) => setFormTarea((p) => ({ ...p, responsable_user_id: e.target.value }))}
                   className={inputClass}
@@ -2431,7 +2432,7 @@ export default function ClienteDetailPage() {
                   {usuariosEmpresa.map((u) => (
                     <option key={u.id} value={u.id}>{u.nombre ?? u.email}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Descripción</label>
@@ -2484,7 +2485,7 @@ export default function ClienteDetailPage() {
               {!facturaPago && facturas.filter((f) => f.saldo > 0).length > 0 && (
                 <div>
                   <label className={labelClass}>Factura</label>
-                  <select
+                  <SelectField
                     value={formPago.factura_id}
                     onChange={(e) => {
                       const f = facturas.find((x) => x.id === e.target.value);
@@ -2497,7 +2498,7 @@ export default function ClienteDetailPage() {
                     {facturas.filter((f) => f.saldo > 0).map((f) => (
                       <option key={f.id} value={f.id}>{f.numero_factura} — Saldo Gs. {f.saldo.toLocaleString("es-PY")}</option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               )}
               <div>
@@ -2510,13 +2511,13 @@ export default function ClienteDetailPage() {
               </div>
               <div>
                 <label className={labelClass}>Método de pago</label>
-                <select value={formPago.metodo_pago} onChange={(e) => setFormPago((p) => ({ ...p, metodo_pago: e.target.value as "efectivo" }))} className={inputClass}>
+                <SelectField value={formPago.metodo_pago} onChange={(e) => setFormPago((p) => ({ ...p, metodo_pago: e.target.value as "efectivo" }))} className={inputClass}>
                   <option value="efectivo">Efectivo</option>
                   <option value="transferencia">Transferencia</option>
                   <option value="cheque">Cheque</option>
                   <option value="tarjeta">Tarjeta</option>
                   <option value="otro">Otro</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Referencia</label>

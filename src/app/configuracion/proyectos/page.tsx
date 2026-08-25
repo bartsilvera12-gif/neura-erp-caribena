@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GlobalConfigSubpageShell } from "@/components/config/GlobalConfigSubpageShell";
 import {
@@ -484,7 +485,7 @@ export default function ConfiguracionProyectosPage() {
                     </label>
                     <label>
                       <span className={F_LABEL}>Tipo SLA</span>
-                      <select
+                      <SelectField
                         className={F_SELECT}
                         value={draft.tipo_sla}
                         disabled={!canEdit}
@@ -495,7 +496,7 @@ export default function ConfiguracionProyectosPage() {
                             {opt.label}
                           </option>
                         ))}
-                      </select>
+                      </SelectField>
                     </label>
                     <label>
                       <span className={F_LABEL}>Horas objetivo SLA</span>
@@ -601,7 +602,7 @@ export default function ConfiguracionProyectosPage() {
               </label>
               <label>
                 <span className={F_LABEL}>Tipo SLA</span>
-                <select
+                <SelectField
                   className={F_SELECT}
                   value={newColumn.tipo_sla}
                   onChange={(e) =>
@@ -613,7 +614,7 @@ export default function ConfiguracionProyectosPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </label>
               <ToggleField
                 label="Estado visible en el tablero"

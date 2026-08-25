@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import {
   DEFAULT_BUSINESS_AUTOMATION_TIMEZONE,
   type BusinessAutomationSettings,
@@ -96,7 +97,7 @@ export function BusinessAutomationConfigSection({ value: s, onChange }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Zona horaria</label>
-              <select
+              <SelectField
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
                 value={
                   (COMMON_TZ as readonly string[]).includes(s.timezone) ? s.timezone : "__custom__"
@@ -114,11 +115,11 @@ export function BusinessAutomationConfigSection({ value: s, onChange }: Props) {
                   </option>
                 ))}
                 <option value="__custom__">Otra (editar abajo)</option>
-              </select>
+              </SelectField>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Días</label>
-              <select
+              <SelectField
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
                 value={s.schedule_preset}
                 onChange={(e) => patch({ schedule_preset: e.target.value as BusinessHoursPreset })}
@@ -126,7 +127,7 @@ export function BusinessAutomationConfigSection({ value: s, onChange }: Props) {
               >
                 <option value="mon_fri">Lunes a viernes</option>
                 <option value="all_days">Todos los días</option>
-              </select>
+              </SelectField>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Desde (24 h)</label>

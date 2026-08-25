@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
@@ -62,11 +63,11 @@ export default function CierresCajaPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
-            <select value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)} className={inputClass}>
+            <SelectField value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)} className={inputClass}>
               <option value="todas">Todas</option>
               <option value="abierta">Abierta</option>
               <option value="cerrada">Cerrada</option>
-            </select>
+            </SelectField>
           </div>
           {hayFiltros && (
             <button onClick={() => { setDesde(""); setHasta(""); setEstado("todas"); }} className="px-2 py-2 text-sm text-slate-400 hover:text-slate-600">

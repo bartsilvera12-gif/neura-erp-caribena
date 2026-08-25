@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -168,7 +169,7 @@ export default function OmnicanalEquiposPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
               Supervisor
-              <select
+              <SelectField
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
                 value={supervisorId}
                 onChange={(ev) => setSupervisorId(ev.target.value)}
@@ -181,7 +182,7 @@ export default function OmnicanalEquiposPage() {
                     {labelUsuario(u)}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </label>
             {supervisores.length === 0 ? (
               <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -193,7 +194,7 @@ export default function OmnicanalEquiposPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide">
               Agente a cargo
-              <select
+              <SelectField
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
                 value={agentId}
                 onChange={(ev) => setAgentId(ev.target.value)}
@@ -206,7 +207,7 @@ export default function OmnicanalEquiposPage() {
                     {labelUsuario(u)}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </label>
             {agentes.length === 0 ? (
               <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

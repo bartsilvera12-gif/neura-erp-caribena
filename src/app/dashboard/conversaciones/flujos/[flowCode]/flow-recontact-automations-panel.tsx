@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import type {
@@ -831,7 +832,7 @@ export function FlowRecontactAutomationsPanel(props: {
               </label>
               <div>
                 <label className="text-xs text-slate-500">Compra / orden sorteo</label>
-                <select
+                <SelectField
                   className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                   value={draft.purchase_condition}
                   onChange={(e) =>
@@ -843,13 +844,13 @@ export function FlowRecontactAutomationsPanel(props: {
                 >
                   <option value="none">Sin filtro adicional</option>
                   <option value="no_confirmed_sorteo_order">Solo si no hay orden sorteo confirmada</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 
             <div className="border-t border-slate-100 pt-3 space-y-2">
               <p className="text-xs font-semibold text-slate-700">Mensaje (solo configuración; sin envío)</p>
-              <select
+              <SelectField
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                 value={draft.message_type}
                 onChange={(e) =>
@@ -861,7 +862,7 @@ export function FlowRecontactAutomationsPanel(props: {
               >
                 <option value="session_text">Texto de sesión</option>
                 <option value="whatsapp_template">Plantilla WhatsApp</option>
-              </select>
+              </SelectField>
               {draft.message_type === "session_text" ? (
                 <textarea
                   className="w-full min-h-[88px] border border-slate-200 rounded-lg px-3 py-2 text-sm"
@@ -942,7 +943,7 @@ export function FlowRecontactAutomationsPanel(props: {
                         </div>
                         <div>
                           <label className="text-[11px] text-slate-500">Acción</label>
-                          <select
+                          <SelectField
                             className="mt-0.5 w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
                             value={btn.action}
                             onChange={(e) =>
@@ -959,7 +960,7 @@ export function FlowRecontactAutomationsPanel(props: {
                                 {o.label}
                               </option>
                             ))}
-                          </select>
+                          </SelectField>
                         </div>
                         {(btn.action === "continuar_flujo_actual" || btn.action === "iniciar_otro_flujo") && (
                           <div>
@@ -967,7 +968,7 @@ export function FlowRecontactAutomationsPanel(props: {
                               Nodo destino {btn.action === "iniciar_otro_flujo" ? "(flujo otro)" : "(este flujo)"}
                             </label>
                             {btn.action === "continuar_flujo_actual" ? (
-                              <select
+                              <SelectField
                                 className="mt-0.5 w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
                                 value={btn.node_code}
                                 onChange={(e) => updateButton(btn.id, { node_code: e.target.value })}
@@ -978,7 +979,7 @@ export function FlowRecontactAutomationsPanel(props: {
                                     {n.node_code} — {n.label}
                                   </option>
                                 ))}
-                              </select>
+                              </SelectField>
                             ) : (
                               <input
                                 className="mt-0.5 w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-mono"

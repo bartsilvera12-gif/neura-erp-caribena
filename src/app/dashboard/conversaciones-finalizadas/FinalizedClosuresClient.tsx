@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -285,7 +286,7 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
             Cola
-            <select
+            <SelectField
               value={queueId}
               onChange={(e) => setQueueId(e.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -296,11 +297,11 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                   {qItem.nombre}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
             Agente asignado
-            <select
+            <SelectField
               value={assignedUsuarioId}
               onChange={(e) => setAssignedUsuarioId(e.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -311,11 +312,11 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                   {a.nombre}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
             Canal
-            <select
+            <SelectField
               value={channelId}
               onChange={(e) => setChannelId(e.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -326,11 +327,11 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                   {(c.nombre ?? c.type).trim() || c.type}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
             Estado
-            <select
+            <SelectField
               value={stateLabel}
               onChange={(e) => setStateLabel(e.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -341,11 +342,11 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                   {s}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
             Subestado
-            <select
+            <SelectField
               value={substateLabel}
               onChange={(e) => setSubstateLabel(e.target.value)}
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -356,7 +357,7 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                   {s}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 sm:col-span-2">
             Nombre o número
@@ -377,7 +378,7 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
               Cerrado por
-              <select
+              <SelectField
                 value={closedByUsuarioId}
                 onChange={(e) => setClosedByUsuarioId(e.target.value)}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white"
@@ -388,7 +389,7 @@ export default function FinalizedClosuresClient({ filterOptions }: { filterOptio
                     {u.nombre}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </label>
             <p className="text-xs text-slate-500 sm:col-span-2 self-end pb-1">
               Usuarios que aparecen en cierres recientes (muestra). Para auditoría puntual del cierre, no del agente

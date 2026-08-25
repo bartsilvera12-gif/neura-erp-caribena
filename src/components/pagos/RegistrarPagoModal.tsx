@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useEffect, useState } from "react";
 import MontoInput, { parseMontoInput } from "@/components/ui/MontoInput";
 import { apiCreatePago } from "@/lib/api/client";
@@ -134,7 +135,7 @@ export function RegistrarPagoModal({
             <label className={labelClass} htmlFor="reg-pago-metodo">
               Método de pago
             </label>
-            <select
+            <SelectField
               id="reg-pago-metodo"
               value={metodoPago}
               onChange={(e) => setMetodoPago(e.target.value as MetodoPago)}
@@ -145,7 +146,7 @@ export function RegistrarPagoModal({
               <option value="cheque">Cheque</option>
               <option value="tarjeta">Tarjeta</option>
               <option value="otro">Otro</option>
-            </select>
+            </SelectField>
           </div>
           <div>
             <label className={labelClass} htmlFor="reg-pago-ref">

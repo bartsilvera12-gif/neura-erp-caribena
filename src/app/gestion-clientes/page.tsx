@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -894,11 +895,11 @@ function GestionClientesPageInner() {
                     </label>
                     <div className="min-w-[10rem] flex-1">
                       <label className={fLabelClass}>Moneda</label>
-                      <select name="moneda" value={filters.moneda} onChange={handleChange} className={fInputClass}>
+                      <SelectField name="moneda" value={filters.moneda} onChange={handleChange} className={fInputClass}>
                         <option value="">Todas</option>
                         <option value="GS">Guaraníes (GS)</option>
                         <option value="USD">Dólares (USD)</option>
-                      </select>
+                      </SelectField>
                     </div>
                     <button
                       type="button"

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Link2 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -641,7 +642,7 @@ function NuevoClienteForm() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className={labelClass}>Condición de pago</label>
-                <select
+                <SelectField
                   name="condicion_pago"
                   value={form.condicion_pago}
                   onChange={handleChange}
@@ -655,11 +656,11 @@ function NuevoClienteForm() {
                   {/* "Mensual" sale de la lista junto con el bloque Plan: la
                       suscripción mensual exige un plan, y sin selector de plan
                       quedaría un camino imposible de completar. */}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Moneda preferida</label>
-                <select
+                <SelectField
                   name="moneda_preferida"
                   value={form.moneda_preferida}
                   onChange={(e) => setForm((prev) => ({ ...prev, moneda_preferida: e.target.value as "GS" | "USD" }))}
@@ -667,7 +668,7 @@ function NuevoClienteForm() {
                 >
                   <option value="GS">Guaraníes (GS)</option>
                   <option value="USD">Dólares (USD)</option>
-                </select>
+                </SelectField>
               </div>
               {/* "Vendedor responsable (usuario ERP)" se quita del alta: el
                   campo de texto libre de abajo cubre el caso. */}
@@ -687,7 +688,7 @@ function NuevoClienteForm() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Origen del cliente</label>
-                <select
+                <SelectField
                   name="origen"
                   value={form.origen}
                   onChange={(e) => setForm((prev) => ({ ...prev, origen: e.target.value as OrigenCliente }))}
@@ -697,11 +698,11 @@ function NuevoClienteForm() {
                   <option value="MANUAL">Manual</option>
                   <option value="CRM">CRM</option>
                   <option value="VENTA">Venta</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={labelClass}>Estado inicial</label>
-                <select
+                <SelectField
                   name="estado"
                   value={form.estado}
                   onChange={(e) => setForm((prev) => ({ ...prev, estado: e.target.value as "activo" | "inactivo" }))}
@@ -709,7 +710,7 @@ function NuevoClienteForm() {
                 >
                   <option value="activo">Activo</option>
                   <option value="inactivo">Inactivo</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -406,7 +407,7 @@ export default function NuevaCompraPage() {
               <label className={labelClass}>
                 Proveedor <span className="text-red-500">*</span>
               </label>
-              <select
+              <SelectField
                 name="proveedor_id"
                 value={form.proveedor_id}
                 onChange={(e) => { handleChange(e); setProveedorCreado(null); }}
@@ -419,7 +420,7 @@ export default function NuevaCompraPage() {
                     {p.nombre} — RUC {p.ruc}
                   </option>
                 ))}
-              </select>
+              </SelectField>
 
               {proveedorCreado && (
                 <p className="mt-1.5 text-xs text-green-600">
@@ -485,7 +486,7 @@ export default function NuevaCompraPage() {
               <label className={labelClass}>
                 Producto <span className="text-red-500">*</span>
               </label>
-              <select
+              <SelectField
                 name="producto_id"
                 value={form.producto_id}
                 onChange={handleProductoSelectChange}
@@ -498,7 +499,7 @@ export default function NuevaCompraPage() {
                     {p.nombre} — {p.sku} (stock: {p.stock_actual})
                   </option>
                 ))}
-              </select>
+              </SelectField>
 
               {productoSeleccionado && !productoCreado && (
                 <p className="mt-1.5 text-xs text-gray-400">
@@ -570,7 +571,7 @@ export default function NuevaCompraPage() {
                     </div>
                     <div>
                       <label className={labelSmClass}>Unidad de medida</label>
-                      <select name="unidad_medida" value={formProducto.unidad_medida}
+                      <SelectField name="unidad_medida" value={formProducto.unidad_medida}
                         onChange={handleProductoInputChange} className={inputSmClass}>
                         <option value="Unidad">Unidad</option>
                         <option value="Par">Par</option>
@@ -578,7 +579,7 @@ export default function NuevaCompraPage() {
                         <option value="Kg">Kg</option>
                         <option value="Litro">Litro</option>
                         <option value="Metro">Metro</option>
-                      </select>
+                      </SelectField>
                     </div>
                     <div>
                       <label className={labelSmClass}>Stock mínimo</label>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithSupabaseSession, isAbortError } from "@/lib/api/fetch-with-supabase-session";
@@ -384,10 +385,10 @@ function Badge({ className, children }: { className: string; children: React.Rea
 
 function FilterSelect({ label, value, onChange, children }: { label: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
-    <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+    <SelectField className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
       <option value="">{label}</option>
       {children}
-    </select>
+    </SelectField>
   );
 }
 
@@ -426,16 +427,16 @@ function PiezaModal({
             <input className="input" value={draft.titulo} onChange={(e) => set({ titulo: e.target.value })} />
           </Field>
           <Field label="Cliente">
-            <select className="input" value={draft.cliente_id} onChange={(e) => set({ cliente_id: e.target.value })}>
+            <SelectField className="input" value={draft.cliente_id} onChange={(e) => set({ cliente_id: e.target.value })}>
               <option value="">Sin cliente</option>
               {clientes.map((c) => <option key={c.id} value={c.id}>{clienteLabel(c)}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Responsable">
-            <select className="input" value={draft.responsable_id} onChange={(e) => set({ responsable_id: e.target.value })}>
+            <SelectField className="input" value={draft.responsable_id} onChange={(e) => set({ responsable_id: e.target.value })}>
               <option value="">Sin responsable</option>
               {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre || u.email || u.id.slice(0, 8)}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Tipo de pieza">
             <input className="input" value={draft.tipo_pieza} onChange={(e) => set({ tipo_pieza: e.target.value })} placeholder="Post, reel, historia..." />
@@ -444,24 +445,24 @@ function PiezaModal({
             <input className="input" value={draft.canal} onChange={(e) => set({ canal: e.target.value })} placeholder="Instagram, Meta Ads..." />
           </Field>
           <Field label="Prioridad">
-            <select className="input" value={draft.prioridad} onChange={(e) => set({ prioridad: e.target.value })}>
+            <SelectField className="input" value={draft.prioridad} onChange={(e) => set({ prioridad: e.target.value })}>
               {PRIORIDAD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Estado producción">
-            <select className="input" value={draft.estado_produccion} onChange={(e) => set({ estado_produccion: e.target.value })}>
+            <SelectField className="input" value={draft.estado_produccion} onChange={(e) => set({ estado_produccion: e.target.value })}>
               {ESTADO_PRODUCCION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Estado cliente">
-            <select className="input" value={draft.estado_cliente} onChange={(e) => set({ estado_cliente: e.target.value })}>
+            <SelectField className="input" value={draft.estado_cliente} onChange={(e) => set({ estado_cliente: e.target.value })}>
               {ESTADO_CLIENTE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Estado publicación">
-            <select className="input" value={draft.estado_publicacion} onChange={(e) => set({ estado_publicacion: e.target.value })}>
+            <SelectField className="input" value={draft.estado_publicacion} onChange={(e) => set({ estado_publicacion: e.target.value })}>
               {ESTADO_PUBLICACION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </SelectField>
           </Field>
           <Field label="Fecha límite">
             <input type="date" className="input" value={draft.fecha_limite} onChange={(e) => set({ fecha_limite: e.target.value })} />

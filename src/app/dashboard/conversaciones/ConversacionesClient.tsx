@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -1469,7 +1470,7 @@ export function ConversacionesClient({
               <div className="mt-4 space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Estado</label>
-                  <select
+                  <SelectField
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                     value={finalizeStateId}
                     onChange={(e) => setFinalizeStateId(e.target.value)}
@@ -1479,7 +1480,7 @@ export function ConversacionesClient({
                         {s.label}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
                 {(() => {
                   const st = finalizeOptions.states.find((s) => s.id === finalizeStateId);
@@ -1487,7 +1488,7 @@ export function ConversacionesClient({
                   return (
                     <div>
                       <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Subestado</label>
-                      <select
+                      <SelectField
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         value={finalizeSubstateId}
                         onChange={(e) => setFinalizeSubstateId(e.target.value)}
@@ -1498,7 +1499,7 @@ export function ConversacionesClient({
                             {sub.label}
                           </option>
                         ))}
-                      </select>
+                      </SelectField>
                     </div>
                   );
                 })()}
@@ -1586,7 +1587,7 @@ export function ConversacionesClient({
                   Colas
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  <select
+                  <SelectField
                     disabled={opsBusy}
                     className="flex-1 min-w-[12rem] border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"
                     value={transferQueueTarget}
@@ -1601,7 +1602,7 @@ export function ConversacionesClient({
                           {q.nombre}
                         </option>
                       ))}
-                  </select>
+                  </SelectField>
                   <button
                     type="button"
                     disabled={opsBusy || !transferQueueTarget}
@@ -1877,7 +1878,7 @@ export function ConversacionesClient({
         <div className="flex flex-wrap items-end gap-3 shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
           <label className="flex flex-col gap-1 min-w-[12rem]">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Canal</span>
-            <select
+            <SelectField
               className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[12rem] max-w-[min(22rem,90vw)]"
               value={displayCanal}
               onChange={(e) => {
@@ -1893,11 +1894,11 @@ export function ConversacionesClient({
                   {formatChannelOptionLabel(c)}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 min-w-[11rem]">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Cola</span>
-            <select
+            <SelectField
               className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[11rem]"
               value={displayCola}
               onChange={(e) => {
@@ -1915,11 +1916,11 @@ export function ConversacionesClient({
                     {q.nombre}
                   </option>
                 ))}
-            </select>
+            </SelectField>
           </label>
           <label className="flex flex-col gap-1 min-w-[11rem]">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Asignación</span>
-            <select
+            <SelectField
               className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[11rem]"
               value={displayAsignacion}
               onChange={(e) => {
@@ -1932,7 +1933,7 @@ export function ConversacionesClient({
               <option value="">Todas</option>
               {opInQueues ? <option value="mios">Asignadas a mí</option> : null}
               <option value="sin_asignar">Sin asignar</option>
-            </select>
+            </SelectField>
           </label>
           {initialOmnicanalRole === "supervisor" ? (
             <p className="text-[11px] text-slate-500 max-w-[18rem] leading-snug pb-0.5">

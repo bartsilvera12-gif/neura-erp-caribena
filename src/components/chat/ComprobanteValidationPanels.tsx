@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import type {
   ComprobanteValidationSettings,
   OcrFieldKey,
@@ -22,7 +23,7 @@ function OnMissingSelect(props: {
   disabled?: boolean;
 }) {
   return (
-    <select
+    <SelectField
       className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white"
       value={props.value}
       disabled={props.disabled}
@@ -31,7 +32,7 @@ function OnMissingSelect(props: {
       <option value="continuar">Permitir continuar</option>
       <option value="revision_manual">Revisión manual</option>
       <option value="bloquear">Bloquear (mensaje + botones)</option>
-    </select>
+    </SelectField>
   );
 }
 

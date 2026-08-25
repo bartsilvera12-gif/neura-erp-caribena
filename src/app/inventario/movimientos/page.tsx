@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getMovimientos } from "@/lib/inventario/storage";
@@ -120,7 +121,7 @@ export default function MovimientosPage() {
             onChange={(e) => setBusqueda(e.target.value)}
             className={`${inputFilterClass} min-w-56`}
           />
-          <select
+          <SelectField
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value as TipoMovimiento | "")}
             className={inputFilterClass}
@@ -129,8 +130,8 @@ export default function MovimientosPage() {
             <option value="ENTRADA">ENTRADA</option>
             <option value="SALIDA">SALIDA</option>
             <option value="AJUSTE">AJUSTE</option>
-          </select>
-          <select
+          </SelectField>
+          <SelectField
             value={filtroOrigen}
             onChange={(e) => setFiltroOrigen(e.target.value as OrigenMovimiento | "")}
             className={inputFilterClass}
@@ -139,7 +140,7 @@ export default function MovimientosPage() {
             <option value="compra">Compra</option>
             <option value="venta">Venta</option>
             <option value="ajuste_manual">Ajuste manual</option>
-          </select>
+          </SelectField>
 
           {/* Separador visual entre grupos */}
           <div className="w-full flex flex-wrap items-center gap-3">

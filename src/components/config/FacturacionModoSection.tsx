@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -201,7 +202,7 @@ export default function FacturacionModoSection() {
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Tipo de impresión por defecto</label>
-            <select
+            <SelectField
               value={modo.impresion_tipo_default}
               onChange={(e) => guardarModo({ impresion_tipo_default: e.target.value as Impresion })}
               disabled={savingModo}
@@ -210,7 +211,7 @@ export default function FacturacionModoSection() {
               {(Object.keys(impresionLabels) as Impresion[]).map((k) => (
                 <option key={k} value={k}>{impresionLabels[k]}</option>
               ))}
-            </select>
+            </SelectField>
             <p className="mt-1 text-[11px] text-slate-400">
               {esTicket
                 ? "Ticket térmico: formato optimizado para impresoras 58/80 mm. La impresión usa la ventana del navegador."
@@ -289,11 +290,11 @@ function AutoimpresorForm({
 
       <div className="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Formato de impresión">
-          <select className={inputClass} value={f.formato_impresion_default} onChange={(e) => set("formato_impresion_default", e.target.value as Impresion)}>
+          <SelectField className={inputClass} value={f.formato_impresion_default} onChange={(e) => set("formato_impresion_default", e.target.value as Impresion)}>
             {(Object.keys(impresionLabels) as Impresion[]).map((k) => (
               <option key={k} value={k}>{impresionLabels[k]}</option>
             ))}
-          </select>
+          </SelectField>
         </Field>
         {esTicket && (
           <Field label="Leyenda papel térmico (pie)">

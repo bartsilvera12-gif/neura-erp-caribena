@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Check, User } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -198,7 +199,7 @@ export default function TipificacionPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Tipo de gestión <span className="text-red-500">*</span>
               </label>
-              <select
+              <SelectField
                 name="tipo_gestion"
                 value={form.tipo_gestion}
                 onChange={handleChange}
@@ -207,7 +208,7 @@ export default function TipificacionPage() {
                 {TIPOS_GESTION.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
 
             {/* Resultado */}
@@ -215,7 +216,7 @@ export default function TipificacionPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Resultado <span className="text-red-500">*</span>
               </label>
-              <select
+              <SelectField
                 name="resultado"
                 value={form.resultado}
                 onChange={handleChange}
@@ -224,7 +225,7 @@ export default function TipificacionPage() {
                 {RESULTADOS.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
 

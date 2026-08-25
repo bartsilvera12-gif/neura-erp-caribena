@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -585,14 +586,14 @@ export default function FacturacionElectronicaSifenPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={fLabel}>Ambiente</label>
-              <select
+              <SelectField
                 className={fSelect}
                 value={ambiente}
                 onChange={(e) => setAmbiente(e.target.value as AmbienteSifen)}
               >
                 <option value="test">Test</option>
                 <option value="produccion">Producción</option>
-              </select>
+              </SelectField>
             </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">

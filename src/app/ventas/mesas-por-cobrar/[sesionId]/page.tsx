@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Pizza } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -362,10 +363,10 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               {metodo === "transferencia" && (
                 <div className="space-y-2">
                   {cuentas.length > 0 ? (
-                    <select value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
+                    <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
                       <option value="">Cuenta destino…</option>
                       {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.banco ? ` (${c.banco})` : ""}</option>)}
-                    </select>
+                    </SelectField>
                   ) : (
                     <p className="text-[11px] text-amber-600">No hay cuentas configuradas; se registra sin cuenta.</p>
                   )}
@@ -377,10 +378,10 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               {metodo === "tarjeta" && (
                 <div className="space-y-2">
                   {cuentas.length > 0 && (
-                    <select value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
+                    <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
                       <option value="">POS / banco…</option>
                       {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.tipo ? ` (${c.tipo})` : ""}</option>)}
-                    </select>
+                    </SelectField>
                   )}
                   <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de operación" className={inputClass} />
                 </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -116,7 +117,7 @@ export default function GastoForm({ gasto, onSuccess }: Props) {
           </div>
           <div>
             <label className={fLabel}>Tipo</label>
-            <select
+            <SelectField
               name="tipo"
               value={form.tipo}
               onChange={handleChange}
@@ -124,7 +125,7 @@ export default function GastoForm({ gasto, onSuccess }: Props) {
             >
               <option value="variable">Variable</option>
               <option value="fijo">Fijo</option>
-            </select>
+            </SelectField>
           </div>
           <div className="flex items-center gap-2">
             <input

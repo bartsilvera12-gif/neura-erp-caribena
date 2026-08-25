@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { enRangoCalendario, rangoDesdeHastaInputs, toCalendarDateStr } from "@/lib/fechas/calendario";
@@ -269,7 +270,7 @@ export default function PagosPage() {
           </div>
           <div>
             <label className={labelClass}>Tipo de cliente</label>
-            <select
+            <SelectField
               value={filtroTipoCliente}
               onChange={(e) => setFiltroTipoCliente(e.target.value)}
               className={`${inputClass} min-w-[10.5rem] max-w-full sm:w-[14rem]`}
@@ -281,7 +282,7 @@ export default function PagosPage() {
                   {o.label}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <button
             type="button"

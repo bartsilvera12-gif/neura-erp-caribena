@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -239,7 +240,7 @@ function EstadoSelect({
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
-      <select
+      <SelectField
         className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
         value={value}
         disabled={disabled}
@@ -250,7 +251,7 @@ function EstadoSelect({
             {o.label}
           </option>
         ))}
-      </select>
+      </SelectField>
     </label>
   );
 }

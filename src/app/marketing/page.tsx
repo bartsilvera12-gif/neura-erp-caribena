@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getMetricasCumplimiento, updateTaskStatus } from "@/lib/marketing/storage";
 import type { MarketingOpsClienteResumen } from "@/lib/marketing/ops-queries";
@@ -290,7 +291,7 @@ export default function MarketingOpsPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <SelectField
             value={mes}
             onChange={(e) => setMes(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white shadow-sm"
@@ -308,7 +309,7 @@ export default function MarketingOpsPage() {
                 </option>
               );
             })}
-          </select>
+          </SelectField>
           <button
             type="button"
             onClick={() => void cargar()}

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { BarChart3, Building2, Package, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -175,7 +176,7 @@ export default function EmpresaForm() {
           </div>
           <div>
             <label className={fLabel}>Estado</label>
-            <select
+            <SelectField
               name="estado"
               value={form.estado}
               onChange={handleChange}
@@ -183,7 +184,7 @@ export default function EmpresaForm() {
             >
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
-            </select>
+            </SelectField>
           </div>
         </div>
       </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchWithSupabaseSession, isAbortError } from "@/lib/api/fetch-with-supabase-session";
@@ -245,7 +246,7 @@ export default function SorteosCuponesManualClient() {
 
               <label className="flex flex-col gap-1 text-xs text-slate-600">
                 Sorteo *
-                <select
+                <SelectField
                   name="sorteo_id"
                   value={form.sorteo_id}
                   onChange={onField}
@@ -259,7 +260,7 @@ export default function SorteosCuponesManualClient() {
                       {(s.estado ?? "") !== "activo" ? ` (${s.estado})` : ""}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </label>
 
               <div className="grid grid-cols-2 gap-2">

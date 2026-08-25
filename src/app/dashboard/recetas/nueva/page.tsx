@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -119,7 +120,7 @@ export default function NuevaRecetaPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Producto vendible <span className="text-red-500">*</span>
             </label>
-            <select
+            <SelectField
               value={productoId}
               onChange={(e) => {
                 setProductoId(e.target.value);
@@ -134,7 +135,7 @@ export default function NuevaRecetaPage() {
                   {p.nombre} ({p.sku}) — Gs. {Number(p.precio_venta).toLocaleString("es-PY")}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           <div>

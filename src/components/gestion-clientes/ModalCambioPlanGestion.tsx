@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession, isAbortError } from "@/lib/api/fetch-with-supabase-session";
@@ -193,7 +194,7 @@ export function ModalCambioPlanGestion({
                     <label className="mb-0.5 block text-[11px] font-medium text-slate-500" htmlFor="cambio-plan-sel">
                       Nuevo plan
                     </label>
-                    <select
+                    <SelectField
                       id="cambio-plan-sel"
                       value={planId}
                       onChange={(e) => setPlanId(e.target.value)}
@@ -204,7 +205,7 @@ export function ModalCambioPlanGestion({
                           {p.nombre} — {p.moneda === "USD" ? "US$" : "Gs."} {p.moneda === "GS" ? formatGs(p.precio) : p.precio} / {p.moneda}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                   {planElegido ? (
                     <p className="text-sm text-slate-700">

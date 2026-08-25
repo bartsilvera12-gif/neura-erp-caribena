@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -295,7 +296,7 @@ export default function NuevoProspectoPage() {
               </div>
               <div>
                 <label className={labelClass}>Etapa inicial</label>
-                <select
+                <SelectField
                   name="etapa"
                   value={form.etapa}
                   onChange={handleChange}
@@ -304,7 +305,7 @@ export default function NuevoProspectoPage() {
                   {etapas.filter((e) => e.codigo !== "GANADO" && e.codigo !== "PERDIDO").map((e) => (
                     <option key={e.id} value={e.codigo}>{e.nombre}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             </div>
           </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { User, Briefcase, ShieldCheck, KeyRound } from "lucide-react";
 import MontoInput from "@/components/ui/MontoInput";
 import type { AreaUsuario, NivelUsuario, TipoContrato } from "@/lib/usuarios/types";
@@ -187,12 +188,12 @@ export function UsuarioFormFields({
             </div>
             <div>
               <label className={fLabel}>Tipo de contrato</label>
-              <select name="tipo_contrato" value={form.tipo_contrato} onChange={onChange} className={fSelect}>
+              <SelectField name="tipo_contrato" value={form.tipo_contrato} onChange={onChange} className={fSelect}>
                 <option value="salario">Salario fijo</option>
                 <option value="comision">Comisión</option>
                 <option value="mixto">Mixto (salario + comisión)</option>
                 <option value="prestador_servicio">Prestador de servicio</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 
@@ -248,7 +249,7 @@ export function UsuarioFormFields({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={fLabel}>Nivel de acceso</label>
-            <select
+            <SelectField
               name="nivel"
               value={form.nivel}
               onChange={onChange}
@@ -259,7 +260,7 @@ export function UsuarioFormFields({
               <option value="usuario">Usuario</option>
               <option value="supervisor">Supervisor</option>
               <option value="administrador">Administrador</option>
-            </select>
+            </SelectField>
             {nivelAccesoDisabled ? (
               <p className="text-xs text-amber-700 mt-1">Solo un administrador puede cambiar el nivel de acceso.</p>
             ) : (
@@ -272,20 +273,20 @@ export function UsuarioFormFields({
           </div>
           <div>
             <label className={fLabel}>Área</label>
-            <select name="area" value={form.area} onChange={onChange} className={fSelect}>
+            <SelectField name="area" value={form.area} onChange={onChange} className={fSelect}>
               <option value="ventas">Ventas</option>
               <option value="soporte">Soporte</option>
               <option value="finanzas">Finanzas</option>
               <option value="operaciones">Operaciones</option>
               <option value="administracion">Administración</option>
-            </select>
+            </SelectField>
           </div>
           <div>
             <label className={fLabel}>Estado</label>
-            <select name="estado" value={form.estado} onChange={onChange} className={fSelect}>
+            <SelectField name="estado" value={form.estado} onChange={onChange} className={fSelect}>
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
-            </select>
+            </SelectField>
           </div>
         </div>
       </SectionCard>

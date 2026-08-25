@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useState } from "react";
 import { ConfigFormCard, ConfigSectionTitle } from "@/components/config/global-config-primitives";
 import { GlobalConfigSubpageShell } from "@/components/config/GlobalConfigSubpageShell";
@@ -265,13 +266,13 @@ export default function ConfiguracionCrmPipelinePage() {
                         id={`edit-nombre-${e.id}`}
                         className="w-32 rounded border px-2 py-1 text-sm"
                       />
-                      <select id={`edit-color-${e.id}`} defaultValue={e.color} className="rounded border px-2 py-1 text-sm">
+                      <SelectField id={`edit-color-${e.id}`} defaultValue={e.color} className="rounded border px-2 py-1 text-sm">
                         {["gray", "blue", "amber", "green", "red", "violet", "cyan", "pink"].map((c) => (
                           <option key={c} value={c}>
                             {c}
                           </option>
                         ))}
-                      </select>
+                      </SelectField>
                       <input
                         type="number"
                         id={`edit-orden-${e.id}`}
@@ -362,7 +363,7 @@ export default function ConfiguracionCrmPipelinePage() {
                 </div>
                 <div>
                   <label className="mb-0.5 block text-[10px] text-slate-500">Color</label>
-                  <select
+                  <SelectField
                     value={nuevaEtapa.color}
                     onChange={(ev) => setNuevaEtapa((prev) => ({ ...prev, color: ev.target.value }))}
                     className="rounded border px-2 py-1.5 text-sm"
@@ -372,7 +373,7 @@ export default function ConfiguracionCrmPipelinePage() {
                         {c}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
                 <div>
                   <label className="mb-0.5 block text-[10px] text-slate-500">Orden</label>

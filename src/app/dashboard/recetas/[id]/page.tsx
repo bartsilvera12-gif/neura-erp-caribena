@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -396,7 +397,7 @@ export default function EditarRecetaPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <select
+              <SelectField
                 value={newInsumoId}
                 onChange={(e) => {
                   setNewInsumoId(e.target.value);
@@ -410,7 +411,7 @@ export default function EditarRecetaPage() {
                     {p.nombre} — {fmtGs(p.costo_promedio)}/{p.unidad_medida ?? ""} (stock {p.stock_actual})
                   </option>
                 ))}
-              </select>
+              </SelectField>
               <input
                 type="number"
                 step="0.01"

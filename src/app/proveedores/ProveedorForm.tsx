@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import type {
   CondicionPagoProveedor,
   EstadoProveedor,
@@ -144,7 +145,7 @@ export default function ProveedorForm({
         </div>
         <div>
           <label className={labelClass}>Estado</label>
-          <select
+          <SelectField
             className={inputClass}
             value={values.estado}
             onChange={(e) => patch("estado", e.target.value as EstadoProveedor)}
@@ -152,11 +153,11 @@ export default function ProveedorForm({
           >
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
-          </select>
+          </SelectField>
         </div>
         <div>
           <label className={labelClass}>Condición de pago habitual</label>
-          <select
+          <SelectField
             className={inputClass}
             value={values.condicion_pago}
             onChange={(e) => patch("condicion_pago", e.target.value as ProveedorFormValues["condicion_pago"])}
@@ -166,7 +167,7 @@ export default function ProveedorForm({
             <option value="contado">Contado</option>
             <option value="credito">Crédito</option>
             <option value="mixto">Mixto</option>
-          </select>
+          </SelectField>
         </div>
         <div>
           <label className={labelClass}>Plazo (días)</label>
@@ -181,7 +182,7 @@ export default function ProveedorForm({
         </div>
         <div>
           <label className={labelClass}>Moneda preferida</label>
-          <select
+          <SelectField
             className={inputClass}
             value={values.moneda_preferida}
             onChange={(e) => patch("moneda_preferida", e.target.value as ProveedorFormValues["moneda_preferida"])}
@@ -190,7 +191,7 @@ export default function ProveedorForm({
             <option value="">—</option>
             <option value="GS">Guaraníes (GS)</option>
             <option value="USD">Dólares (USD)</option>
-          </select>
+          </SelectField>
         </div>
         <div className="sm:col-span-2">
           <label className={labelClass}>Observaciones</label>

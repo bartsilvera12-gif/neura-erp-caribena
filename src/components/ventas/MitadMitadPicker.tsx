@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Pizza, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -89,17 +90,17 @@ export default function MitadMitadPicker({
             <>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Mitad 1 — sabor</label>
-                <select value={s1} onChange={(e) => setS1(e.target.value)} className={selectClass}>
+                <SelectField value={s1} onChange={(e) => setS1(e.target.value)} className={selectClass}>
                   <option value="">Elegí un sabor…</option>
                   {pizzas.map((p) => <option key={p.id} value={p.id}>{p.nombre} — {formatGs(p.precio_venta)}</option>)}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Mitad 2 — sabor</label>
-                <select value={s2} onChange={(e) => setS2(e.target.value)} className={selectClass}>
+                <SelectField value={s2} onChange={(e) => setS2(e.target.value)} className={selectClass}>
                   <option value="">Elegí un sabor…</option>
                   {pizzas.map((p) => <option key={p.id} value={p.id}>{p.nombre} — {formatGs(p.precio_venta)}</option>)}
-                </select>
+                </SelectField>
               </div>
 
               {valido && (

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { ChevronDown, Percent } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -480,7 +481,7 @@ export default function ConfiguracionComisionesPage() {
               </div>
               <div>
                 <label className={F_LABEL}>Estado</label>
-                <select
+                <SelectField
                   value={activo ? "1" : "0"}
                   onChange={(e) => setActivo(e.target.value === "1")}
                   disabled={!puedeEditar}
@@ -488,11 +489,11 @@ export default function ConfiguracionComisionesPage() {
                 >
                   <option value="1">Activa</option>
                   <option value="0">Inactiva</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className={F_LABEL}>Base de cálculo (futuro)</label>
-                <select
+                <SelectField
                   value={baseCalculo}
                   onChange={(e) => setBaseCalculo(e.target.value)}
                   disabled={!puedeEditar}
@@ -503,7 +504,7 @@ export default function ConfiguracionComisionesPage() {
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 <ConfigHelpText>
                   Define la fuente cuando el motor calcule comisiones (habilitación próxima).
                 </ConfigHelpText>

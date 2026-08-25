@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
@@ -72,9 +73,9 @@ export default function ComandasHistorialPage() {
           <div><label className="block text-xs text-slate-600 mb-1">Desde</label><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={input} /></div>
           <div><label className="block text-xs text-slate-600 mb-1">Hasta</label><input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className={input} /></div>
           <div><label className="block text-xs text-slate-600 mb-1">Estado</label>
-            <select value={estado} onChange={(e) => setEstado(e.target.value as "impresa" | "cancelada" | "")} className={input}>
+            <SelectField value={estado} onChange={(e) => setEstado(e.target.value as "impresa" | "cancelada" | "")} className={input}>
               <option value="">Todas</option><option value="impresa">Impresa</option><option value="cancelada">Cancelada</option>
-            </select></div>
+            </SelectField></div>
           <div className="w-24"><label className="block text-xs text-slate-600 mb-1">Mesa</label><input value={mesa} onChange={(e) => setMesa(e.target.value)} inputMode="numeric" placeholder="N°" className={`${input} w-24`} /></div>
           <div><label className="block text-xs text-slate-600 mb-1">Mozo</label><input value={mozo} onChange={(e) => setMozo(e.target.value)} placeholder="Nombre" className={input} /></div>
           <div className="w-28"><label className="block text-xs text-slate-600 mb-1">Comanda N°</label><input value={numero} onChange={(e) => setNumero(e.target.value)} inputMode="numeric" placeholder="N°" className={`${input} w-28`} /></div>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -496,7 +497,7 @@ export default function PhysicalCouponsPrintClient({
         <div className="no-print rounded-xl border border-slate-200 bg-white p-4 space-y-2">
           <label className="flex flex-col gap-1 text-sm text-slate-700">
             <span className="font-semibold text-slate-800">Formato de impresión</span>
-            <select
+            <SelectField
               value={selectedPrintFormat}
               onChange={(e) => {
                 const v = e.target.value;
@@ -509,7 +510,7 @@ export default function PhysicalCouponsPrintClient({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <p className="text-xs text-slate-600">{activeFormatHelp}</p>
 
@@ -596,7 +597,7 @@ export default function PhysicalCouponsPrintClient({
             </label>
             <label className="flex flex-col gap-1 text-xs text-slate-600">
               Estado de pago
-              <select
+              <SelectField
                 name="estado"
                 defaultValue={estado}
                 className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
@@ -606,7 +607,7 @@ export default function PhysicalCouponsPrintClient({
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </label>
             <label className="flex flex-col gap-1 text-xs text-slate-600">
               Desde

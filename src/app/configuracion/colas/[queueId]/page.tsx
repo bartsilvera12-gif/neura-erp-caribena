@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -394,7 +395,7 @@ export default function EditarColaPage() {
             <p className="text-xs text-slate-500 mt-2 mb-2">
               Solo si aún no usás la asociación múltiple de canales: filtro histórico por tipo de canal.
             </p>
-            <select
+            <SelectField
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
               value={legacyChannelType}
               onChange={(e) => setLegacyChannelType(e.target.value)}
@@ -405,7 +406,7 @@ export default function EditarColaPage() {
               <option value="instagram">Instagram</option>
               <option value="linkedin">LinkedIn</option>
               <option value="email">Email</option>
-            </select>
+            </SelectField>
           </details>
         )}
       </section>
@@ -453,7 +454,7 @@ export default function EditarColaPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Unidad</label>
-            <select
+            <SelectField
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={routing.initial_no_response?.unit ?? "minutes"}
               onChange={(e) =>
@@ -469,12 +470,12 @@ export default function EditarColaPage() {
             >
               <option value="minutes">Minutos</option>
               <option value="hours">Horas</option>
-            </select>
+            </SelectField>
           </div>
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Acción al vencer el plazo</label>
-          <select
+          <SelectField
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             value={routing.initial_no_response?.action ?? "reassign_prepare"}
             onChange={(e) =>
@@ -490,7 +491,7 @@ export default function EditarColaPage() {
           >
             <option value="reassign_prepare">Preparar redistribución (modelo listo; automatización después)</option>
             <option value="reassign_auto">Redistribuir automáticamente a otro agente (cuando el motor lo aplique)</option>
-          </select>
+          </SelectField>
         </div>
       </section>
 
@@ -541,7 +542,7 @@ export default function EditarColaPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Unidad</label>
-            <select
+            <SelectField
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={routing.same_advisor_window?.unit ?? "hours"}
               onChange={(e) =>
@@ -557,7 +558,7 @@ export default function EditarColaPage() {
             >
               <option value="hours">Horas</option>
               <option value="days">Días</option>
-            </select>
+            </SelectField>
           </div>
         </div>
       </section>
@@ -678,7 +679,7 @@ export default function EditarColaPage() {
         <div className="flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Agregar usuario</label>
-            <select
+            <SelectField
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={pickUser}
               onChange={(e) => setPickUser(e.target.value)}
@@ -689,7 +690,7 @@ export default function EditarColaPage() {
                   {u.nombre} ({u.email})
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <button
             type="button"

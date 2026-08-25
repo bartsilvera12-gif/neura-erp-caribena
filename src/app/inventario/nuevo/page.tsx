@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, CupSoda, Pizza, Wand2, Wheat } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -617,7 +618,7 @@ export default function NuevoProductoPage() {
 
             <div className={tipoGastro === "menu" ? "hidden" : ""}>
               <label className={labelClass}>Unidad de medida</label>
-              <select
+              <SelectField
                 name="unidad_medida"
                 value={form.unidad_medida}
                 onChange={handleChange}
@@ -627,7 +628,7 @@ export default function NuevoProductoPage() {
                 {UNIDADES_OPCIONES.map((u) => (
                   <option key={u} value={u}>{u}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
 
@@ -847,7 +848,7 @@ export default function NuevoProductoPage() {
               {/* Sector de producción — 4 cols. Decide qué comanda imprime el pedido. */}
               <div className="md:col-span-4 min-w-0">
                 <label className={labelClass}>Sector de producción</label>
-                <select
+                <SelectField
                   value={sectorProduccion}
                   onChange={(e) => setSectorProduccion(e.target.value as "ninguno" | "pizzeria" | "plancha")}
                   className={inputClass}
@@ -855,7 +856,7 @@ export default function NuevoProductoPage() {
                   <option value="ninguno">Ninguno (no genera comanda)</option>
                   <option value="pizzeria">Pizzería (copia completa)</option>
                   <option value="plancha">Plancha</option>
-                </select>
+                </SelectField>
                 <p className="mt-2 text-xs text-gray-400">
                   Pizzería recibe copia completa del pedido; plancha solo sus productos; ninguno (bebidas) no imprime comanda.
                 </p>
@@ -1050,7 +1051,7 @@ export default function NuevoProductoPage() {
               Se mantiene siempre 'CPP' (default del state form.metodo_valuacion) y se envía al backend tal cual. */}
           <div className="hidden">
             <label className={labelClass}>Método de valuación</label>
-            <select
+            <SelectField
               name="metodo_valuacion"
               value={form.metodo_valuacion}
               onChange={handleChange}
@@ -1059,7 +1060,7 @@ export default function NuevoProductoPage() {
               <option value="CPP">CPP — Costo Promedio Ponderado</option>
               <option value="FIFO">FIFO — Primero en entrar, primero en salir</option>
               <option value="LIFO">LIFO — Último en entrar, primero en salir</option>
-            </select>
+            </SelectField>
           </div>
 
           {/* Acciones */}

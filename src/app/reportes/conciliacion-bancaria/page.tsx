@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -80,17 +81,17 @@ export default function ConciliacionPage() {
           <div><label className="block text-xs text-slate-600 mb-1">Desde</label><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={input} /></div>
           <div><label className="block text-xs text-slate-600 mb-1">Hasta</label><input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className={input} /></div>
           <div><label className="block text-xs text-slate-600 mb-1">Estado</label>
-            <select value={estado} onChange={(e) => setEstado(e.target.value as ConciliacionEstado | "")} className={input}>
+            <SelectField value={estado} onChange={(e) => setEstado(e.target.value as ConciliacionEstado | "")} className={input}>
               <option value="">Todos</option><option value="pendiente">Pendiente</option><option value="aprobado">Aprobado</option><option value="rechazado">Rechazado</option>
-            </select></div>
+            </SelectField></div>
           <div><label className="block text-xs text-slate-600 mb-1">Medio</label>
-            <select value={medio} onChange={(e) => setMedio(e.target.value as MedioConciliacion | "")} className={input}>
+            <SelectField value={medio} onChange={(e) => setMedio(e.target.value as MedioConciliacion | "")} className={input}>
               <option value="">Todos</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option>
-            </select></div>
+            </SelectField></div>
           <div><label className="block text-xs text-slate-600 mb-1">Cuenta</label>
-            <select value={cuenta} onChange={(e) => setCuenta(e.target.value)} className={input}>
+            <SelectField value={cuenta} onChange={(e) => setCuenta(e.target.value)} className={input}>
               <option value="">Todas</option>{cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select></div>
+            </SelectField></div>
           {(desde || hasta || estado || medio || cuenta) && (
             <button onClick={() => { setDesde(""); setHasta(""); setEstado(""); setMedio(""); setCuenta(""); }} className="px-2 py-2 text-sm text-slate-400 hover:text-slate-600">Limpiar</button>
           )}

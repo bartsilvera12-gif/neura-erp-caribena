@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback } from "react";
 
@@ -31,7 +32,7 @@ function Inner() {
   return (
     <label className="flex flex-col gap-1 text-xs text-slate-600">
       Estado pago
-      <select
+      <SelectField
         value={value}
         className="border border-slate-300 rounded px-2 py-1.5 text-sm min-w-[180px]"
         onChange={(e) => applyEstado(e.target.value)}
@@ -41,7 +42,7 @@ function Inner() {
         <option value="pendiente_revision">Pendiente revisión</option>
         <option value="confirmado">Aprobado</option>
         <option value="rechazado">Rechazado</option>
-      </select>
+      </SelectField>
     </label>
   );
 }
@@ -53,9 +54,9 @@ export default function SorteoCuponesEstadoPagoFilter() {
       fallback={
         <label className="flex flex-col gap-1 text-xs text-slate-600">
           Estado pago
-          <select className="border border-slate-300 rounded px-2 py-1.5 text-sm min-w-[180px]" disabled>
+          <SelectField className="border border-slate-300 rounded px-2 py-1.5 text-sm min-w-[180px]" disabled>
             <option>Cargando…</option>
-          </select>
+          </SelectField>
         </label>
       }
     >

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
@@ -141,7 +142,7 @@ export default function CategoriasProductosPage() {
           </div>
           <div>
             <label className="block text-xs text-gray-600 mb-1">Categoría padre (opcional)</label>
-            <select
+            <SelectField
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
@@ -150,7 +151,7 @@ export default function CategoriasProductosPage() {
               {items.filter((i) => i.activo).map((i) => (
                 <option key={i.id} value={i.id}>{i.nombre}</option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div className="md:col-span-3">
             <button

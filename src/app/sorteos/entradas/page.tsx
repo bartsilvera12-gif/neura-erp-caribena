@@ -1,3 +1,4 @@
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import {
   fetchSorteoEntradasServer,
@@ -144,7 +145,7 @@ export default async function SorteoEntradasPage({
         </label>
         <label className="flex flex-col gap-1 text-xs text-slate-600">
           Estado pago
-          <select
+          <SelectField
             name="estado"
             defaultValue={estadoRaw ?? ""}
             className="border border-slate-300 rounded px-2 py-1.5 text-sm"
@@ -154,7 +155,7 @@ export default async function SorteoEntradasPage({
             <option value="pendiente">Pendiente</option>
             <option value="confirmado">Confirmado</option>
             <option value="rechazado">Rechazado</option>
-          </select>
+          </SelectField>
         </label>
         <button
           type="submit"

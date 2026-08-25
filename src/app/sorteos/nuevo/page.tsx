@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -195,7 +196,7 @@ export default function NuevoSorteoPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-            <select
+            <SelectField
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               value={estado}
               onChange={(e) => setEstado(e.target.value as SorteoEstado)}
@@ -204,7 +205,7 @@ export default function NuevoSorteoPage() {
               <option value="pausado">pausado</option>
               <option value="cerrado">cerrado</option>
               <option value="finalizado">finalizado</option>
-            </select>
+            </SelectField>
           </div>
         </div>
         <div>
@@ -247,14 +248,14 @@ export default function NuevoSorteoPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Modo de generación</label>
-                <select
+                <SelectField
                   className="w-full max-w-xs border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
                   value={couponMode}
                   onChange={(e) => setCouponMode(e.target.value as SorteoCouponNumberMode)}
                 >
                   <option value="correlative">Correlativo</option>
                   <option value="random">Aleatorio</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">

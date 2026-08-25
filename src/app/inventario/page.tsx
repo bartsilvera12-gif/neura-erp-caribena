@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getProductos } from "@/lib/inventario/storage";
@@ -314,7 +315,7 @@ export default function InventarioPage() {
           <div className="hidden flex-wrap items-center gap-3">
             <div>
               <label className="block text-xs text-gray-400 mb-1">Valuación</label>
-              <select
+              <SelectField
                 value={filtroValuacion}
                 onChange={(e) => setFiltroValuacion(e.target.value as MetodoValuacion | "")}
                 className={inputFilterClass}
@@ -323,11 +324,11 @@ export default function InventarioPage() {
                 <option value="CPP">CPP</option>
                 <option value="FIFO">FIFO</option>
                 <option value="LIFO">LIFO</option>
-              </select>
+              </SelectField>
             </div>
             <div className="min-w-[14rem]">
               <label className="block text-xs text-gray-400 mb-1">Depósito / Ubicación</label>
-              <select
+              <SelectField
                 value={filtroUbicacion}
                 onChange={(e) => setFiltroUbicacion(e.target.value)}
                 className={`${inputFilterClass} w-full`}
@@ -339,7 +340,7 @@ export default function InventarioPage() {
                     {u.nombre} — {u.tipo}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none mt-4">
               <input

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
@@ -94,7 +95,7 @@ export default function NuevoMovimientoPage() {
           {/* Producto */}
           <div>
             <label className={labelClass}>Producto</label>
-            <select
+            <SelectField
               name="producto_id"
               value={form.producto_id}
               onChange={handleProductoChange}
@@ -107,14 +108,14 @@ export default function NuevoMovimientoPage() {
                   {p.nombre} — {p.sku} (stock actual: {p.stock_actual})
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           {/* Tipo + Origen */}
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className={labelClass}>Tipo de movimiento</label>
-              <select
+              <SelectField
                 name="tipo"
                 value={form.tipo}
                 onChange={handleTipoChange}
@@ -123,12 +124,12 @@ export default function NuevoMovimientoPage() {
                 <option value="ENTRADA">ENTRADA — aumenta stock</option>
                 <option value="SALIDA">SALIDA — disminuye stock</option>
                 <option value="AJUSTE">AJUSTE — corrección manual</option>
-              </select>
+              </SelectField>
             </div>
 
             <div>
               <label className={labelClass}>Origen</label>
-              <select
+              <SelectField
                 name="origen"
                 value={form.origen}
                 onChange={handleChange}
@@ -137,7 +138,7 @@ export default function NuevoMovimientoPage() {
                 <option value="compra">Compra</option>
                 <option value="venta">Venta</option>
                 <option value="ajuste_manual">Ajuste manual</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 

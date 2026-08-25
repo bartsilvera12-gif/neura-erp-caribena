@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -166,44 +167,44 @@ export default function NotasCreditoListClient() {
           </div>
           <div>
             <label className={labelClass}>Cliente</label>
-            <select className={inputClass} value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+            <SelectField className={inputClass} value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
               <option value="">Todos</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nombre}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div>
             <label className={labelClass}>Estado ERP</label>
-            <select className={inputClass} value={estadoErp} onChange={(e) => setEstadoErp(e.target.value)}>
+            <SelectField className={inputClass} value={estadoErp} onChange={(e) => setEstadoErp(e.target.value)}>
               <option value="">Todos</option>
               {ERP_OPTS.map((e) => (
                 <option key={e} value={e}>
                   {e}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div>
             <label className={labelClass}>Estado SIFEN</label>
-            <select className={inputClass} value={estadoSifen} onChange={(e) => setEstadoSifen(e.target.value)}>
+            <SelectField className={inputClass} value={estadoSifen} onChange={(e) => setEstadoSifen(e.target.value)}>
               <option value="">Todos</option>
               {SIFEN_OPTS.map((e) => (
                 <option key={e} value={e}>
                   {e}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
           <div>
             <label className={labelClass}>Con error</label>
-            <select className={inputClass} value={conError} onChange={(e) => setConError(e.target.value)}>
+            <SelectField className={inputClass} value={conError} onChange={(e) => setConError(e.target.value)}>
               <option value="">Indistinto</option>
               <option value="1">Con error</option>
               <option value="0">Sin error</option>
-            </select>
+            </SelectField>
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Usuario creador (UUID)</label>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useState } from "react";
 import MontoInput from "@/components/ui/MontoInput";
@@ -143,10 +144,10 @@ export default function NuevoPlanPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={fLabelClass}>Estado</label>
-                <select name="estado" value={form.estado} onChange={handleChange} className={fSelectClass}>
+                <SelectField name="estado" value={form.estado} onChange={handleChange} className={fSelectClass}>
                   <option value="activo">Activo</option>
                   <option value="inactivo">Inactivo</option>
-                </select>
+                </SelectField>
               </div>
             </div>
           </div>
@@ -171,19 +172,19 @@ export default function NuevoPlanPage() {
 
             <div>
               <label className={fLabelClass}>Moneda</label>
-              <select name="moneda" value={form.moneda} onChange={handleChange} className={fSelectClass}>
+              <SelectField name="moneda" value={form.moneda} onChange={handleChange} className={fSelectClass}>
                 <option value="GS">Guaraníes (GS)</option>
                 <option value="USD">Dólares (USD)</option>
-              </select>
+              </SelectField>
             </div>
 
             <div>
               <label className={fLabelClass}>Periodicidad</label>
-              <select name="periodicidad" value={form.periodicidad} onChange={handleChange} className={fSelectClass}>
+              <SelectField name="periodicidad" value={form.periodicidad} onChange={handleChange} className={fSelectClass}>
                 <option value="mensual">Mensual</option>
                 <option value="anual">Anual</option>
                 <option value="unico">Único (pago único)</option>
-              </select>
+              </SelectField>
             </div>
           </div>
         </section>

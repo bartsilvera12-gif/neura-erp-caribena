@@ -1,5 +1,6 @@
 "use client";
 
+import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GlobalConfigSubpageShell } from "@/components/config/GlobalConfigSubpageShell";
@@ -89,9 +90,9 @@ export default function EntidadesBancariasPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           <input value={nNombre} onChange={(e) => setNNombre(e.target.value)} placeholder="Nombre (ej: Ueno)" className={`${input} sm:col-span-2`} />
           <input value={nBanco} onChange={(e) => setNBanco(e.target.value)} placeholder="Banco / entidad (opcional)" className={input} />
-          <select value={nTipo} onChange={(e) => setNTipo(e.target.value)} className={input}>
+          <SelectField value={nTipo} onChange={(e) => setNTipo(e.target.value)} className={input}>
             {TIPOS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-          </select>
+          </SelectField>
           <input value={nCuenta} onChange={(e) => setNCuenta(e.target.value)} placeholder="N° cuenta (opc.)" className={input} />
         </div>
         <button onClick={crear} disabled={guardando} className="mt-3 rounded-lg bg-[#0EA5E9] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0284C7] disabled:opacity-50">
@@ -115,7 +116,7 @@ export default function EntidadesBancariasPage() {
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
                     <input value={eNombre} onChange={(ev) => setENombre(ev.target.value)} className={`${input} sm:col-span-2`} />
                     <input value={eBanco} onChange={(ev) => setEBanco(ev.target.value)} placeholder="Banco" className={input} />
-                    <select value={eTipo} onChange={(ev) => setETipo(ev.target.value)} className={input}>{TIPOS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</select>
+                    <SelectField value={eTipo} onChange={(ev) => setETipo(ev.target.value)} className={input}>{TIPOS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}</SelectField>
                     <input value={eCuenta} onChange={(ev) => setECuenta(ev.target.value)} placeholder="N° cuenta" className={input} />
                     <div className="flex gap-2 sm:col-span-5">
                       <button onClick={guardarEdit} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">Guardar</button>
