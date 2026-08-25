@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronDown, ChevronRight, LogOut, Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, ChevronDown, LogOut, Menu } from "lucide-react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { signOut } from "@/lib/auth";
 import { useBoot } from "@/components/BootContext";
-import { resolverRuta } from "@/lib/navegacion/ruta-actual";
 
 type HeaderUsuario = {
   nombre: string | null;
@@ -42,8 +41,6 @@ function roleLabel(rol: string | null | undefined): string {
 
 export default function Header() {
   const router = useRouter();
-  const pathname = usePathname();
-  const miga = resolverRuta(pathname ?? "");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [usuario, setUsuario] = useState<HeaderUsuario | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -99,28 +96,10 @@ export default function Header() {
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Miga de pan. Antes acá había un spacer vacío: en desktop la mitad
-          izquierda de la barra quedaba en blanco y la pantalla no decía dónde
-          estabas hasta llegar al <h1> del contenido. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {miga ? (
-          <nav aria-label="Ubicación" className="flex min-w-0 items-center gap-1.5">
-            <span className="hidden truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:inline">
-              {miga.seccion}
-            </span>
-            <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-slate-300 sm:block" aria-hidden />
-            <span className="truncate text-sm font-semibold text-slate-800">{miga.titulo}</span>
-            {miga.accion ? (
-              <>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
-                <span className="truncate rounded-md bg-[#4FAEB2]/10 px-2 py-0.5 text-xs font-semibold text-[#3F8E91]">
-                  {miga.accion}
-                </span>
-              </>
-            ) : null}
-          </nav>
-        ) : null}
-      </div>
+      {/* Espaciador: empuja el bloque de usuario a la derecha. Acá vivió una
+          miga de pan; se quitó a pedido. Cada pantalla ya dice dónde estás con
+          su propio <h1>, y el menú lateral marca la sección. */}
+      <div className="min-w-0 flex-1" />
 
       <div className="flex items-center gap-2">
         {/* Notificaciones */}
