@@ -232,3 +232,63 @@ export async function PATCH(
     return NextResponse.json(errorResponse("No se pudo actualizar el producto."), { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/productos/[id]
+ *
+ * Borra el producto. Si ya tiene historial (ventas, movimientos, compras,
+ * recetas…) el borrado violaría una FK: no se fuerza, porque eso rompería
+ * documentos pasados. En ese caso se devuelve 409 con `puede_desactivar`, y la
+ * UI ofrece darlo de baja en su lugar.
+ *
+ * Con `?desactivar=1` hace la baja directamente (activo = false), que es lo que
+ * corresponde para un producto que ya circuló.
+ */
+export async function DELETE(
+  request: NextRequest,
+  ctxParams: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctxParams.params;
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+    const empresaId = ctx.auth.empresa_id;
+    const sb = ctx.supabase;
+
+    const soloDesactivar = request.nextUrl.searchParams.get("desactivar") === "1";
+
+    if (soloDesactivar) {
+      const { error } = await sb
+        .from("productos")
+        .update({ activo: false })
+        .eq("id", id)
+        .eq("empresa_id", empresaId);
+      if (error) return NextResponse.json(errorResponse(error.message), { status: 500 });
+      return NextResponse.json(successResponse({ desactivado: true }));
+    }
+
+    const { error } = await sb.from("productos").delete().eq("id", id).eq("empresa_id", empresaId);
+
+    if (error) {
+      // 23503 = foreign_key_violation: el producto aparece en algún documento.
+      const esFk = error.code === "23503" || /foreign key|violates/i.test(error.message ?? "");
+      if (esFk) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "El producto ya tiene movimientos, ventas o recetas asociadas. Borrarlo dejaría esos documentos sin referencia.",
+            puede_desactivar: true,
+          },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(errorResponse(error.message), { status: 500 });
+    }
+
+    return NextResponse.json(successResponse({ eliminado: true }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "No se pudo eliminar el producto.";
+    return NextResponse.json(errorResponse(msg), { status: 500 });
+  }
+}

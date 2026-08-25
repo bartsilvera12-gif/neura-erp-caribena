@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -57,6 +59,56 @@ export default function InventarioPage() {
   const [tab,              setTab]               = useState<"reventa" | "menu" | "materia">("reventa");
   const [cargandoLista,    setCargandoLista]     = useState(true);
   const [soloStockBajo,    setSoloStockBajo]    = useState(false);
+  const [eliminandoId,     setEliminandoId]      = useState<string | null>(null);
+  const [errorAccion,      setErrorAccion]       = useState<string | null>(null);
+
+  /**
+   * Borra el producto. Si ya circuló (ventas, movimientos, compras, recetas…)
+   * el borrado rompería esos documentos, así que la API responde 409 y acá se
+   * ofrece darlo de baja: deja de aparecer para operar, pero el historial
+   * sigue entero.
+   */
+  async function eliminarProducto(p: Producto) {
+    if (eliminandoId) return;
+    if (!(await confirmar(`¿Eliminar "${p.nombre}"?`, { confirmLabel: "Eliminar" }))) return;
+
+    setEliminandoId(p.id);
+    setErrorAccion(null);
+    try {
+      const res = await fetch(`/api/productos/${p.id}`, { method: "DELETE", credentials: "include" });
+      const json = await res.json().catch(() => null);
+
+      if (res.ok && json?.success) {
+        setRefreshKey((k) => k + 1);
+        return;
+      }
+
+      if (res.status === 409 && json?.puede_desactivar) {
+        const baja = await confirmar(
+          `${json.error} ¿Querés darlo de baja en su lugar? Deja de aparecer para operar y el historial se mantiene.`,
+          { confirmLabel: "Dar de baja", destructivo: false }
+        );
+        if (!baja) return;
+        const res2 = await fetch(`/api/productos/${p.id}?desactivar=1`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const json2 = await res2.json().catch(() => null);
+        if (!res2.ok || !json2?.success) {
+          setErrorAccion(json2?.error ?? "No se pudo dar de baja el producto.");
+          return;
+        }
+        setRefreshKey((k) => k + 1);
+        return;
+      }
+
+      setErrorAccion(json?.error ?? "No se pudo eliminar el producto.");
+    } catch (e) {
+      setErrorAccion(e instanceof Error ? e.message : "Error de red.");
+    } finally {
+      setEliminandoId(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -382,6 +434,12 @@ export default function InventarioPage() {
 
         </div>
 
+        {errorAccion && (
+          <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>{errorAccion}</span>
+          </div>
+        )}
         <EdgeScrollArea>
           {/* min-w-[1100px] fuerza scroll horizontal real en mobile; en >=lg
               vuelve a comportarse natural. Columnas no críticas (SKU, Unidad,
@@ -397,8 +455,6 @@ export default function InventarioPage() {
                 <th className={`py-3 pr-4 font-medium text-center ${tab === "reventa" ? "" : "hidden"}`}>Stock</th>
                 <th className={`py-3 pr-4 text-center font-medium ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>Stock Mín.</th>
                 <th className="py-3 pr-4 font-medium hidden lg:table-cell">Unidad</th>
-                <th className="py-3 pr-4 font-medium hidden lg:table-cell">Ubicación</th>
-                <th className="py-3 pr-4 font-medium hidden lg:table-cell">Valuación</th>
                 <th className="hidden py-3 pr-6 text-right font-medium lg:table-cell">
                   <span title="(precio - costo) / precio × 100">Margen s/venta</span>
                 </th>
@@ -435,36 +491,28 @@ export default function InventarioPage() {
                     </td>
                     <td className={`py-4 pr-4 text-center text-gray-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
                     <td className="py-4 pr-4 text-gray-600 hidden lg:table-cell">{p.unidad_medida}</td>
-                    <td className="py-4 pr-4 text-gray-600 text-xs hidden lg:table-cell">
-                      {p.ubicacion_principal_id
-                        ? (() => {
-                            const u = ubicacionById.get(p.ubicacion_principal_id);
-                            return u ? (
-                              <span>
-                                <span className="font-medium text-gray-700">{u.nombre}</span>
-                                <span className="text-gray-400"> — {u.tipo}</span>
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            );
-                          })()
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="py-4 pr-4 hidden lg:table-cell">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${metodoBadge[p.metodo_valuacion]}`}>
-                        {p.metodo_valuacion}
-                      </span>
-                    </td>
                     <td className={`hidden py-4 pr-6 text-right font-semibold tabular-nums lg:table-cell ${margenColor(margen)}`}>
                       {margen.toFixed(2)}%
                     </td>
                     <td className="py-4 pl-4 text-center">
-                      <Link
-                        href={`/inventario/${p.id}/editar`}
-                        className="inline-flex items-center justify-center min-h-[40px] rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                      >
-                        Editar
-                      </Link>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Link
+                          href={`/inventario/${p.id}/editar`}
+                          className="inline-flex items-center justify-center min-h-[40px] rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                        >
+                          Editar
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => eliminarProducto(p)}
+                          disabled={eliminandoId === p.id}
+                          title={`Eliminar ${p.nombre}`}
+                          aria-label={`Eliminar ${p.nombre}`}
+                          className="inline-flex min-h-[40px] items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
