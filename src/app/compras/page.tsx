@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { getCompras } from "@/lib/compras/storage";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
 import { FancySelect } from "@/components/ui/FancySelect";
+import SelectField from "@/components/ui/SelectField";
 import MobileFab from "@/components/ui/MobileFab";
+import { confirmar } from "@/components/ui/ConfirmDialog";
+import {
+  avisoError, avisoInfo, btnGhost, btnIcono, btnIconoPeligro, btnPrimario,
+  card, cardHead, celdaVacia, input, label, tabla, tbody, th, thRow, thead, tr,
+} from "@/lib/ui/estilos";
 import type { Compra, TipoPago } from "@/lib/compras/types";
-
-const inputFilterClass =
-  "border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none bg-white";
 
 function formatGs(valor: number) {
   return `Gs. ${valor.toLocaleString("es-PY")}`;
@@ -31,8 +35,8 @@ function formatFecha(iso: string) {
 }
 
 const tipoPagoBadge: Record<TipoPago, string> = {
-  contado: "bg-blue-50 text-blue-700",
-  credito: "bg-orange-50 text-orange-700",
+  contado: "bg-sky-50 text-sky-700 ring-sky-600/15",
+  credito: "bg-amber-50 text-amber-800 ring-amber-600/15",
 };
 
 const ivaLabel: Record<string, string> = {
@@ -45,6 +49,22 @@ export default function ComprasPage() {
   const [todas, setTodas] = useState<Compra[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipoPago, setFiltroTipoPago] = useState<TipoPago | "">("");
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
+
+  // Edición administrativa (ver comentario en abrirEdicion).
+  const [editando, setEditando] = useState<Compra | null>(null);
+  const [edTipoPago, setEdTipoPago] = useState<TipoPago>("contado");
+  const [edPlazo, setEdPlazo] = useState("");
+  const [edTimbrado, setEdTimbrado] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  function recargar() {
+    return getCompras().then((data) => {
+      setTodas([...data].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()));
+    });
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -54,6 +74,80 @@ export default function ComprasPage() {
     });
     return () => { cancel = true; };
   }, []);
+
+  /**
+   * La edición se limita a los datos administrativos (forma de pago, plazo,
+   * timbrado). Cantidad, costo y precio ya movieron el stock y el costo promedio
+   * del producto: cambiarlos "en el papel" dejaría el inventario mintiendo. Para
+   * corregirlos hay que borrar la compra —lo que revierte el movimiento— y
+   * cargarla de nuevo.
+   */
+  function abrirEdicion(c: Compra) {
+    setEditando(c);
+    setEdTipoPago(c.tipo_pago === "credito" ? "credito" : "contado");
+    setEdPlazo(c.plazo_dias != null ? String(c.plazo_dias) : "");
+    setEdTimbrado(c.nro_timbrado ?? "");
+    setError(null);
+  }
+
+  async function guardarEdicion() {
+    if (!editando || guardando) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/compras/${editando.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          tipo_pago: edTipoPago,
+          plazo_dias: edTipoPago === "credito" ? edPlazo : null,
+          nro_timbrado: edTimbrado,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.success) setError(j?.error ?? "No se pudo guardar la compra.");
+      else { setEditando(null); await recargar(); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error de red");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  /**
+   * Borrar una compra revierte su impacto: descuenta del stock lo que había
+   * entrado y elimina el movimiento de inventario asociado. Lo único que no se
+   * puede reconstruir es el costo promedio y el precio de venta anteriores —el
+   * servidor lo avisa y lo mostramos tal cual.
+   */
+  async function eliminar(c: Compra) {
+    const ok = await confirmar(
+      `¿Borrar la compra ${c.numero_control}?\n\n` +
+        `Se van a descontar ${c.cantidad} de ${c.producto_nombre} del stock y se ` +
+        `eliminará su movimiento de inventario.`,
+      { confirmLabel: "Borrar y revertir" }
+    );
+    if (!ok) return;
+
+    setBorrandoId(c.id);
+    setError(null);
+    setAviso(null);
+    try {
+      const r = await fetch(`/api/compras/${c.id}`, { method: "DELETE", credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.success) {
+        setError(j?.error ?? "No se pudo borrar la compra.");
+      } else {
+        if (j.data?.advertencia) setAviso(j.data.advertencia);
+        await recargar();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error de red");
+    } finally {
+      setBorrandoId(null);
+    }
+  }
 
   const filtradas = todas.filter((c) => {
     const texto = busqueda.toLowerCase();
@@ -69,94 +163,84 @@ export default function ComprasPage() {
   const hayFiltros = busqueda || filtroTipoPago;
 
   return (
-    <div className="space-y-8">
-
-      <div>
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="inline-block h-1.5 w-1.5 rounded-full bg-[#4FAEB2]"
-            style={{ boxShadow: "0 0 0 3px rgba(79, 174, 178, 0.18)" }}
-          />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4FAEB2]">
-            Zentra · Adquisiciones
-          </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-slate-800">Compras</h1>
+          <p className="mt-1 text-sm text-slate-500">Registro de órdenes de compra a proveedores.</p>
         </div>
-        <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Compras</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Registro de órdenes de compra a proveedores</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportExcelButton url="/api/compras/export" />
+          <Link href="/compras/nueva" className={btnPrimario}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Nueva compra
+          </Link>
+        </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-[#4FAEB2]/15 sm:p-5 lg:p-6">
+      {error && <div className={avisoError}>{error}</div>}
+      {aviso && <div className={avisoInfo}>{aviso}</div>}
 
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Órdenes de compra</h2>
-          <div className="flex items-center gap-3">
-            <ExportExcelButton url="/api/compras/export" />
-            <Link
-              href="/compras/nueva"
-              className="rounded-lg bg-[#4FAEB2] px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-[#4FAEB2]/25 transition-colors hover:bg-[#3F8E91] active:scale-95"
-            >
-              + Nueva compra
-            </Link>
+      <div className={card}>
+        <div className={cardHead}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <input
+              type="text"
+              placeholder="Buscar por proveedor, producto o N° control…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className={`${input} min-w-0 flex-1 sm:min-w-72`}
+            />
+            <FancySelect
+              value={filtroTipoPago}
+              onChange={(v) => setFiltroTipoPago(v as TipoPago | "")}
+              ariaLabel="Filtrar por tipo de pago"
+              className="w-44"
+              size="sm"
+              options={[
+                { value: "", label: "Todos los pagos" },
+                { value: "contado", label: "Contado" },
+                { value: "credito", label: "Crédito" },
+              ]}
+            />
+            {hayFiltros && (
+              <button
+                type="button"
+                onClick={() => { setBusqueda(""); setFiltroTipoPago(""); }}
+                className={btnGhost}
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
-        </div>
-
-        {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-3 mb-5 pb-5 border-b border-gray-100">
-          <input
-            type="text"
-            placeholder="Buscar por proveedor, producto o N° control..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className={`${inputFilterClass} min-w-0 flex-1 sm:min-w-72`}
-          />
-          <FancySelect
-            value={filtroTipoPago}
-            onChange={(v) => setFiltroTipoPago(v as TipoPago | "")}
-            ariaLabel="Filtrar por tipo de pago"
-            className="w-44"
-            size="sm"
-            options={[
-              { value: "", label: "Todos los pagos" },
-              { value: "contado", label: "Contado" },
-              { value: "credito", label: "Crédito" },
-            ]}
-          />
-          {hayFiltros && (
-            <button
-              onClick={() => { setBusqueda(""); setFiltroTipoPago(""); }}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors px-2"
-            >
-              Limpiar filtros
-            </button>
-          )}
-          <span className="ml-auto text-sm text-gray-400">
+          <span className="text-xs text-slate-500">
             {filtradas.length} de {todas.length} compras
           </span>
         </div>
 
-        {/* Tabla — min-w fuerza scroll horizontal; columnas auxiliares
-            (Costo unit., IVA, Margen, Pago) se ocultan en mobile/tablet. */}
+        {/* Columnas auxiliares (Costo unit., IVA, Margen, Pago) se ocultan en
+            mobile/tablet; min-w fuerza el scroll horizontal. */}
         <EdgeScrollArea>
-          <table className="w-full min-w-[780px] lg:min-w-0 text-left text-sm">
-            <thead>
-              <tr className="border-b text-gray-500">
-                <th className="py-3 pr-4 font-medium">N° Control</th>
-                <th className="py-3 pr-4 font-medium">Proveedor</th>
-                <th className="py-3 pr-4 font-medium">Producto</th>
-                <th className="py-3 pr-4 font-medium text-right">Cant.</th>
-                <th className="py-3 pr-4 font-medium text-right hidden lg:table-cell">Costo unit.</th>
-                <th className="py-3 pr-4 font-medium hidden lg:table-cell">IVA</th>
-                <th className="py-3 pr-4 font-medium text-right">Total</th>
-                <th className="py-3 pr-4 font-medium text-right hidden lg:table-cell">Margen</th>
-                <th className="hidden py-3 pr-4 font-medium lg:table-cell">Pago</th>
-                <th className="py-3 font-medium">Fecha</th>
+          <table className={`${tabla} min-w-[900px] lg:min-w-0`}>
+            <thead className={thead}>
+              <tr className={thRow}>
+                <th className={th}>N° Control</th>
+                <th className={th}>Proveedor</th>
+                <th className={th}>Producto</th>
+                <th className={`${th} text-right`}>Cant.</th>
+                <th className={`${th} hidden text-right lg:table-cell`}>Costo unit.</th>
+                <th className={`${th} hidden lg:table-cell`}>IVA</th>
+                <th className={`${th} text-right`}>Total</th>
+                <th className={`${th} hidden text-right lg:table-cell`}>Margen</th>
+                <th className={`${th} hidden lg:table-cell`}>Pago</th>
+                <th className={th}>Fecha</th>
+                <th className={`${th} text-right`}>Acciones</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={tbody}>
               {filtradas.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-400">
+                  <td colSpan={11} className={celdaVacia}>
                     {todas.length === 0
                       ? "No hay compras registradas"
                       : "Ninguna compra coincide con los filtros"}
@@ -164,44 +248,67 @@ export default function ComprasPage() {
                 </tr>
               ) : (
                 filtradas.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-200 last:border-0 hover:bg-[#4FAEB2]/[0.04] transition-colors">
-                    <td className="py-4 pr-4 font-mono text-xs text-gray-500">
-                      {c.numero_control}
-                    </td>
-                    <td className="py-4 pr-4 font-medium text-gray-800">
-                      {c.proveedor_nombre}
-                    </td>
-                    <td className="py-4 pr-4 text-gray-600">{c.producto_nombre}</td>
-                    <td className="py-4 pr-4 text-right tabular-nums text-gray-700">
-                      {c.cantidad}
-                    </td>
-                    <td className="py-4 pr-4 text-right tabular-nums text-gray-600 text-xs hidden lg:table-cell">
+                  <tr key={c.id} className={tr}>
+                    <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{c.numero_control}</td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">{c.proveedor_nombre}</td>
+                    <td className="px-5 py-3.5 text-slate-600">{c.producto_nombre}</td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{c.cantidad}</td>
+                    <td className="hidden px-5 py-3.5 text-right text-xs tabular-nums text-slate-600 lg:table-cell">
                       {c.moneda === "USD" && c.costo_unitario_original != null ? (
                         <span>
                           USD {c.costo_unitario_original.toLocaleString("es-PY")}
                           <br />
-                          <span className="text-gray-400">≈ {formatGs(c.costo_unitario)}</span>
+                          <span className="text-slate-400">≈ {formatGs(c.costo_unitario)}</span>
                         </span>
                       ) : (
                         formatGs(c.costo_unitario ?? c.total)
                       )}
                     </td>
-                    <td className="py-4 pr-4 text-xs text-gray-500 hidden lg:table-cell">
+                    <td className="hidden px-5 py-3.5 text-xs text-slate-500 lg:table-cell">
                       {c.iva_tipo ? ivaLabel[c.iva_tipo] : "—"}
                     </td>
-                    <td className="py-4 pr-4 text-right tabular-nums font-semibold text-gray-800">
+                    <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-slate-800">
                       {formatGs(c.total)}
                     </td>
-                    <td className="py-4 pr-4 text-right tabular-nums text-sm font-medium text-green-600 hidden lg:table-cell">
+                    <td className="hidden px-5 py-3.5 text-right text-sm font-medium tabular-nums text-emerald-600 lg:table-cell">
                       {c.margen_venta != null ? `${c.margen_venta.toFixed(1)}%` : "—"}
                     </td>
-                    <td className="hidden py-4 pr-4 lg:table-cell">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${c.tipo_pago ? tipoPagoBadge[c.tipo_pago] : "bg-gray-100 text-gray-500"}`}>
-                        {c.tipo_pago === "contado" ? "Contado" : c.tipo_pago === "credito" ? `Crédito ${c.plazo_dias ?? ""}d` : "—"}
+                    <td className="hidden px-5 py-3.5 lg:table-cell">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+                          c.tipo_pago ? tipoPagoBadge[c.tipo_pago] : "bg-slate-100 text-slate-500 ring-slate-500/15"
+                        }`}
+                      >
+                        {c.tipo_pago === "contado"
+                          ? "Contado"
+                          : c.tipo_pago === "credito"
+                          ? `Crédito ${c.plazo_dias ?? ""}d`
+                          : "—"}
                       </span>
                     </td>
-                    <td className="py-4 text-gray-500 text-xs tabular-nums">
-                      {formatFecha(c.fecha)}
+                    <td className="px-5 py-3.5 text-xs tabular-nums text-slate-500">{formatFecha(c.fecha)}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => abrirEdicion(c)}
+                          className={btnIcono}
+                          aria-label={`Editar ${c.numero_control}`}
+                          title="Editar forma de pago y timbrado"
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => eliminar(c)}
+                          disabled={borrandoId === c.id}
+                          className={btnIconoPeligro}
+                          aria-label={`Borrar ${c.numero_control}`}
+                          title="Borrar y revertir stock"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -209,8 +316,87 @@ export default function ComprasPage() {
             </tbody>
           </table>
         </EdgeScrollArea>
-
       </div>
+
+      {/* Modal de edición administrativa */}
+      {editando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => !guardando && setEditando(null)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#4FAEB2] via-[#4FAEB2]/80 to-[#4FAEB2]/30"
+            />
+            <div className="space-y-4 px-5 pb-4 pt-5">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Editar {editando.numero_control}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {editando.producto_nombre} · {editando.cantidad} u. · {formatGs(editando.total)}
+                </p>
+              </div>
+
+              <div className={avisoInfo}>
+                Cantidad, costo y precio no se editan acá: ya impactaron el stock y el costo del
+                producto. Para corregirlos, borrá la compra —se revierte el movimiento— y cargala de
+                nuevo.
+              </div>
+
+              <div>
+                <label className={label}>Forma de pago</label>
+                <SelectField
+                  value={edTipoPago}
+                  onChange={(e) => setEdTipoPago(e.target.value as TipoPago)}
+                >
+                  <option value="contado">Contado</option>
+                  <option value="credito">Crédito</option>
+                </SelectField>
+              </div>
+
+              {edTipoPago === "credito" && (
+                <div>
+                  <label className={label}>Plazo (días)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={edPlazo}
+                    onChange={(e) => setEdPlazo(e.target.value)}
+                    placeholder="Ej: 30"
+                    className={input}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className={label}>N° de timbrado</label>
+                <input
+                  value={edTimbrado}
+                  onChange={(e) => setEdTimbrado(e.target.value)}
+                  className={input}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+              <button type="button" onClick={() => setEditando(null)} disabled={guardando} className={btnGhost}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={guardarEdicion}
+                disabled={guardando || !edTimbrado.trim()}
+                className={btnPrimario}
+              >
+                {guardando ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MobileFab href="/compras/nueva" label="Nueva compra" />
     </div>

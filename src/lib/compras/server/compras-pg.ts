@@ -233,3 +233,159 @@ export async function insertCompraConImpacto(
     client.release();
   }
 }
+
+export async function getCompraById(
+  schemaRaw: string,
+  empresaId: string,
+  id: string
+): Promise<CompraRow | null> {
+  const schema = assertAllowedChatDataSchema(schemaRaw);
+  const t = quoteSchemaTable(schema, "compras");
+  const { rows } = await pool().query<CompraRow>(
+    `SELECT ${COLS} FROM ${t} WHERE id = $1::uuid AND empresa_id = $2::uuid`,
+    [id, empresaId]
+  );
+  return rows[0] ?? null;
+}
+
+/** Campos administrativos de una compra: no alteran stock ni costos. */
+export interface UpdateCompraInput {
+  tipo_pago?: string;
+  plazo_dias?: number | null;
+  nro_timbrado?: string;
+  proveedor_id?: string;
+  proveedor_nombre?: string;
+  fecha?: string;
+}
+
+/**
+ * Edita solo los campos administrativos.
+ *
+ * Cantidad, costo y precio quedan deliberadamente fuera: ya impactaron el stock
+ * y el costo promedio del producto, así que cambiarlos "en el papel" dejaría el
+ * inventario mintiendo. Para corregir esos valores hay que borrar la compra
+ * (lo que revierte el movimiento) y cargarla de nuevo.
+ */
+export async function updateCompraCampos(
+  schemaRaw: string,
+  empresaId: string,
+  id: string,
+  d: UpdateCompraInput
+): Promise<CompraRow | null> {
+  const schema = assertAllowedChatDataSchema(schemaRaw);
+  const t = quoteSchemaTable(schema, "compras");
+
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  const push = (frag: string, v: unknown) => { vals.push(v); sets.push(frag.replace("$?", `$${vals.length}`)); };
+
+  if (d.tipo_pago !== undefined) push("tipo_pago = $?", d.tipo_pago);
+  if (d.plazo_dias !== undefined) push("plazo_dias = $?::integer", d.plazo_dias);
+  if (d.nro_timbrado !== undefined) push("nro_timbrado = $?", d.nro_timbrado);
+  if (d.proveedor_id !== undefined) push("proveedor_id = $?::uuid", d.proveedor_id);
+  if (d.proveedor_nombre !== undefined) push("proveedor_nombre = $?", d.proveedor_nombre);
+  if (d.fecha !== undefined) push("fecha = $?::timestamptz", d.fecha);
+
+  if (sets.length === 0) return getCompraById(schema, empresaId, id);
+
+  sets.push("updated_at = now()");
+  vals.push(id, empresaId);
+  const { rows } = await pool().query<CompraRow>(
+    `UPDATE ${t} SET ${sets.join(", ")}
+      WHERE id = $${vals.length - 1}::uuid AND empresa_id = $${vals.length}::uuid
+      RETURNING ${COLS}`,
+    vals
+  );
+  return rows[0] ?? null;
+}
+
+export interface BorradoCompraResult {
+  borrada: boolean;
+  stock_revertido: number;
+  movimientos_borrados: number;
+  /** El costo promedio y el precio de venta que la compra pisó no se pueden reconstruir. */
+  advertencia: string | null;
+}
+
+/**
+ * Borra una compra revirtiendo lo que hizo al registrarse.
+ *
+ * Todo en una transacción, y en orden inverso al alta:
+ *   1) descuenta del stock la cantidad que había entrado
+ *   2) borra el movimiento ENTRADA que la compra generó
+ *   3) borra la compra
+ *
+ * Lo que NO se puede revertir: al registrarse, la compra pisó `costo_promedio` y
+ * `precio_venta` del producto con sus propios valores, y los anteriores no se
+ * guardaron en ningún lado. Quedan como están y se avisa al usuario — es
+ * preferible a inventar un valor.
+ */
+export async function deleteCompraConReversa(
+  schemaRaw: string,
+  empresaId: string,
+  id: string
+): Promise<BorradoCompraResult> {
+  const schema = assertAllowedChatDataSchema(schemaRaw);
+  const tC = quoteSchemaTable(schema, "compras");
+  const tM = quoteSchemaTable(schema, "movimientos_inventario");
+  const tP = quoteSchemaTable(schema, "productos");
+
+  const client = await pool().connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows: compraRows } = await client.query<CompraRow>(
+      `SELECT ${COLS} FROM ${tC}
+        WHERE id = $1::uuid AND empresa_id = $2::uuid
+        FOR UPDATE`,
+      [id, empresaId]
+    );
+    const compra = compraRows[0];
+    if (!compra) {
+      await client.query("ROLLBACK");
+      return { borrada: false, stock_revertido: 0, movimientos_borrados: 0, advertencia: null };
+    }
+
+    const cantidad = Number(compra.cantidad) || 0;
+
+    // El stock puede quedar en negativo si ya se vendió lo que entró con esta
+    // compra. Se permite a propósito: un stock negativo es visible y se corrige,
+    // mientras que truncar a cero escondería el faltante.
+    await client.query(
+      `UPDATE ${tP}
+          SET stock_actual = stock_actual - $1::numeric,
+              updated_at = now()
+        WHERE id = $2::uuid AND empresa_id = $3::uuid`,
+      [cantidad, compra.producto_id, empresaId]
+    );
+
+    const del = await client.query(
+      `DELETE FROM ${tM}
+        WHERE empresa_id = $1::uuid
+          AND origen = 'compra'
+          AND referencia = $2
+          AND producto_id = $3::uuid`,
+      [empresaId, compra.numero_control, compra.producto_id]
+    );
+
+    await client.query(
+      `DELETE FROM ${tC} WHERE id = $1::uuid AND empresa_id = $2::uuid`,
+      [id, empresaId]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      borrada: true,
+      stock_revertido: cantidad,
+      movimientos_borrados: del.rowCount ?? 0,
+      advertencia:
+        "El costo promedio y el precio de venta del producto quedaron como los dejó esta compra: no se guardan los valores anteriores. Revisalos si hace falta.",
+    };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => null);
+    throw err;
+  } finally {
+    client.release();
+  }
+}

@@ -13,6 +13,7 @@ import {
   listCategoriasMin,
   type ProveedorRow,
   type InsertProveedorInput,
+  deleteProveedor,
 } from "@/lib/proveedores/server/proveedores-pg";
 import { normalizeUpperText, normalizeUpperNullable } from "@/lib/text/normalize";
 
@@ -168,5 +169,61 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
   } catch (err) {
     console.error("[/api/proveedores/[id] PATCH] outer", err instanceof Error ? err.message : err);
     return NextResponse.json(errorResponse("No se pudo actualizar el proveedor."), { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/proveedores/[id]
+ *
+ * Borra el proveedor si nunca se usó. Sus vínculos con rubros se limpian antes
+ * (son datos de clasificación, no historial). En cambio, si tiene órdenes de
+ * compra la base rechaza el borrado: esas compras son documentos y deben seguir
+ * diciendo a quién se le compró. En ese caso devolvemos 409 con
+ * `puede_desactivar: true` para ofrecer la baja lógica.
+ *
+ * `?desactivar=1` hace directamente esa baja.
+ */
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const tenant = await getTenantSupabaseFromAuth(request);
+    if (!tenant) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+    const schema = await fetchDataSchemaForEmpresaId(tenant.auth.empresa_id);
+    const empresaId = tenant.auth.empresa_id;
+    const { id } = await ctx.params;
+
+    const existing = await getProveedorById(schema, empresaId, id);
+    if (!existing) return NextResponse.json(errorResponse("Proveedor no encontrado."), { status: 404 });
+
+    if (request.nextUrl.searchParams.get("desactivar") === "1") {
+      await updateProveedor(schema, empresaId, id, { estado: "inactivo" });
+      return NextResponse.json(successResponse({ desactivado: true }));
+    }
+
+    try {
+      // Los rubros son clasificación: se pueden soltar sin perder información.
+      await replaceRelacionesProveedor(schema, empresaId, id, []);
+      const ok = await deleteProveedor(schema, empresaId, id);
+      if (!ok) return NextResponse.json(errorResponse("Proveedor no encontrado."), { status: 404 });
+      return NextResponse.json(successResponse({ borrado: true }));
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      const msg = e instanceof Error ? e.message : "";
+      if (code === "23503" || /foreign key|violates/i.test(msg)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "El proveedor tiene órdenes de compra registradas y no se puede borrar sin perder ese historial. Podés darlo de baja para que deje de aparecer al cargar compras.",
+            puede_desactivar: true,
+          },
+          { status: 409 }
+        );
+      }
+      console.error("[/api/proveedores/[id] DELETE]", { schema, id, msg, code });
+      return NextResponse.json(errorResponse("No se pudo borrar el proveedor."), { status: 500 });
+    }
+  } catch (err) {
+    console.error("[/api/proveedores/[id] DELETE] outer", err instanceof Error ? err.message : err);
+    return NextResponse.json(errorResponse("No se pudo borrar el proveedor."), { status: 500 });
   }
 }

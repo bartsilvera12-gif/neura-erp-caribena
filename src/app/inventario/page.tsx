@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,6 +10,10 @@ import type { Producto, MetodoValuacion } from "@/lib/inventario/types";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
 import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
+import {
+  avisoError, btnIcono, btnIconoPeligro, btnPrimario, card, cardHead,
+  celdaVacia, input, tabla, tbody, th, thRow, thead, tr,
+} from "@/lib/ui/estilos";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 
 const inputFilterClass =
@@ -241,21 +245,11 @@ export default function InventarioPage() {
     <div className="space-y-8">
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-[#4FAEB2]"
-              style={{ boxShadow: "0 0 0 3px rgba(79, 174, 178, 0.18)" }}
-            />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4FAEB2]">
-              Zentra · Stock
-            </p>
-          </div>
-          <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Inventario</h1>
-          <p className="mt-0.5 text-xs text-slate-500">Gestión de productos y control de stock</p>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-slate-800">Inventario</h1>
+          <p className="mt-1 text-sm text-slate-500">Gestión de productos y control de stock.</p>
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-wrap items-center gap-2">
           <ExportExcelButton url="/api/inventario/productos/export" />
           <ImportExcelButton
             entidad="Productos"
@@ -270,8 +264,11 @@ export default function InventarioPage() {
       </div>
 
       {/* Tabs gastronómicos (filtran por tipo de producto) */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex gap-6 overflow-x-auto" aria-label="Tabs">
+      <div>
+        <nav
+          className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
+          aria-label="Tipo de producto"
+        >
           {([
             { id: "reventa", label: "Reventa", subtitle: "Productos comprados y revendidos" },
             { id: "menu",    label: "Menú",    subtitle: "Productos preparados por el local" },
@@ -281,10 +278,10 @@ export default function InventarioPage() {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                 tab === t.id
-                  ? "border-amber-500 text-amber-600"
-                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                  ? "bg-[#4FAEB2] text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               }`}
               title={t.subtitle}
             >
@@ -294,25 +291,30 @@ export default function InventarioPage() {
         </nav>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-[#4FAEB2]/15 sm:p-5 lg:p-6">
+      <div className={card}>
 
-        <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-xl font-semibold">Productos</h2>
-            <Link
-              href="/inventario/nuevo"
-              className="rounded-lg bg-[#4FAEB2] px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-[#4FAEB2]/25 transition-colors hover:bg-[#3F8E91] active:scale-95"
-            >
-              Nuevo producto
-            </Link>
+        <div className={cardHead}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-800">Productos</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {productos.length === todos.length
+                  ? `${todos.length} producto${todos.length === 1 ? "" : "s"}`
+                  : `${productos.length} de ${todos.length} productos`}
+              </p>
+            </div>
             <input
               type="text"
-              placeholder="Buscar por nombre..."
+              placeholder="Buscar por nombre…"
               value={filtroPorNombre}
               onChange={(e) => setFiltroPorNombre(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none sm:w-64 sm:flex-none"
+              className={`${input} min-w-0 flex-1 sm:max-w-xs`}
             />
           </div>
+          <Link href="/inventario/nuevo" className={btnPrimario}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Nuevo producto
+          </Link>
         </div>
 
         {/* Filtros por columna — fila 1 (SKU/Costo/Precio) oculta para UX simplificada */}
@@ -411,7 +413,7 @@ export default function InventarioPage() {
                   onClick={() => setFiltroTipo(opt)}
                   className={`px-2.5 py-1 text-xs font-medium rounded transition ${
                     filtroTipo === opt
-                      ? "bg-white text-amber-700 shadow-sm"
+                      ? "bg-white text-[#3F8E91] shadow-sm"
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
@@ -435,7 +437,7 @@ export default function InventarioPage() {
         </div>
 
         {errorAccion && (
-          <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className={`${avisoError} m-5 mb-0 flex items-start gap-2`}>
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>{errorAccion}</span>
           </div>
@@ -444,31 +446,40 @@ export default function InventarioPage() {
           {/* min-w-[1100px] fuerza scroll horizontal real en mobile; en >=lg
               vuelve a comportarse natural. Columnas no críticas (SKU, Unidad,
               Ubicacion, Valuacion, Margen) se ocultan progresivamente. */}
-          <table className="w-full min-w-[780px] lg:min-w-0 text-left text-sm">
+          <table className={`${tabla} min-w-[840px] lg:min-w-0`}>
 
-            <thead>
-              <tr className="bg-slate-50 text-slate-600 text-sm font-semibold">
-                <th className="py-3 pr-4 font-medium">Nombre</th>
-                <th className="hidden py-3 pr-4 font-medium lg:table-cell">SKU</th>
-                <th className="py-3 pr-4 font-medium">Costo Prom.</th>
-                <th className="py-3 pr-4 font-medium">Precio Venta</th>
-                <th className={`py-3 pr-4 font-medium text-center ${tab === "reventa" ? "" : "hidden"}`}>Stock</th>
-                <th className={`py-3 pr-4 text-center font-medium ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>Stock Mín.</th>
-                <th className="py-3 pr-4 font-medium hidden lg:table-cell">Unidad</th>
-                <th className="hidden py-3 pr-6 text-right font-medium lg:table-cell">
+            <thead className={thead}>
+              <tr className={thRow}>
+                <th className={th}>Nombre</th>
+                <th className={`${th} hidden lg:table-cell`}>SKU</th>
+                <th className={`${th} text-right`}>Costo prom.</th>
+                <th className={`${th} text-right`}>Precio venta</th>
+                <th className={`${th} text-center ${tab === "reventa" ? "" : "hidden"}`}>Stock</th>
+                <th className={`${th} text-center ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>Stock mín.</th>
+                <th className={`${th} hidden lg:table-cell`}>Unidad</th>
+                <th className={`${th} hidden text-right lg:table-cell`}>
                   <span title="(precio - costo) / precio × 100">Margen s/venta</span>
                 </th>
-                <th className="py-3 pl-4 font-medium text-center w-28">Acción</th>
+                <th className={`${th} w-32 text-right`}>Acciones</th>
               </tr>
             </thead>
 
-            <tbody>
+            <tbody className={tbody}>
+              {productos.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className={celdaVacia}>
+                    {todos.length === 0
+                      ? "Todavía no cargaste productos."
+                      : "Ningún producto coincide con los filtros."}
+                  </td>
+                </tr>
+              ) : null}
               {productos.map((p) => {
                 const stockBajo = p.stock_actual <= p.stock_minimo;
                 const margen = calcularMargenVenta(p.costo_promedio, p.precio_venta);
                 return (
-                  <tr key={p.id} className="border-b border-slate-200 last:border-0 hover:bg-[#4FAEB2]/[0.04] transition-colors">
-                    <td className="py-4 pr-4 font-medium text-gray-800">
+                  <tr key={p.id} className={tr}>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>{p.nombre}</span>
                         {(() => {
@@ -481,26 +492,28 @@ export default function InventarioPage() {
                         })()}
                       </div>
                     </td>
-                    <td className="hidden py-4 pr-4 font-mono text-gray-500 lg:table-cell">{p.sku}</td>
-                    <td className="py-4 pr-4 text-gray-700">{formatGs(p.costo_promedio)}</td>
-                    <td className="py-4 pr-4 text-gray-700">{formatGs(p.precio_venta)}</td>
-                    <td className={`py-4 pr-4 text-center ${tab === "reventa" ? "" : "hidden"}`}>
-                      <span className={`font-semibold ${stockBajo ? "text-red-600" : "text-gray-800"}`}>
+                    <td className="hidden px-5 py-3.5 font-mono text-xs text-slate-500 lg:table-cell">{p.sku}</td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{formatGs(p.costo_promedio)}</td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{formatGs(p.precio_venta)}</td>
+                    <td className={`px-5 py-3.5 text-center ${tab === "reventa" ? "" : "hidden"}`}>
+                      <span className={`font-semibold tabular-nums ${stockBajo ? "text-red-600" : "text-slate-800"}`}>
                         {p.stock_actual}
                       </span>
                     </td>
-                    <td className={`py-4 pr-4 text-center text-gray-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
-                    <td className="py-4 pr-4 text-gray-600 hidden lg:table-cell">{p.unidad_medida}</td>
-                    <td className={`hidden py-4 pr-6 text-right font-semibold tabular-nums lg:table-cell ${margenColor(margen)}`}>
+                    <td className={`px-5 py-3.5 text-center tabular-nums text-slate-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
+                    <td className="hidden px-5 py-3.5 text-slate-600 lg:table-cell">{p.unidad_medida}</td>
+                    <td className={`hidden px-5 py-3.5 text-right font-semibold tabular-nums lg:table-cell ${margenColor(margen)}`}>
                       {margen.toFixed(2)}%
                     </td>
-                    <td className="py-4 pl-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
                         <Link
                           href={`/inventario/${p.id}/editar`}
-                          className="inline-flex items-center justify-center min-h-[40px] rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                          className={btnIcono}
+                          aria-label={`Editar ${p.nombre}`}
+                          title="Editar"
                         >
-                          Editar
+                          <Pencil className="h-4 w-4" aria-hidden />
                         </Link>
                         <button
                           type="button"
@@ -508,7 +521,7 @@ export default function InventarioPage() {
                           disabled={eliminandoId === p.id}
                           title={`Eliminar ${p.nombre}`}
                           aria-label={`Eliminar ${p.nombre}`}
-                          className="inline-flex min-h-[40px] items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          className={btnIconoPeligro}
                         >
                           <Trash2 className="h-4 w-4" aria-hidden />
                         </button>

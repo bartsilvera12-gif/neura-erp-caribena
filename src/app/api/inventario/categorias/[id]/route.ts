@@ -57,3 +57,87 @@ export async function PATCH(
     return NextResponse.json(errorResponse("No se pudo actualizar la categoría."), { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/inventario/categorias/[id]
+ *
+ * Borra de verdad si la categoría no se usa. Si ya está asignada a productos o
+ * es padre de otra categoría, la base rechaza el borrado (23503) y devolvemos
+ * 409 con `puede_desactivar: true`: desactivarla la saca de los selectores sin
+ * romper la clasificación de los productos que ya la tienen.
+ *
+ * `?desactivar=1` hace directamente esa baja lógica.
+ */
+export async function DELETE(
+  request: NextRequest,
+  ctxParams: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctxParams.params;
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+
+    const soloDesactivar = request.nextUrl.searchParams.get("desactivar") === "1";
+
+    if (soloDesactivar) {
+      const upd = await ctx.supabase
+        .from("categorias_productos")
+        .update({ activo: false })
+        .eq("empresa_id", ctx.auth.empresa_id)
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+      if (upd.error) throw new Error(upd.error.message);
+      if (!upd.data) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
+      return NextResponse.json(successResponse({ desactivada: true }));
+    }
+
+    // Una categoría padre no puede borrarse sin dejar huérfanas a las hijas.
+    const hijas = await ctx.supabase
+      .from("categorias_productos")
+      .select("id")
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("parent_id", id)
+      .limit(1);
+    if (hijas.data && hijas.data.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Esta categoría tiene subcategorías. Movelas o borralas primero.",
+          puede_desactivar: true,
+        },
+        { status: 409 }
+      );
+    }
+
+    const del = await ctx.supabase
+      .from("categorias_productos")
+      .delete()
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (del.error) {
+      const msg = del.error.message ?? "";
+      if (/23503|foreign key|violates/i.test(msg)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "La categoría ya está asignada a productos o proveedores. Podés desactivarla para que deje de aparecer en los selectores sin perder la clasificación existente.",
+            puede_desactivar: true,
+          },
+          { status: 409 }
+        );
+      }
+      console.error("[/api/inventario/categorias/[id] DELETE]", msg);
+      return NextResponse.json(errorResponse("No se pudo borrar la categoría."), { status: 500 });
+    }
+    if (!del.data) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
+    return NextResponse.json(successResponse({ borrada: true }));
+  } catch (err) {
+    console.error("[/api/inventario/categorias/[id] DELETE] outer", err);
+    return NextResponse.json(errorResponse("No se pudo borrar la categoría."), { status: 500 });
+  }
+}
