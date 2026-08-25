@@ -107,9 +107,24 @@ export default function NuevaCompraPage() {
   // ── Estado inline: PRODUCTO ──────────────────────────────────────────────
 
   const [mostrarFormProducto, setMostrarFormProducto] = useState(false);
+  /**
+   * Tipo gastronómico del alta rápida, igual que en Inventario → Nuevo producto.
+   * No es cosmético: define los flags con los que nace el producto.
+   *   reventa → se vende tal cual y descuenta stock
+   *   menu    → se vende preparado, NO descuenta stock (el costo sale de la receta)
+   *   materia → insumo: no se vende, sólo alimenta recetas
+   */
+  type TipoGastro = "reventa" | "menu" | "materia";
+  const FLAGS_TIPO: Record<TipoGastro, { es_vendible: boolean; es_insumo: boolean; controla_stock: boolean; unidad: string }> = {
+    reventa: { es_vendible: true,  es_insumo: false, controla_stock: true,  unidad: "Unidad" },
+    menu:    { es_vendible: true,  es_insumo: false, controla_stock: false, unidad: "Unidad" },
+    materia: { es_vendible: false, es_insumo: true,  controla_stock: false, unidad: "Kg" },
+  };
+
   const [formProducto, setFormProducto] = useState({
     nombre: "",
     sku: "",
+    tipo_gastro: "reventa" as TipoGastro,
     unidad_medida: "Unidad",
     metodo_valuacion: "CPP" as MetodoValuacion,
     stock_minimo: "0",
@@ -314,11 +329,15 @@ export default function NuevaCompraPage() {
       return;
     }
 
+    const flags = FLAGS_TIPO[formProducto.tipo_gastro];
     const creado = await saveProducto({
       nombre: formProducto.nombre.trim().toUpperCase(),
       sku: formProducto.sku.trim().toUpperCase(),
       unidad_medida: formProducto.unidad_medida.toUpperCase(),
       metodo_valuacion: formProducto.metodo_valuacion,
+      es_vendible: flags.es_vendible,
+      es_insumo: flags.es_insumo,
+      controla_stock: flags.controla_stock,
       stock_actual: 0,   // la compra sumará el stock via ENTRADA
       stock_minimo: parseInt(formProducto.stock_minimo) || 0,
       costo_promedio: costoUnitarioPYG || 0,
@@ -336,7 +355,7 @@ export default function NuevaCompraPage() {
     setProductoCreado(creado.nombre);
     setMostrarFormProducto(false);
     setFormProducto({
-      nombre: "", sku: "", unidad_medida: "Unidad",
+      nombre: "", sku: "", tipo_gastro: "reventa", unidad_medida: "Unidad",
       metodo_valuacion: "CPP", stock_minimo: "0", precio_venta_sugerido: "",
     });
   }
@@ -344,7 +363,7 @@ export default function NuevaCompraPage() {
   function handleCancelarProducto() {
     setMostrarFormProducto(false);
     setFormProducto({
-      nombre: "", sku: "", unidad_medida: "Unidad",
+      nombre: "", sku: "", tipo_gastro: "reventa", unidad_medida: "Unidad",
       metodo_valuacion: "CPP", stock_minimo: "0", precio_venta_sugerido: "",
     });
     setErrorSku(null);
@@ -506,6 +525,36 @@ export default function NuevaCompraPage() {
                   saveDisabled={!formProducto.nombre.trim() || !formProducto.sku.trim()}
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="col-span-2">
+                      <label className={labelSmClass}>Tipo de producto</label>
+                      <SegmentedControl<TipoGastro>
+                        small
+                        value={formProducto.tipo_gastro}
+                        options={[
+                          { value: "reventa", label: "Reventa" },
+                          { value: "menu",    label: "Menú" },
+                          { value: "materia", label: "Materia prima" },
+                        ]}
+                        onChange={(v) =>
+                          setFormProducto((prev) => ({
+                            ...prev,
+                            tipo_gastro: v,
+                            // La unidad sigue al tipo salvo que ya la hayan tocado.
+                            unidad_medida:
+                              prev.unidad_medida === FLAGS_TIPO[prev.tipo_gastro].unidad
+                                ? FLAGS_TIPO[v].unidad
+                                : prev.unidad_medida,
+                          }))
+                        }
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formProducto.tipo_gastro === "reventa"
+                          ? "Se compra y se vende tal cual. Controla stock."
+                          : formProducto.tipo_gastro === "menu"
+                            ? "Se vende preparado. No descuenta stock directo."
+                            : "Insumo para recetas. No se vende por separado."}
+                      </p>
+                    </div>
                     <div>
                       <label className={labelSmClass}>Nombre <span className="text-red-500">*</span></label>
                       <input type="text" name="nombre" value={formProducto.nombre}
