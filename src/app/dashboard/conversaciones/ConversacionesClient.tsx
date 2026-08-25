@@ -35,7 +35,7 @@ import {
 } from "@/lib/chat/chat-ops-actions";
 import { INBOX_HEARTBEAT_INTERVAL_MS } from "@/lib/chat/agent-presence";
 import { listActiveQuickRepliesForChannel } from "@/lib/chat/quick-replies-actions";
-import { ArrowLeftRight, Mic, Paperclip, RefreshCw, Square, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, Mic, Paperclip, Play, RefreshCw, Square, X, Zap } from "lucide-react";
 import {
   finalizeConversationWithClosure,
   loadFinalizeOptionsForConversation,
@@ -1576,7 +1576,7 @@ export function ConversacionesClient({
                 onClick={() => setTransferModalOpen(false)}
                 aria-label="Cerrar"
               >
-                ✕
+                <X className="inline h-4 w-4 align-[-0.125em]" aria-hidden />
               </button>
             </div>
 
@@ -2300,7 +2300,7 @@ export function ConversacionesClient({
                     className="w-full text-left px-2 py-1 text-xs font-medium text-amber-900 flex items-center justify-between gap-2 hover:bg-amber-50/80"
                   >
                     <span>
-                      ⚠️ Validaciones ({compLoading ? "…" : compVals.length})
+                      <AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Validaciones ({compLoading ? "…" : compVals.length})
                     </span>
                     <span className="text-slate-500 tabular-nums shrink-0" aria-hidden>
                       {compValidacionesOpen ? "▲" : "▼"}
@@ -2366,7 +2366,7 @@ export function ConversacionesClient({
                               {v.estado_validacion === "aprobado_manual" ? (
                                 <span className="text-emerald-700 font-medium">
                                   Aprobado manualmente · Compra cerrada
-                                  {v.sorteo_entrada_id ? " ✓" : ""}
+                                  {v.sorteo_entrada_id ? <Check className="ml-1 inline h-4 w-4 align-[-0.125em]" aria-hidden /> : null}
                                 </span>
                               ) : null}
                               {v.sorteo_entrada_id && v.estado_validacion !== "aprobado_manual" ? (
@@ -2487,8 +2487,8 @@ export function ConversacionesClient({
                                       : "border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-900"
                                   }`}
                                 >
-                                  <span className="text-2xl leading-none shrink-0 select-none" aria-hidden>
-                                    {m.message_type === "video" ? "▶️" : "📎"}
+                                  <span className="shrink-0 select-none text-slate-500" aria-hidden>
+                                    {m.message_type === "video" ? <Play className="h-6 w-6" aria-hidden /> : <Paperclip className="h-6 w-6" aria-hidden />}
                                   </span>
                                   <span className="min-w-0 flex-1">
                                     <span

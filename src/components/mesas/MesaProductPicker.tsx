@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Sandwich } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 
@@ -82,7 +83,7 @@ export default function MesaProductPicker({
     if (!sel) return;
     const prod = sel;
     // Optimista: el agregado aparece instantáneo en la mesa; no bloqueamos el modal.
-    setFeedback(`${prod.nombre} agregado ✓`);
+    setFeedback(`${prod.nombre} agregado`);
     setSel(null);
     setTimeout(() => setFeedback(null), 1500);
     void onAdd({ id: prod.id, nombre: prod.nombre, precio_venta: prod.precio_venta }, cant, obs.trim() || null);
@@ -112,7 +113,7 @@ export default function MesaProductPicker({
 
         {/* Grid productos */}
         <div className="flex-1 overflow-y-auto p-3">
-          {feedback && <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">{feedback}</div>}
+          {feedback && <div className="mb-3 flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"><Check className="h-4 w-4 shrink-0" aria-hidden />{feedback}</div>}
           {loading ? (
             <p className="py-10 text-center text-slate-400">Cargando productos…</p>
           ) : filtrados.length === 0 ? (
@@ -129,7 +130,7 @@ export default function MesaProductPicker({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.imagen_url} alt={p.nombre} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl text-slate-300">🍔</div>
+                      <div className="flex h-full w-full items-center justify-center text-slate-300"><Sandwich className="h-6 w-6" aria-hidden /></div>
                     )}
                   </div>
                   <div className="p-2">

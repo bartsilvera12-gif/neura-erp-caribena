@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Users, Calendar, PieChart, DollarSign, Trophy } from "lucide-react";
+import { Calendar, Check, DollarSign, MessageCircle, PieChart, Trophy, User, Users, X } from "lucide-react";
 import { getProspectos, moveProspecto } from "@/lib/crm/storage";
 import { getEtapas, getEtapaClasses, normalizeEtapaCodigo, type EtapaCrm } from "@/lib/crm/etapas";
 import type { Prospecto } from "@/lib/crm/types";
@@ -126,7 +126,7 @@ function ProspectoCard({
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {prospecto.notas.length > 0 && (
-            <span className="text-[10px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded">{prospecto.notas.length}💬</span>
+            <span className="text-[10px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded">{prospecto.notas.length}<MessageCircle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           )}
           <Link
             href={`/crm/${prospecto.id}`}
@@ -142,7 +142,7 @@ function ProspectoCard({
       </div>
       <p className="text-[10px] text-gray-500 line-clamp-1 mb-0.5">{prospecto.servicio}</p>
       <p className="text-xs font-bold text-gray-900 tabular-nums mb-1">Gs. {prospecto.valor_estimado.toLocaleString("es-PY")}</p>
-      <div className="text-[10px] text-gray-600 truncate mb-1">👤 {prospecto.contacto}</div>
+      <div className="text-[10px] text-gray-600 truncate mb-1"><User className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {prospecto.contacto}</div>
       {prospecto.proxima_accion && (
         <div className="flex items-start gap-0.5 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 mb-1">
           <span className="text-amber-500 shrink-0">⏰</span>
@@ -167,20 +167,20 @@ function ProspectoCard({
             onClick={(e) => { e.stopPropagation(); onMoverEtapa(prospecto.id, "GANADO"); }}
             className="flex-1 text-[10px] text-green-600 hover:bg-green-50 border border-green-200 rounded px-1 py-0.5 font-medium"
           >
-            ✓ Ganado
+            <Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Ganado
           </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onMoverEtapa(prospecto.id, "PERDIDO"); }}
             className="flex-1 text-[10px] text-red-500 hover:bg-red-50 border border-red-200 rounded px-1 py-0.5 font-medium"
           >
-            ✗ Perdido
+            <X className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Perdido
           </button>
         </div>
       )}
       {esGanado && (
         <div className="mt-1 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 flex items-center justify-between gap-1">
-          <span className="text-[10px] text-green-700 font-medium">{prospecto.cliente_creado ? "✓ Cliente creado" : "✓ Ganado"}</span>
+          <span className="inline-flex items-center gap-1 text-[10px] text-green-700 font-medium"><Check className="h-3 w-3 shrink-0" aria-hidden />{prospecto.cliente_creado ? "Cliente creado" : "Ganado"}</span>
           {!prospecto.cliente_creado && (
             <Link href={`/clientes/nuevo?from_crm=${prospecto.id}`} onClick={(e) => e.stopPropagation()} className="text-[10px] text-green-600 font-semibold underline shrink-0">
               Crear cliente →

@@ -5,38 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Users,
-  FileText,
-  Settings,
-  UserCog,
-  Building2,
-  ChevronDown,
-  ChevronRight,
-  Star,
-  Sparkles,
-  PanelLeftClose,
-  PanelLeft,
-  Search,
-  Receipt,
-  Megaphone,
-  Ticket,
-  SendHorizontal,
-  MessageCircle,
-  History,
-  Activity,
-  ScrollText,
-  ListChecks,
-  Percent,
-  ChefHat,
-  Utensils,
-  BarChart3,
-  LayoutGrid,
-  ClipboardList,
-} from "lucide-react";
+import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronRight, ClipboardList, FileText, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, PanelLeft, PanelLeftClose, Percent, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { getCurrentUser } from "@/lib/auth";
@@ -711,7 +680,7 @@ export default function Sidebar() {
         {/* Favoritos */}
         {favoritosItemsFiltered.length > 0 && !collapsed && (
           <div className="mb-4">
-            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">★ Favoritos</p>
+            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500"><Star className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Favoritos</p>
             <div className="space-y-0.5">
               {favoritosItemsFiltered.map((item) => (
                 <NavItem

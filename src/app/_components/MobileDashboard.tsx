@@ -2,21 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Calendar,
-  Plus,
-  ShoppingCart,
-  Package,
-  Users,
-  Receipt,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  ChevronRight,
-  Wallet,
-  Boxes,
-  Home as HomeIcon,
-} from "lucide-react";
+import { AlertTriangle, Boxes, Calendar, Check, ChevronRight, Home as HomeIcon, Package, Plus, Receipt, ShoppingCart, TrendingDown, TrendingUp, Users, Wallet } from "lucide-react";
 import {
   esFacturaAnulada,
   esFacturaCorregidaNc,
@@ -813,7 +799,7 @@ export default function MobileDashboard({
           </div>
         ) : (
           <div className="text-center py-6 px-4 bg-emerald-50 rounded-xl border border-dashed border-emerald-300">
-            <p className="text-sm font-medium text-emerald-800">✓ Todo el stock está saludable</p>
+            <p className="text-sm font-medium text-emerald-800"><Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Todo el stock está saludable</p>
             <p className="text-[11px] text-emerald-700 mt-1">No hay productos por reponer</p>
           </div>
         )}

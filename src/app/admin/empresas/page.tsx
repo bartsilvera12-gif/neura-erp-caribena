@@ -1,5 +1,6 @@
 "use client";
 
+import { Building2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { eliminarEmpresa, getEmpresas } from "@/lib/empresas/actions";
@@ -85,7 +86,7 @@ export default function AdminEmpresasPage() {
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Cargando empresas…</div>
         ) : empresas.length === 0 ? (
           <div className="py-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">🏢</p>
+            <p className="mb-3"><Building2 className="h-10 w-10" aria-hidden /></p>
             <p className="font-medium text-gray-600">No hay empresas registradas</p>
             <Link href="/admin/empresas/nueva" className="mt-4 inline-block text-sm text-gray-500 underline hover:text-gray-800">
               Crear primera empresa

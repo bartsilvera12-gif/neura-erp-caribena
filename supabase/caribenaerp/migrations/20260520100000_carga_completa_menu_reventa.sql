@@ -108,7 +108,7 @@ $$;
 
 DO $$
 DECLARE
-  v_emp uuid := '3983553a-de4b-4edf-bc6f-3f86025a97dc';
+  v_emp uuid := '56be4586-adb4-4477-a990-8092f1ab0eb1';
   -- Padres
   v_especiales uuid;
   v_bebidas uuid;

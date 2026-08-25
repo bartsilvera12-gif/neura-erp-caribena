@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart3, Building2, Package, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -132,7 +133,7 @@ export default function EmpresaForm() {
       {/* Datos empresa */}
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5 pb-2 border-b border-gray-100">
-          <span className="text-base">🏢</span>
+          <span className="text-base"><Building2 className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Datos de la empresa</h3>
         </div>
         <div className="space-y-4">
@@ -190,7 +191,7 @@ export default function EmpresaForm() {
       {/* Usuario administrador */}
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5 pb-2 border-b border-gray-100">
-          <span className="text-base">👤</span>
+          <span className="text-base"><User className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Usuario administrador</h3>
         </div>
         <div className="space-y-4">
@@ -237,7 +238,7 @@ export default function EmpresaForm() {
       {/* Módulos habilitados */}
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5 pb-2 border-b border-gray-100">
-          <span className="text-base">📦</span>
+          <span className="text-base"><Package className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Módulos habilitados</h3>
         </div>
         {cargandoModulos ? (
@@ -267,7 +268,7 @@ export default function EmpresaForm() {
 
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5 pb-2 border-b border-gray-100">
-          <span className="text-base">📊</span>
+          <span className="text-base"><BarChart3 className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
             Vistas del dashboard
           </h3>

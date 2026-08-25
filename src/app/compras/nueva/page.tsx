@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
@@ -403,7 +404,7 @@ export default function NuevaCompraPage() {
 
               {proveedorCreado && (
                 <p className="mt-1.5 text-xs text-green-600">
-                  ✓ Proveedor &quot;{proveedorCreado}&quot; creado y seleccionado.
+                  <Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Proveedor &quot;{proveedorCreado}&quot; creado y seleccionado.
                 </p>
               )}
 
@@ -488,7 +489,7 @@ export default function NuevaCompraPage() {
               )}
               {productoCreado && (
                 <p className="mt-1.5 text-xs text-green-600">
-                  ✓ Producto &quot;{productoCreado}&quot; creado y seleccionado.
+                  <Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Producto &quot;{productoCreado}&quot; creado y seleccionado.
                 </p>
               )}
 
@@ -735,7 +736,7 @@ export default function NuevaCompraPage() {
               >
                 <span className="text-sm text-gray-600">Margen sobre venta</span>
                 <span className={`text-lg font-bold tabular-nums ${margenColor(margenVenta)}`}>
-                  {margenVenta < 0 ? "⚠ " : ""}{margenVenta.toFixed(2)}%
+                  {margenVenta < 0 && <AlertTriangle className="mr-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />}{margenVenta.toFixed(2)}%
                   {margenVenta < 0 && (
                     <span className="ml-2 text-xs font-normal text-red-500">pérdida</span>
                   )}
@@ -747,7 +748,7 @@ export default function NuevaCompraPage() {
           {/* ── Banner impacto en inventario ──────────────────────────────── */}
           {calculosListos && productoSeleccionado && (
             <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-700">
-              <span className="mt-0.5 text-base leading-none">✓</span>
+              <span className="mt-0.5 text-base leading-none"><Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
               <span>
                 Al guardar se registrará una{" "}
                 <strong>entrada de {cantidadNum} unidades</strong> de{" "}

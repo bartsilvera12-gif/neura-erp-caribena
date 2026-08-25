@@ -1,5 +1,6 @@
 "use client";
 
+import { ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createGasto, updateGasto } from "@/lib/gastos/actions";
@@ -75,7 +76,7 @@ export default function GastoForm({ gasto, onSuccess }: Props) {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5 pb-2 border-b border-slate-200">
-          <span className="text-base">📋</span>
+          <span className="text-base"><ClipboardList className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
             Datos del gasto
           </h3>

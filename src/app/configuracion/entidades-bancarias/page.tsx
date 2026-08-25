@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GlobalConfigSubpageShell } from "@/components/config/GlobalConfigSubpageShell";
 import {
@@ -79,7 +80,7 @@ export default function EntidadesBancariasPage() {
 
   return (
     <GlobalConfigSubpageShell title="Entidades bancarias" description="Configurá bancos, POS, billeteras y cuentas usadas para transferencias, tarjetas y conciliación.">
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">⚠ {error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
       {ok && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{ok}</div>}
 
       {/* Alta */}

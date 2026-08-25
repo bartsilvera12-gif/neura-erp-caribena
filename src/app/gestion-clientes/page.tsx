@@ -3,16 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  FileDown,
-  FileText,
-  Printer,
-  Receipt,
-  SlidersHorizontal,
-} from "lucide-react";
+import { AlertTriangle, Calendar, ChevronDown, ClipboardList, Clock, Link2, RefreshCw, ChevronUp, FileDown, FileText, Printer, Receipt, SlidersHorizontal } from "lucide-react";
 import { ModalCambioPlanGestion } from "@/components/gestion-clientes/ModalCambioPlanGestion";
 import { ModalHistorialClienteGestion } from "@/components/gestion-clientes/ModalHistorialClienteGestion";
 import { RegistrarPagoModal } from "@/components/pagos/RegistrarPagoModal";
@@ -198,7 +189,7 @@ function BotonOperativo({
   onClick,
 }: {
   label:    string;
-  icon:     string;
+  icon:     React.ReactNode;
   iconNode?: React.ReactNode;
   activo?:  boolean;
   href?:    string;
@@ -208,7 +199,7 @@ function BotonOperativo({
     "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors";
   const activeClass  = "border-gray-800 bg-gray-900 text-white hover:bg-gray-700";
   const disabledClass = "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed";
-  const iconEl = iconNode ?? <span>{icon}</span>;
+  const iconEl = iconNode ?? <span className="[&>svg]:h-3.5 [&>svg]:w-3.5" aria-hidden>{icon}</span>;
 
   if (activo && href) {
     return (
@@ -363,7 +354,7 @@ function ModalFacturacion({
             <div className="space-y-4">
               {errorEmitir && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                  <span>⚠</span>
+                  <span><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
                   <span>{errorEmitir}</span>
                 </div>
               )}
@@ -960,25 +951,25 @@ function GestionClientesPageInner() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
-                  <BotonOperativo label="Tipificación" icon="📋" activo href={`/clientes/${selected.id}/tipificacion`} />
+                  <BotonOperativo label="Tipificación" icon={<ClipboardList />} activo href={`/clientes/${selected.id}/tipificacion`} />
                   <BotonOperativo
                     label="Facturación"
-                    icon="📄"
+                    icon={<FileText />}
                     iconNode={<Calendar className="h-3.5 w-3.5" />}
                     activo
                     onClick={() => setModalFacturacion(true)}
                   />
-                  <BotonOperativo label="Servicios asociados" icon="🔗" />
+                  <BotonOperativo label="Servicios asociados" icon={<Link2 />} />
                   <BotonOperativo
                     label="Cambio de plan"
-                    icon="🔄"
+                    icon={<RefreshCw />}
                     activo
                     onClick={() => setModalCambioPlan(true)}
                   />
-                  <BotonOperativo label="Cambio fecha venc." icon="📅" />
+                  <BotonOperativo label="Cambio fecha venc." icon={<Calendar />} />
                   <BotonOperativo
                     label="Historial cliente"
-                    icon="🕐"
+                    icon={<Clock />}
                     activo
                     onClick={() => setModalHistorialCliente(true)}
                   />

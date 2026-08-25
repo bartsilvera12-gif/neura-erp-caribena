@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Pizza } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -206,7 +207,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
 
       {sinCaja && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-medium text-amber-800">⚠ No hay caja abierta. Para facturar primero abrí caja.</p>
+          <p className="text-sm font-medium text-amber-800"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> No hay caja abierta. Para facturar primero abrí caja.</p>
           <button onClick={() => router.push("/ventas")} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
             Ir a abrir caja
           </button>
@@ -215,7 +216,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-          <span className="text-base leading-none mt-0.5">⚠</span><span className="font-medium">{error}</span>
+          <span className="text-base leading-none mt-0.5"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span><span className="font-medium">{error}</span>
         </div>
       )}
 
@@ -238,7 +239,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
             onClick={() => setMitadOpen(true)}
             className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100"
           >
-            🍕 Pizza mitad y mitad
+            <Pizza className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Pizza mitad y mitad
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">El mismo buscador del catálogo que usa Nueva venta (nombre, SKU, código, categoría).</p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -103,7 +104,7 @@ export default function PedidosParaLlevarPage() {
         </button>
       </div>
 
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">⚠ {error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
 
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando…</p>
@@ -225,7 +226,7 @@ export default function PedidosParaLlevarPage() {
               className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
               onKeyDown={(e) => { if (e.key === "Enter") void onCrear(); }}
             />
-            {modalError && <p className="mt-2 text-sm text-red-600">⚠ {modalError}</p>}
+            {modalError && <p className="mt-2 text-sm text-red-600"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {modalError}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" disabled={creating} onClick={() => setModalOpen(false)}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">

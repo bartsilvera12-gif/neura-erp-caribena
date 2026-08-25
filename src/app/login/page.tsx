@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { signIn } from "@/lib/auth";
 import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import { firstAccessibleHref } from "@/lib/modulos/route-slug-map";
@@ -119,7 +119,7 @@ export default function LoginPage() {
 
             {error && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 sm:px-4 sm:py-3">
-                <span aria-hidden>⚠</span>
+                <span aria-hidden><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
                 <span>{error}</span>
               </div>
             )}

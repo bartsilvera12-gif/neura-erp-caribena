@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import type { PreviewResponse, CommitResponse } from "@/lib/excel/import-types";
 
@@ -231,7 +232,7 @@ function PreviewTable({ rows }: { rows: import("@/lib/excel/import-types").Previ
                 <td className="px-2 py-1"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${badge}`}>{r.action}</span></td>
                 <td className="px-2 py-1 text-slate-700 truncate max-w-md">{summary}</td>
                 <td className="px-2 py-1 text-xs">
-                  {r.errors.map((e, i) => <div key={`e${i}`} className="text-red-700">⚠ {e}</div>)}
+                  {r.errors.map((e, i) => <div key={`e${i}`} className="text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {e}</div>)}
                   {r.warnings.map((w, i) => <div key={`w${i}`} className="text-amber-700">• {w}</div>)}
                 </td>
               </tr>

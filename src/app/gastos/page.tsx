@@ -1,5 +1,6 @@
 "use client";
 
+import { ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -85,7 +86,7 @@ export default function GastosPage() {
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Cargando gastos…</div>
         ) : gastos.length === 0 ? (
           <div className="py-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">📋</p>
+            <p className="mb-3"><ClipboardList className="h-10 w-10" aria-hidden /></p>
             <p className="font-medium text-gray-600">No hay gastos registrados</p>
             <Link
               href="/gastos/nuevo"

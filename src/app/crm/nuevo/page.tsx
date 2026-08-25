@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -366,7 +367,7 @@ export default function NuevoProspectoPage() {
           {/* Error */}
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              <span>⚠</span>
+              <span><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
               <span className="font-medium">{error}</span>
             </div>
           )}

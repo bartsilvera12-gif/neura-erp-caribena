@@ -1,5 +1,6 @@
 "use client";
 
+import { CupSoda, Pizza, Wheat } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -15,9 +16,9 @@ const UNIDADES_OPCIONES = [
 ] as const;
 
 const TIPO_SUMMARY = {
-  reventa: { titulo: "Producto de reventa", descripcion: "Se compra y se vende tal cual. Controla stock y descuenta al vender.", icono: "🥤" },
-  menu:    { titulo: "Producto del menú",   descripcion: "Se vende en Ventas y genera pedido. No descuenta stock directo.",     icono: "🍕" },
-  materia: { titulo: "Materia prima / insumo", descripcion: "Se usa para recetas y costeo. No aparece como producto de venta.", icono: "🌾" },
+  reventa: { titulo: "Producto de reventa", descripcion: "Se compra y se vende tal cual. Controla stock y descuenta al vender.", icono: <CupSoda className="h-8 w-8" aria-hidden /> },
+  menu:    { titulo: "Producto del menú",   descripcion: "Se vende en Ventas y genera pedido. No descuenta stock directo.",     icono: <Pizza className="h-8 w-8" aria-hidden /> },
+  materia: { titulo: "Materia prima / insumo", descripcion: "Se usa para recetas y costeo. No aparece como producto de venta.", icono: <Wheat className="h-8 w-8" aria-hidden /> },
 } as const;
 
 interface CatRow { id: string; nombre: string }
@@ -357,7 +358,7 @@ export default function EditarProductoPage() {
 
       <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-5 max-w-5xl">
         <div className="flex items-start gap-4">
-          <div className="text-3xl">{summary.icono}</div>
+          <div className="text-slate-500" aria-hidden>{summary.icono}</div>
           <div className="flex-1 min-w-0">
             <div className="text-base font-semibold text-slate-900">{summary.titulo}</div>
             <div className="text-sm text-slate-600 mt-0.5">{summary.descripcion}</div>

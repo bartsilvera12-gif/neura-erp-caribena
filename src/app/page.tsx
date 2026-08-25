@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, BarChart3, Calendar, CalendarDays, CheckCircle2, Gem, Hash, Lock, MessageCircle, Package, ShoppingCart, Target, Ticket, TrendingUp, Wallet } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -508,7 +509,7 @@ function KpiCard({
   value: string;
   sub?: string;
   color?: string;
-  icon: string;
+  icon: React.ReactNode;
   variation?: number;
   variant?: "light" | "zentra";
 }) {
@@ -520,7 +521,7 @@ function KpiCard({
         style={{ backgroundColor: Z.card }}
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="text-2xl opacity-90">{icon}</div>
+          <div className="text-slate-300 opacity-90 [&>svg]:h-6 [&>svg]:w-6" aria-hidden>{icon}</div>
           {variation !== undefined && (
             <span
               className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold"
@@ -552,7 +553,7 @@ function KpiCard({
       className="rounded-2xl border border-[#4FAEB2]/30 bg-white p-6 shadow-sm ring-1 ring-[#4FAEB2]/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="text-2xl">{icon}</div>
+        <div className="text-slate-400 [&>svg]:h-6 [&>svg]:w-6" aria-hidden>{icon}</div>
         {variation !== undefined && (
           <span
             className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -795,16 +796,16 @@ const DashComercial = memo(function DashComercial({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           variant="zentra"
-          icon="🎯"
+          icon={<Target />}
           label="Leads nuevos"
           value={String(leadsNuevos)}
           color="text-[#60A5FA]"
           variation={12}
         />
-        <KpiCard variant="zentra" icon="💬" label="En negociación" value={String(enNegociacion)} color="text-amber-400" />
+        <KpiCard variant="zentra" icon={<MessageCircle />} label="En negociación" value={String(enNegociacion)} color="text-amber-400" />
         <KpiCard
           variant="zentra"
-          icon="✅"
+          icon={<CheckCircle2 />}
           label="Clientes ganados (CRM)"
           value={String(clientesGanados)}
           color="text-[#60A5FA]"
@@ -812,7 +813,7 @@ const DashComercial = memo(function DashComercial({
         />
         <KpiCard
           variant="zentra"
-          icon="📈"
+          icon={<TrendingUp />}
           label="Tasa de conversión"
           value={`${tasaConversion.toFixed(1)}%`}
           color={tasaConversion >= config.meta_conversion_leads ? "text-emerald-400" : "text-white"}
@@ -1619,13 +1620,13 @@ const DashInventario = memo(function DashInventario({
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon="📦" label="Productos totales"      value={String(totalProductos)} color="text-[#0EA5E9]" variation={4} />
-        <KpiCard icon="🔢" label="Stock total (unidades)" value={formatGs(totalUnidades)} color="text-[#0EA5E9]" />
-        <KpiCard icon="⚠️" label="Bajo stock mínimo"      value={String(bajosStock)}
+        <KpiCard icon={<Package />} label="Productos totales"      value={String(totalProductos)} color="text-[#0EA5E9]" variation={4} />
+        <KpiCard icon={<Hash />} label="Stock total (unidades)" value={formatGs(totalUnidades)} color="text-[#0EA5E9]" />
+        <KpiCard icon={<AlertTriangle />} label="Bajo stock mínimo"      value={String(bajosStock)}
           sub={bajosStock > 0 ? "requieren reposición" : "todo en orden"}
           color={bajosStock > 0 ? "text-red-600" : "text-[#0EA5E9]"}
           variation={bajosStock > 0 ? -2 : undefined} />
-        <KpiCard icon="💎" label="Valor del inventario"   value={`Gs. ${formatGsFull(valorTotal)}`} color="text-[#0EA5E9]" variation={12} />
+        <KpiCard icon={<Gem />} label="Valor del inventario"   value={`Gs. ${formatGsFull(valorTotal)}`} color="text-[#0EA5E9]" variation={12} />
       </div>
 
       {/* Donut + Críticos */}
@@ -1644,7 +1645,7 @@ const DashInventario = memo(function DashInventario({
           </h3>
           {criticos.length === 0 ? (
             <div className="flex items-center gap-2 text-[var(--badge-success-text)] bg-[var(--badge-success-bg)] rounded-lg px-4 py-3 text-sm">
-              <span>✅</span> Todos los productos tienen stock suficiente.
+              <span><CheckCircle2 className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span> Todos los productos tienen stock suficiente.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -1825,20 +1826,20 @@ const DashVentas = memo(function DashVentas({
 
       {/* KPIs principales */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon="📅" label="Ventas del día"    value={`Gs. ${formatGsFull(totalHoy)}`}
+        <KpiCard icon={<Calendar />} label="Ventas del día"    value={`Gs. ${formatGsFull(totalHoy)}`}
           sub={`${ventasHoy.length} transacciones`} color="text-blue-600" />
-        <KpiCard icon="📆" label="Ventas del mes"    value={`Gs. ${formatGsFull(totalMes)}`}
+        <KpiCard icon={<CalendarDays />} label="Ventas del mes"    value={`Gs. ${formatGsFull(totalMes)}`}
           sub={`${ventasMes.length} transacciones`} color="text-indigo-600" />
-        <KpiCard icon="🎫" label="Ticket promedio"   value={`Gs. ${formatGsFull(ticketProm)}`}
+        <KpiCard icon={<Ticket />} label="Ticket promedio"   value={`Gs. ${formatGsFull(ticketProm)}`}
           sub={`periodo: ${periodo}`} />
-        <KpiCard icon="📦" label="Unidades vendidas" value={formatGs(unidades)}
+        <KpiCard icon={<Package />} label="Unidades vendidas" value={formatGs(unidades)}
           sub={`en el periodo`} />
       </div>
 
       {/* KPIs rentabilidad */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-start gap-3">
-          <span className="text-2xl">💰</span>
+          <span className=""><Wallet className="h-6 w-6" aria-hidden /></span>
           <div>
             <p className={`text-2xl font-bold tabular-nums ${gananciaHoy >= 0 ? "text-green-600" : "text-red-600"}`}>
               Gs. {formatGsFull(gananciaHoy)}
@@ -1848,7 +1849,7 @@ const DashVentas = memo(function DashVentas({
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-start gap-3">
-          <span className="text-2xl">📊</span>
+          <span className=""><BarChart3 className="h-6 w-6" aria-hidden /></span>
           <div>
             <p className={`text-2xl font-bold tabular-nums ${margenProm >= 20 ? "text-green-600" : margenProm >= 10 ? "text-amber-600" : "text-red-600"}`}>
               {margenProm.toFixed(1)}%
@@ -2086,11 +2087,11 @@ export default function DashboardPage() {
     }
   }, [tab, effectiveTabs]);
 
-  const TAB_META: Record<TabDash, { label: string; icon: string }> = {
-    comercial: { label: "Comercial", icon: "📊" },
-    financiero: { label: "Financiero", icon: "" },
-    inventario: { label: "Inventario", icon: "" },
-    ventas: { label: "Ventas", icon: "" },
+  const TAB_META: Record<TabDash, { label: string; icon: React.ReactNode }> = {
+    comercial: { label: "Comercial", icon: <BarChart3 className="h-4 w-4" aria-hidden /> },
+    financiero: { label: "Financiero", icon: <Wallet className="h-4 w-4" aria-hidden /> },
+    inventario: { label: "Inventario", icon: <Package className="h-4 w-4" aria-hidden /> },
+    ventas: { label: "Ventas", icon: <ShoppingCart className="h-4 w-4" aria-hidden /> },
   };
 
   if (!config) {
@@ -2108,7 +2109,7 @@ export default function DashboardPage() {
   if (nivel === "usuario") {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <span className="text-4xl">🔒</span>
+        <span className=""><Lock className="h-10 w-10" aria-hidden /></span>
         <h2 className="text-lg font-bold text-gray-800">Acceso restringido</h2>
         <p className="text-sm text-gray-500 text-center max-w-sm">
           El dashboard solo está disponible para usuarios con nivel <strong>Supervisor</strong> o <strong>Administrador</strong>.
@@ -2268,7 +2269,7 @@ export default function DashboardPage() {
                     : { color: Z.muted }
                 }
               >
-                <span aria-hidden>{meta.icon}</span>
+                <span className="inline-flex" aria-hidden>{meta.icon}</span>
                 {meta.label}
               </button>
             );

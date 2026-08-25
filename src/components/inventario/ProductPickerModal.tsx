@@ -1,4 +1,5 @@
 "use client";
+import { AlertTriangle, Check } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
@@ -75,7 +76,8 @@ export default function ProductPickerModal({
   const [cantidad, setCantidad] = useState("1");
   const [precio, setPrecio] = useState("");
   const [iva, setIva] = useState<"EXENTA" | "5%" | "10%">(ivaDefault);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  /** `ok` distingue exito de error: antes se deducia de un check dentro del texto. */
+  const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => { if (open) { setQ(""); setError(null); setSel(null); setTimeout(() => inputRef.current?.focus(), 50); } }, [open]);
   useEffect(() => {
@@ -129,9 +131,9 @@ export default function ProductPickerModal({
     if (!sel) return;
     const cantNum = parseInt(cantidad, 10) || 0;
     const precioNum = parseFloat(precio) || 0;
-    if (cantNum <= 0) { setFeedback("Cantidad debe ser > 0"); return; }
-    if (precioNum <= 0) { setFeedback("Precio debe ser > 0"); return; }
-    if (moneda === "USD" && tipoCambio <= 0) { setFeedback("Falta tipo de cambio en la venta"); return; }
+    if (cantNum <= 0) { setFeedback({ text: "Cantidad debe ser > 0", ok: false }); return; }
+    if (precioNum <= 0) { setFeedback({ text: "Precio debe ser > 0", ok: false }); return; }
+    if (moneda === "USD" && tipoCambio <= 0) { setFeedback({ text: "Falta tipo de cambio en la venta", ok: false }); return; }
     // Solo validar stock si el producto controla stock (Reventa).
     // Productos del Menú (controla_stock=false) se agregan sin restricción.
     const ctrlStock = sel.controla_stock !== false;
@@ -139,13 +141,13 @@ export default function ProductPickerModal({
       const enCarrito = excludeIds.filter((id) => id === sel.id).length;
       const disp = sel.stock_actual - enCarrito;
       if (cantNum > disp) {
-        setFeedback(`Stock insuficiente (disponible ${disp})`);
+        setFeedback({ text: `Stock insuficiente (disponible ${disp})`, ok: false });
         return;
       }
     }
     const ok = onAgregar({ producto: sel, cantidad: cantNum, precio_input: precioNum, iva });
     if (ok !== false) {
-      setFeedback("Producto agregado ✓");
+      setFeedback({ text: "Producto agregado", ok: true });
       setCantidad("1");
       // foco al buscador para seguir cargando
       setTimeout(() => inputRef.current?.focus(), 0);
@@ -331,8 +333,11 @@ export default function ProductPickerModal({
                 </div>
 
                 {feedback && (
-                  <div className={`text-xs px-3 py-2 rounded-lg ${feedback.includes("✓") ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-                    {feedback}
+                  <div className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg ${feedback.ok ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+                    {feedback.ok
+                      ? <Check className="h-4 w-4 shrink-0" aria-hidden />
+                      : <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />}
+                    {feedback.text}
                   </div>
                 )}
 

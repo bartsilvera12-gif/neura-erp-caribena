@@ -1,5 +1,6 @@
 "use client";
 
+import { User, Briefcase, ShieldCheck, KeyRound } from "lucide-react";
 import MontoInput from "@/components/ui/MontoInput";
 import type { AreaUsuario, NivelUsuario, TipoContrato } from "@/lib/usuarios/types";
 
@@ -18,13 +19,16 @@ export function SectionCard({
   children,
 }: {
   title: string;
-  icon: string;
+  /** Icono SVG (lucide-react). Se renderiza a 16px alineado con el título. */
+  icon: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <div className="flex items-center gap-2 mb-5 pb-2 border-b border-gray-100">
-        <span className="text-base">{icon}</span>
+        <span className="text-slate-500 [&>svg]:h-4 [&>svg]:w-4" aria-hidden>
+          {icon}
+        </span>
         <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">{title}</h3>
       </div>
       {children}
@@ -126,7 +130,7 @@ export function UsuarioFormFields({
 
   return (
     <>
-      <SectionCard title="Datos personales" icon="👤">
+      <SectionCard title="Datos personales" icon={<User />}>
         <div className="space-y-4">
           <div>
             <label className={fLabel}>Nombre completo *</label>
@@ -174,7 +178,7 @@ export function UsuarioFormFields({
         </div>
       </SectionCard>
 
-      <SectionCard title="Datos laborales" icon="💼">
+      <SectionCard title="Datos laborales" icon={<Briefcase />}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -240,7 +244,7 @@ export function UsuarioFormFields({
         </div>
       </SectionCard>
 
-      <SectionCard title="Accesos del sistema" icon="🔐">
+      <SectionCard title="Accesos del sistema" icon={<ShieldCheck />}>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={fLabel}>Nivel de acceso</label>
@@ -289,7 +293,7 @@ export function UsuarioFormFields({
       {extraSections}
 
       {variant === "create" ? (
-        <SectionCard title="Seguridad" icon="🔑">
+        <SectionCard title="Seguridad" icon={<KeyRound />}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={fLabel}>Contraseña *</label>

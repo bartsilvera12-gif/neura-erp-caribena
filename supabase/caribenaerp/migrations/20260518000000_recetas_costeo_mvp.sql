@@ -206,11 +206,11 @@ WHERE NOT EXISTS (SELECT 1 FROM caribenaerp.modulos WHERE slug = 'recetas');
 
 -- 9) Activar módulo recetas para la empresa única (id de Mari)
 INSERT INTO caribenaerp.empresa_modulos (empresa_id, modulo_id, activo)
-SELECT '3983553a-de4b-4edf-bc6f-3f86025a97dc'::uuid, m.id, true
+SELECT '56be4586-adb4-4477-a990-8092f1ab0eb1'::uuid, m.id, true
 FROM caribenaerp.modulos m
 WHERE m.slug = 'recetas'
   AND NOT EXISTS (
     SELECT 1 FROM caribenaerp.empresa_modulos em
-    WHERE em.empresa_id = '3983553a-de4b-4edf-bc6f-3f86025a97dc'::uuid
+    WHERE em.empresa_id = '56be4586-adb4-4477-a990-8092f1ab0eb1'::uuid
       AND em.modulo_id = m.id
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
@@ -393,7 +394,7 @@ export default function ClientesPage() {
       {/* Mensaje de éxito baja operativa */}
       {bajaOk && (
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-800">
-          <span className="text-xl">✓</span>
+          <span className=""><Check className="h-5 w-5" aria-hidden /></span>
           <p className="text-sm font-medium">Baja procesada correctamente</p>
         </div>
       )}
@@ -570,7 +571,7 @@ export default function ClientesPage() {
           <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Cargando clientes…</div>
         ) : filtrados.length === 0 ? (
           <div className="py-16 text-center text-gray-400">
-            <p className="text-4xl mb-3">👥</p>
+            <p className="mb-3"><Users className="h-10 w-10" aria-hidden /></p>
             <p className="font-medium text-gray-600">
               {clientes.length === 0 ? "No hay clientes registrados" : "Sin resultados para los filtros aplicados"}
             </p>

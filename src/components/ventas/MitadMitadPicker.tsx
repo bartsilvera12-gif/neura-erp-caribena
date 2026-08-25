@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Pizza, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 interface PizzaItem {
@@ -77,11 +78,11 @@ export default function MitadMitadPicker({
     <div className="fixed inset-0 z-[110] flex items-start justify-center bg-slate-900/60 px-3 pt-12 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
-          <h3 className="text-base font-semibold text-slate-800">🍕 Pizza mitad y mitad</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+          <h3 className="text-base font-semibold text-slate-800"><Pizza className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Pizza mitad y mitad</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></button>
         </div>
         <div className="space-y-3 p-4">
-          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">⚠ {error}</div>}
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
           {loading ? (
             <p className="py-6 text-center text-sm text-slate-400">Cargando pizzas…</p>
           ) : (

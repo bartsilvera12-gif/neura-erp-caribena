@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Pizza, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
@@ -170,7 +171,7 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
           Este pedido fue enviado a caja. Lo cobra el cajero.
         </div>
       )}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">⚠ {error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
       {okMsg && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{okMsg}</div>}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -209,7 +210,7 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
                     <span className="font-semibold tabular-nums text-slate-800">{formatGs(it.total)}</span>
                     {!porCobrar && !tmp && (
                       <button type="button" onClick={() => onCancelItem(it)} className="text-xs text-red-400 hover:text-red-600">
-                        ✕ {enviado ? "Quitar" : "Cancelar"}
+                        <X className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {enviado ? "Quitar" : "Cancelar"}
                       </button>
                     )}
                   </div>
@@ -233,7 +234,7 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
             </button>
             <button type="button" onClick={() => setMitadOpen(true)}
               className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-base font-semibold text-amber-800 shadow-sm hover:bg-amber-100 active:scale-95">
-              🍕 Pizza mitad y mitad
+              <Pizza className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Pizza mitad y mitad
             </button>
             {hayPendientes && (
               <button type="button" onClick={onEnviarComanda} disabled={busy}

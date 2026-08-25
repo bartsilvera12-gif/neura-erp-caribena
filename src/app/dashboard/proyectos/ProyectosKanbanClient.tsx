@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin, Phone, User } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -776,20 +777,20 @@ function PedidoCardBody({
       {pedido.modalidad === "delivery" && (
         <div className="flex flex-col gap-0.5">
           {pedido.cliente_telefono ? (
-            <div className="font-semibold text-slate-800">📞 {pedido.cliente_telefono}</div>
+            <div className="font-semibold text-slate-800"><Phone className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {pedido.cliente_telefono}</div>
           ) : null}
           {pedido.direccion_entrega ? (
-            <div className="text-slate-600">📍 {pedido.direccion_entrega}</div>
+            <div className="text-slate-600"><MapPin className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {pedido.direccion_entrega}</div>
           ) : null}
         </div>
       )}
       {pedido.modalidad === "carry_out" && (pedido.cliente_nombre || pedido.cliente_telefono) ? (
         <div className="flex flex-col gap-0.5">
           {pedido.cliente_nombre ? (
-            <div className="font-semibold text-slate-800">👤 {pedido.cliente_nombre}</div>
+            <div className="font-semibold text-slate-800"><User className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {pedido.cliente_nombre}</div>
           ) : null}
           {pedido.cliente_telefono ? (
-            <div className="text-slate-600">📞 {pedido.cliente_telefono}</div>
+            <div className="text-slate-600"><Phone className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {pedido.cliente_telefono}</div>
           ) : null}
         </div>
       ) : null}

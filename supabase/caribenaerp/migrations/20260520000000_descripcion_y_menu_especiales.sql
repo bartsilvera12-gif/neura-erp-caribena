@@ -74,7 +74,7 @@ $$;
 -- 3) Categorías + productos
 DO $$
 DECLARE
-  v_empresa uuid := '3983553a-de4b-4edf-bc6f-3f86025a97dc'; -- Caribeña
+  v_empresa uuid := '56be4586-adb4-4477-a990-8092f1ab0eb1'; -- Caribeña
   v_especiales_id uuid;
   v_hamburguesas_id uuid;
   v_lomitos_id uuid;

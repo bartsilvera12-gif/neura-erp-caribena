@@ -6,7 +6,7 @@
 
 DO $$
 DECLARE
-  v_empresa uuid := '3983553a-de4b-4edf-bc6f-3f86025a97dc';
+  v_empresa uuid := '56be4586-adb4-4477-a990-8092f1ab0eb1';
   v_modulo_pagos_id uuid;
 BEGIN
   SELECT id INTO v_modulo_pagos_id FROM caribenaerp.modulos WHERE slug = 'pagos';

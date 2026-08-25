@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import {
   ConfigFormCard,
@@ -103,7 +104,7 @@ export default function ConfiguracionPreferenciasPage() {
 
         <ConfigFormCard>
           <div className="mb-4 flex items-center gap-2 border-b border-red-50 pb-2">
-            <span className="text-base">⚠️</span>
+            <span className="text-base"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Zona peligrosa</h4>
           </div>
           {!showReset ? (

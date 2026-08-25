@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Pizza } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
@@ -468,7 +469,7 @@ export default function NuevaVentaPage() {
       {sinCaja && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-800">
-            ⚠ No hay caja abierta. Para vender primero tenés que abrir caja.
+            <AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> No hay caja abierta. Para vender primero tenés que abrir caja.
           </p>
           <button
             type="button"
@@ -491,7 +492,7 @@ export default function NuevaVentaPage() {
               onClick={() => setMitadOpen(true)}
               className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
             >
-              🍕 Pizza mitad y mitad
+              <Pizza className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Pizza mitad y mitad
             </button>
           </div>
 
@@ -673,7 +674,7 @@ export default function NuevaVentaPage() {
           {/* Error agregar */}
           {errorLinea && (
             <div className="mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
-              <span>⚠</span><span className="font-medium">{errorLinea}</span>
+              <span><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span><span className="font-medium">{errorLinea}</span>
             </div>
           )}
         </div>
@@ -992,7 +993,7 @@ export default function NuevaVentaPage() {
           {/* Error confirmar */}
           {errorVenta && (
             <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-700">
-              <span className="text-base leading-none mt-0.5">⚠</span>
+              <span className="text-base leading-none mt-0.5"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
               <span className="font-medium">{errorVenta}</span>
             </div>
           )}

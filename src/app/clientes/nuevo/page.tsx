@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, Link2 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -399,7 +400,7 @@ function NuevoClienteForm() {
       {/* Banner CRM */}
       {crmBanner && (
         <div className="flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-5 py-3">
-          <span className="text-violet-500 text-lg">🔗</span>
+          <span className="text-violet-500"><Link2 className="h-5 w-5" aria-hidden /></span>
           <div>
             <p className="text-sm font-semibold text-violet-800">Creando desde CRM</p>
             <p className="text-xs text-violet-600">{crmBanner}</p>
@@ -921,7 +922,7 @@ function NuevoClienteForm() {
           {/* Error */}
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              <span>⚠</span><span className="font-medium">{error}</span>
+              <span><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span><span className="font-medium">{error}</span>
             </div>
           )}
 

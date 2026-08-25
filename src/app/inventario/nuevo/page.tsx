@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle, CupSoda, Pizza, Wheat } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,9 +15,9 @@ const UNIDADES_OPCIONES = [
 ] as const;
 
 const TIPO_SUMMARY = {
-  reventa: { titulo: "Producto de reventa", descripcion: "Se compra y se vende tal cual. Controla stock y descuenta al vender.", icono: "🥤" },
-  menu:    { titulo: "Producto del menú",   descripcion: "Se vende en Ventas y genera pedido. No descuenta stock directo.",     icono: "🍕" },
-  materia: { titulo: "Materia prima / insumo", descripcion: "Se usa para recetas y costeo. No aparece como producto de venta.", icono: "🌾" },
+  reventa: { titulo: "Producto de reventa", descripcion: "Se compra y se vende tal cual. Controla stock y descuenta al vender.", icono: <CupSoda className="h-8 w-8" aria-hidden /> },
+  menu:    { titulo: "Producto del menú",   descripcion: "Se vende en Ventas y genera pedido. No descuenta stock directo.",     icono: <Pizza className="h-8 w-8" aria-hidden /> },
+  materia: { titulo: "Materia prima / insumo", descripcion: "Se usa para recetas y costeo. No aparece como producto de venta.", icono: <Wheat className="h-8 w-8" aria-hidden /> },
 } as const;
 
 interface CatRow { id: string; nombre: string }
@@ -400,7 +401,7 @@ export default function NuevoProductoPage() {
             {
               tipo: "reventa" as const,
               titulo: "Producto de reventa",
-              icono: "🥤",
+              icono: <CupSoda className="h-8 w-8" aria-hidden />,
               ejemplo: "Gaseosas, agua, jugos, postres comprados",
               descripcion: "Se compra y se vende tal cual. Controla stock y descuenta al vender.",
               acento: "border-sky-300 bg-sky-50/40 hover:border-sky-500",
@@ -408,7 +409,7 @@ export default function NuevoProductoPage() {
             {
               tipo: "menu" as const,
               titulo: "Producto del menú",
-              icono: "🍕",
+              icono: <Pizza className="h-8 w-8" aria-hidden />,
               ejemplo: "Pizzas, lomitos, hamburguesas, combos",
               descripcion: "Producto preparado por el local. No descuenta stock directo (usá receta para costeo).",
               acento: "border-amber-300 bg-amber-50/40 hover:border-amber-500",
@@ -416,7 +417,7 @@ export default function NuevoProductoPage() {
             {
               tipo: "materia" as const,
               titulo: "Materia prima / insumo",
-              icono: "🌾",
+              icono: <Wheat className="h-8 w-8" aria-hidden />,
               ejemplo: "Harina, queso, salsa, carne, envases",
               descripcion: "Insumo para recetas. Sólo se usa para costear productos del menú.",
               acento: "border-emerald-300 bg-emerald-50/40 hover:border-emerald-500",
@@ -428,7 +429,7 @@ export default function NuevoProductoPage() {
               onClick={() => aplicarTipoGastro(opt.tipo)}
               className={`text-left rounded-xl border-2 ${opt.acento} p-5 transition-all hover:shadow-md`}
             >
-              <div className="text-3xl mb-2">{opt.icono}</div>
+              <div className="mb-2 text-slate-500" aria-hidden>{opt.icono}</div>
               <div className="text-base font-semibold text-slate-900">{opt.titulo}</div>
               <div className="mt-1 text-xs italic text-slate-500">Ej: {opt.ejemplo}</div>
               <div className="mt-3 text-sm text-slate-700">{opt.descripcion}</div>
@@ -461,7 +462,7 @@ export default function NuevoProductoPage() {
 
       <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-5 max-w-5xl">
         <div className="flex items-start gap-4">
-          <div className="text-3xl">{summary.icono}</div>
+          <div className="text-slate-500" aria-hidden>{summary.icono}</div>
           <div className="flex-1 min-w-0">
             <div className="text-base font-semibold text-slate-900">{summary.titulo}</div>
             <div className="text-sm text-slate-600 mt-0.5">{summary.descripcion}</div>
@@ -711,7 +712,7 @@ export default function NuevoProductoPage() {
                 {/* Advertencia de pérdida */}
                 {esPerdida && (
                   <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-600">
-                    <span className="mt-0.5 text-base leading-none">⚠</span>
+                    <span className="mt-0.5 text-base leading-none"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
                     <span>
                       El precio de venta es <strong>menor al costo</strong>. Cada unidad vendida generará una pérdida neta.
                     </span>

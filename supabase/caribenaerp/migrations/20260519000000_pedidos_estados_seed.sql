@@ -7,7 +7,7 @@
 
 DO $$
 DECLARE
-  v_empresa uuid := '3983553a-de4b-4edf-bc6f-3f86025a97dc'; -- Caribeña
+  v_empresa uuid := '56be4586-adb4-4477-a990-8092f1ab0eb1'; -- Caribeña
   v_modulo_proyectos_id uuid;
 BEGIN
   -- 1) Activar módulo "proyectos" en empresa_modulos para Mari (renombrado a "Pedidos" en UI).
