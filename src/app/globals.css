@@ -381,14 +381,28 @@ h1, h2, h3 {
 }
 #neura-main-content::-webkit-scrollbar-thumb:hover { background-color: rgba(15, 23, 42, 0.30); }
 
-/* Entrada de página. Termina en `transform: none` (fill both) para no dejar un
-   containing block que rompa los modales `fixed` de adentro. */
+/**
+ * Entrada de página: SOLO opacidad.
+ *
+ * La primera versión también hacía un translateY, terminando en
+ * `transform: none` con fill `both`, creyendo que así no quedaba rastro. No es
+ * así: con fill `both` la animación sigue "aplicando" para siempre, y un
+ * elemento con una animación de transform activa es el containing block de sus
+ * descendientes `position: fixed` aunque el valor final sea `none`.
+ *
+ * Consecuencia: todos los modales del ERP quedaban anclados a la caja del
+ * contenido en vez de a la ventana. El velo oscuro tapaba solo esa zona y el
+ * modal se cortaba abajo.
+ *
+ * La opacidad crea contexto de apilado pero NO containing block, así que la
+ * transición se conserva sin romper nada.
+ */
 #neura-main-content > * {
-  animation: zentra-page-in 0.28s cubic-bezier(0.22, 0.7, 0.3, 1) both;
+  animation: zentra-page-in 0.28s ease-out both;
 }
 @keyframes zentra-page-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /**
