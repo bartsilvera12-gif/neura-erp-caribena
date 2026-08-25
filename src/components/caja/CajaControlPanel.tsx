@@ -2,6 +2,7 @@
 
 import { AlertTriangle, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import MontoInput from "@/components/ui/MontoInput";
 import {
   abrirCaja,
@@ -172,17 +173,50 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
 
 // ── Modal shell ────────────────────────────────────────────────────────────────
 
+/**
+ * Modal centrado, montado en `document.body` vía portal.
+ *
+ * El portal no es decorativo: el panel vive dentro de `<main>`, que es un
+ * contenedor con scroll propio dentro de un shell `h-svh overflow-hidden`. Ahí
+ * el overlay quedaba recortado y el fondo oscuro no llegaba hasta abajo.
+ * Colgándolo del body, `inset-0` cubre siempre el viewport completo.
+ *
+ * `items-center` con `overflow-y-auto` en el overlay: el modal queda centrado, y
+ * si el contenido no entra en pantallas bajas, el overlay scrollea en vez de
+ * cortar el panel.
+ */
 function ModalShell({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-900/60 px-3 pt-12 backdrop-blur-sm" onClick={onClose}>
-      <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!montado) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="my-auto flex max-h-[88vh] w-full max-w-md flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h3 className="text-base font-semibold text-slate-800">{title}</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700" title="Cerrar (Esc)"><X className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></button>
         </div>
         <div className="overflow-y-auto p-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

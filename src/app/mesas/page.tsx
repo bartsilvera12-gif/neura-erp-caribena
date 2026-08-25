@@ -180,11 +180,11 @@ export default function MesasPage() {
 
       {modalAbierto && (
         <div
-          className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/60 px-3 pt-16 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
           onClick={() => !guardando && setModalAbierto(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            className="my-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
