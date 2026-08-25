@@ -19,7 +19,10 @@
 --        alguna columna NOT NULL sin default que no sabe llenar, aborta y te
 --        vuelca la estructura completa de la tabla.
 --
---   4.3  Replica el allowlist de módulos.
+--   4.3  Copia el catálogo `modulos` (definiciones de módulo del ERP, no datos
+--        de negocio — conservando el id, porque `empresa_modulos.modulo_id` los
+--        referencia por FK) y replica el allowlist de la empresa. Si esto falla,
+--        avisa y sigue: la empresa ya quedó creada.
 --
 -- Al terminar imprime el UUID de la empresa nueva: ese es el `empresa_id` de
 -- Caribeña.
@@ -37,6 +40,8 @@ DECLARE
   col_vals   text[] := '{}';
   faltantes  text;
   todas      text;
+  cols_ins   text;
+  cols_sel   text;
   c          text;
   n          int;
   rel        regclass;
@@ -211,34 +216,83 @@ BEGIN
   RAISE NOTICE '────────────────────────────────────────────────────────';
 
   ---------------------------------------------------------------------------
-  -- 4.3 Módulos habilitados
-  -- Se replica el allowlist de En lo de Mari, apuntado a la empresa nueva.
-  -- Se copian todas las columnas comunes menos id/empresa_id. Es una lectura
-  -- puntual del bootstrap: no deja ninguna dependencia permanente.
+  -- 4.3 Catálogo de módulos + allowlist de la empresa
+  --
+  -- `modulos` es CATÁLOGO, no datos de negocio: son las definiciones de módulo
+  -- del ERP (ventas, inventario, caja…). Se copian conservando el `id`, porque
+  -- `empresa_modulos.modulo_id` los referencia por FK. Sin esto el allowlist
+  -- no tiene a qué apuntar.
+  --
+  -- Lectura puntual del bootstrap: no deja ninguna dependencia permanente.
+  -- Si algo de esto falla, se avisa y se sigue — la empresa ya quedó creada y
+  -- los módulos se pueden configurar después desde el ERP.
   ---------------------------------------------------------------------------
-  IF EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
-             WHERE ns.nspname = dst AND cl.relname = 'empresa_modulos' AND cl.relkind = 'r')
-     AND EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
-             WHERE ns.nspname = 'enlodemari' AND cl.relname = 'empresa_modulos' AND cl.relkind = 'r') THEN
+  BEGIN
+    -- ── 4.3.a Catálogo `modulos` ─────────────────────────────────────────────
+    IF EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+               WHERE ns.nspname = dst AND cl.relname = 'modulos' AND cl.relkind = 'r')
+       AND EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+               WHERE ns.nspname = 'enlodemari' AND cl.relname = 'modulos' AND cl.relkind = 'r') THEN
 
-    SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
-      INTO faltantes
-    FROM pg_attribute a
-    WHERE a.attrelid = (dst || '.empresa_modulos')::regclass
-      AND a.attnum > 0 AND NOT a.attisdropped
-      AND a.attname NOT IN ('id', 'empresa_id')
-      AND EXISTS (SELECT 1 FROM pg_attribute b
-                  WHERE b.attrelid = 'enlodemari.empresa_modulos'::regclass
-                    AND b.attname = a.attname AND b.attnum > 0 AND NOT b.attisdropped);
+      SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum),
+             string_agg('o.' || quote_ident(a.attname), ', ' ORDER BY a.attnum)
+        INTO cols_ins, cols_sel
+      FROM pg_attribute a
+      WHERE a.attrelid = (dst || '.modulos')::regclass
+        AND a.attnum > 0 AND NOT a.attisdropped
+        AND a.attgenerated = ''
+        AND EXISTS (SELECT 1 FROM pg_attribute b
+                    WHERE b.attrelid = 'enlodemari.modulos'::regclass
+                      AND b.attname = a.attname AND b.attnum > 0 AND NOT b.attisdropped);
 
-    IF faltantes IS NOT NULL THEN
-      EXECUTE format(
-        'INSERT INTO %I.empresa_modulos (empresa_id, %s) SELECT %L::uuid, %s FROM enlodemari.empresa_modulos',
-        dst, faltantes, nueva_id, faltantes);
-      GET DIAGNOSTICS n = ROW_COUNT;
-      RAISE NOTICE '% filas de empresa_modulos replicadas desde enlodemari.', n;
+      IF cols_ins IS NOT NULL THEN
+        EXECUTE format(
+          'INSERT INTO %I.modulos (%s) SELECT %s FROM enlodemari.modulos o
+             WHERE NOT EXISTS (SELECT 1 FROM %I.modulos d WHERE d.id = o.id)',
+          dst, cols_ins, cols_sel, dst);
+        GET DIAGNOSTICS n = ROW_COUNT;
+        RAISE NOTICE '[4.3] % módulos de catálogo copiados.', n;
+      END IF;
     END IF;
-  END IF;
+
+    -- ── 4.3.b Allowlist `empresa_modulos` ────────────────────────────────────
+    IF EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+               WHERE ns.nspname = dst AND cl.relname = 'empresa_modulos' AND cl.relkind = 'r')
+       AND EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+               WHERE ns.nspname = 'enlodemari' AND cl.relname = 'empresa_modulos' AND cl.relkind = 'r') THEN
+
+      SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum),
+             string_agg('o.' || quote_ident(a.attname), ', ' ORDER BY a.attnum)
+        INTO cols_ins, cols_sel
+      FROM pg_attribute a
+      WHERE a.attrelid = (dst || '.empresa_modulos')::regclass
+        AND a.attnum > 0 AND NOT a.attisdropped
+        AND a.attgenerated = ''
+        AND a.attname NOT IN ('id', 'empresa_id')
+        AND EXISTS (SELECT 1 FROM pg_attribute b
+                    WHERE b.attrelid = 'enlodemari.empresa_modulos'::regclass
+                      AND b.attname = a.attname AND b.attnum > 0 AND NOT b.attisdropped);
+
+      IF cols_ins IS NOT NULL THEN
+        -- Sólo las filas cuyo módulo exista localmente, por si algún módulo del
+        -- catálogo no se pudo copiar.
+        EXECUTE format(
+          'INSERT INTO %I.empresa_modulos (empresa_id, %s) SELECT %L::uuid, %s FROM enlodemari.empresa_modulos o%s',
+          dst, cols_ins, nueva_id, cols_sel,
+          CASE WHEN EXISTS (SELECT 1 FROM pg_attribute a
+                            WHERE a.attrelid = (dst || '.empresa_modulos')::regclass
+                              AND a.attname = 'modulo_id'
+                              AND a.attnum > 0 AND NOT a.attisdropped)
+               THEN format(' WHERE EXISTS (SELECT 1 FROM %I.modulos m WHERE m.id = o.modulo_id)', dst)
+               ELSE '' END);
+        GET DIAGNOSTICS n = ROW_COUNT;
+        RAISE NOTICE '[4.3] % filas de empresa_modulos replicadas.', n;
+      END IF;
+    END IF;
+  EXCEPTION WHEN others THEN
+    RAISE WARNING '[4.3] No se pudieron replicar los módulos: % (%). La empresa SÍ quedó creada; configurá los módulos desde el ERP.',
+      SQLERRM, SQLSTATE;
+  END;
 
   RAISE NOTICE 'PASO 4 listo.';
 END

@@ -99,6 +99,7 @@ y volver a correr el bootstrap.
   copian; arrancan con los valores por defecto. Como el schema queda vacío, no
   afecta.
 - Los **datos de catálogo** (módulos, roles, estados, menú) no se copian, salvo
-  `empresa_modulos`. Si querés arrastrar catálogos, corré las migraciones de seed
+  `modulos` + `empresa_modulos` (el catálogo de módulos y su allowlist, que el
+  ERP necesita para arrancar). Si querés arrastrar más catálogos, corré las migraciones de seed
   de `supabase/caribenaerp/migrations/`. Esa lectura de `enlodemari` es puntual,
   del bootstrap: no deja ninguna dependencia permanente.
