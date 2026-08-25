@@ -1,10 +1,11 @@
 "use client";
 
 import { AlertTriangle, Pizza } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
 import ProductPickerModal, { type ProductoPickerItem, type AgregarVentaPayload } from "@/components/inventario/ProductPickerModal";
+import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
 import { saveVenta } from "@/lib/ventas/storage";
 import { getCajaAbierta } from "@/lib/caja/storage";
@@ -114,17 +115,16 @@ export default function NuevaVentaPage() {
   const [lineaPrecio, setLineaPrecio] = useState("");
   const [lineaIva,    setLineaIva]    = useState<TipoIvaVenta>("10%");
 
-  // ── Combobox de producto ───────────────────────────────────────────────────
-  const [comboQuery,     setComboQuery]     = useState("");
-  const [comboOpen,      setComboOpen]      = useState(false);
-  const [comboHighlight, setComboHighlight] = useState(-1);
-  const comboInputRef    = useRef<HTMLInputElement>(null);
-  const comboContainerRef = useRef<HTMLDivElement>(null);
+  // ── Buscador de producto ───────────────────────────────────────────────────
+  // Se incrementa para devolverle el foco al buscador después de agregar una
+  // línea: es el ciclo normal de caja (buscar → agregar → buscar el siguiente).
+  const [focoBuscador, setFocoBuscador] = useState(1);
 
-  // ── Modal buscador (F3) ────────────────────────────────────────────────────
-  // Arranca abierto: al entrar a "Nueva venta" el cajero ve directo el buscador
-  // de productos, sin un clic extra sobre el campo. Mejor experiencia en caja.
-  const [pickerOpen, setPickerOpen] = useState(true);
+  // ── Modal buscador avanzado (catálogo con imagen y filtros) ───────────────
+  // Ya no arranca abierto: el buscador inline toma el foco al entrar, así el
+  // cajero puede tipear de una sin que un modal le tape la pantalla. El modal
+  // queda como alternativa, detrás del botón "Buscar".
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [mitadOpen, setMitadOpen] = useState(false);
 
   /** Agrega una pizza mitad y mitad como una línea (precio = max de ambos sabores). */
@@ -244,24 +244,6 @@ export default function NuevaVentaPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Cerrar dropdown al hacer clic fuera
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (comboContainerRef.current && !comboContainerRef.current.contains(e.target as Node)) {
-        setComboOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Scroll a la opción destacada en el dropdown
-  useEffect(() => {
-    if (comboHighlight >= 0) {
-      document.getElementById(`combo-opt-${comboHighlight}`)?.scrollIntoView({ block: "nearest" });
-    }
-  }, [comboHighlight]);
-
   // ── Cálculos ───────────────────────────────────────────────────────────────
   const tipoCambioNum = 1;
 
@@ -300,64 +282,49 @@ export default function NuevaVentaPage() {
   const montoRecibidoNum = parseFloat(montoRecibido) || 0;
   const vuelto           = montoRecibidoNum - totalGeneral;
 
-  // ── Productos filtrados para el combobox ──────────────────────────────────
+  // ── Opciones del buscador ─────────────────────────────────────────────────
   // Solo vendibles (Reventa + Menú). Excluye materia prima / insumos.
+  //
+  // El filtrado ya no se hace acá: SmartSearchSelect busca por varios términos
+  // sin orden y sin acentos, en nombre y SKU. Antes era un `includes` de un solo
+  // término, así que "coca 500" no encontraba "COCA COLA 500ML".
   const productosVendibles = productos.filter((p) => p.es_vendible !== false);
-  const comboFiltrados = comboQuery.trim() === ""
-    ? productosVendibles
-    : productosVendibles.filter((p) => {
-        const q = comboQuery.toLowerCase();
-        return p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-      });
 
-  // ── Selección de un producto desde el combobox ────────────────────────────
+  const opcionesProducto: SmartOption[] = productosVendibles.map((p) => {
+    const enCarro = items.filter((i) => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
+    const controla = p.controla_stock !== false;
+    const disponible = p.stock_actual - enCarro;
+    const sinStock = controla && disponible <= 0;
+    return {
+      id: String(p.id),
+      label: p.nombre,
+      sub: controla ? `${p.sku} · ${disponible} u. disp.` : `${p.sku} · Menú`,
+      keywords: p.sku,
+      disabled: sinStock,
+      trailing: formatGs(p.precio_venta),
+    };
+  });
+
+  // ── Selección de un producto ──────────────────────────────────────────────
   function seleccionarProducto(p: Producto) {
     setLineaProdId(String(p.id));
     setLineaPrecio(String(p.precio_venta));
     setLineaCant("1");
     setLineaIva("10%");
-    setComboQuery(`${p.nombre} — ${p.sku}`);
-    setComboOpen(false);
-    setComboHighlight(-1);
     setErrorLinea(null);
   }
 
-  // ── Handlers del combobox ─────────────────────────────────────────────────
-  function handleComboInput(e: React.ChangeEvent<HTMLInputElement>) {
-    setComboQuery(e.target.value);
-    setComboOpen(true);
-    setComboHighlight(-1);
-    // Si el usuario borra el texto, limpiar la selección
-    if (e.target.value === "") {
+  function seleccionarProductoPorId(id: string) {
+    if (!id) {
       setLineaProdId("");
       setLineaPrecio("");
       setLineaCant("");
+      return;
     }
-    setErrorLinea(null);
+    const p = productosVendibles.find((x) => String(x.id) === id);
+    if (p) seleccionarProducto(p);
   }
 
-  function handleComboKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setComboOpen(true);
-      setComboHighlight((h) => Math.min(h + 1, comboFiltrados.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setComboHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (comboOpen && comboHighlight >= 0 && comboFiltrados[comboHighlight]) {
-        // Seleccionar el ítem destacado del dropdown
-        seleccionarProducto(comboFiltrados[comboHighlight]);
-      } else if (!comboOpen && lineaValida) {
-        // Dropdown cerrado + producto válido → agregar al carrito
-        handleAgregarLinea();
-      }
-    } else if (e.key === "Escape") {
-      setComboOpen(false);
-      setComboHighlight(-1);
-    }
-  }
 
   // ── Agregar línea al carrito ──────────────────────────────────────────────
   function handleAgregarLinea() {
@@ -391,9 +358,7 @@ export default function NuevaVentaPage() {
     setLineaCant("");
     setLineaPrecio("");
     setLineaIva("10%");
-    setComboQuery("");
-    setComboOpen(false);
-    setTimeout(() => comboInputRef.current?.focus(), 0);
+    setFocoBuscador((n) => n + 1);
   }
 
   function handleEliminarLinea(index: number) {
@@ -498,86 +463,30 @@ export default function NuevaVentaPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-end">
 
-            {/* ── Combobox con búsqueda — 4 cols ────────────────────────────── */}
-            <div className="lg:col-span-4" ref={comboContainerRef}>
+            {/* ── Buscador de producto — 4 cols ─────────────────────────────── */}
+            <div className="lg:col-span-4">
               <label className={labelClass}>
                 Producto
                 <span className="ml-1 text-gray-400 font-normal normal-case tracking-normal text-xs">
-                  — escribí o usá el buscador
+                  — escribí nombre o SKU
                 </span>
               </label>
 
-              {/* Input de búsqueda + botón modal */}
               <div className="flex gap-2">
-               <div className="relative flex-1">
-                <input
-                  ref={comboInputRef}
-                  type="text"
-                  value={comboQuery}
-                  readOnly
-                  onFocus={() => setPickerOpen(true)}
-                  onClick={() => setPickerOpen(true)}
-                  placeholder="Click para abrir buscador — nombre, SKU, código, categoría, ubicación..."
-                  autoComplete="off"
-                  className={`${inputClass} pr-8 cursor-pointer bg-white`}
+                <SmartSearchSelect
+                  options={opcionesProducto}
+                  value={lineaProdId}
+                  onChange={seleccionarProductoPorId}
+                  placeholder="Buscar producto por nombre o SKU…"
+                  emptyText="Ningún producto coincide"
+                  focusSignal={focoBuscador}
+                  className="flex-1"
                 />
-                {/* Icono chevron */}
-                <svg
-                  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                  className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                >
-                  <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                </svg>
-
-                {/* Dropdown */}
-                {comboOpen && comboFiltrados.length > 0 && (
-                  <ul className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
-                    {comboFiltrados.map((p, idx) => {
-                      const enCarro    = items.filter(i => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
-                      const ctrl       = p.controla_stock !== false;
-                      const disponible = p.stock_actual - enCarro;
-                      const sinStock   = ctrl && disponible <= 0;
-                      const isMenuItem = !ctrl;
-                      const isActive   = idx === comboHighlight;
-                      return (
-                        <li
-                          key={p.id}
-                          id={`combo-opt-${idx}`}
-                          onMouseDown={(e) => { e.preventDefault(); if (!sinStock) seleccionarProducto(p); }}
-                          onMouseEnter={() => !sinStock && setComboHighlight(idx)}
-                          className={`px-3 py-2.5 text-sm cursor-pointer
-                            ${sinStock ? "opacity-40 cursor-not-allowed" : ""}
-                            ${isActive && !sinStock ? "bg-[#0EA5E9] text-white" : "hover:bg-slate-50"}
-                          `}
-                        >
-                          <span className="font-medium">{p.nombre}</span>
-                          <span className={`ml-2 text-xs ${isActive ? "text-gray-300" : "text-gray-400"}`}>
-                            — {p.sku}
-                          </span>
-                          {sinStock && (
-                            <span className="ml-2 text-xs text-red-400 font-medium">SIN STOCK</span>
-                          )}
-                          {isMenuItem && (
-                            <span className={`ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"}`}>Menú</span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                {/* Sin resultados */}
-                {comboOpen && comboQuery.trim() !== "" && comboFiltrados.length === 0 && (
-                  <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-3 text-sm text-gray-400">
-                    Sin resultados para &ldquo;{comboQuery}&rdquo;
-                  </div>
-                )}
-               </div>
                 <button
                   type="button"
                   onClick={() => setPickerOpen(true)}
                   title="Abrir buscador avanzado (catálogo completo, con imagen)"
-                  className="shrink-0 inline-flex items-center justify-center gap-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-lg text-sm font-medium transition-colors"
+                  className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-[#4FAEB2]/50 hover:bg-slate-50"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
