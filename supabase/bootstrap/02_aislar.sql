@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Neura ERP — Caribeña
--- PASO 4/4: AISLAR `caribenaerp` de `public` y `zentra_erp`.
+-- PASO 2/4: AISLAR `caribenaerp` de `public` y `zentra_erp`.
 --
 -- Correr DESPUÉS de que exista el schema (01 o 00_bootstrap_completo.sql).
 -- Es idempotente: si ya está aislado, no hace nada y el reporte final sale vacío.

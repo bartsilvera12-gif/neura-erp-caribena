@@ -1,8 +1,8 @@
 -- =============================================================================
 -- Neura ERP — Caribeña
--- PASO 2/3: GRANTs sobre el schema `caribenaerp`
+-- PASO 3/4: GRANTs sobre el schema `caribenaerp`
 --
--- Correr DESPUÉS de 01_clone_schema_estructura.sql.
+-- Correr DESPUÉS de 01_clone_schema_estructura.sql y 02_aislar.sql.
 -- Replica el patrón que Supabase aplica a `public`: los roles de PostgREST
 -- (anon / authenticated / service_role) reciben acceso al schema, y lo que
 -- realmente filtra el acceso es RLS, que ya vino clonado en el paso 1.

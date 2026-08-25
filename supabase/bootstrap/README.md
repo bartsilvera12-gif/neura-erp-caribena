@@ -19,11 +19,11 @@ Si preferís ir de a uno (o ya tenés el schema creado y sólo querés aislarlo)
 | # | Archivo | Qué hace |
 |---|---|---|
 | 1 | `01_clone_schema_estructura.sql` | Crea `caribenaerp` y clona de `enlodemari` tipos, secuencias, funciones, tablas, constraints, índices, FKs, vistas, triggers, RLS y policies. Sin datos. |
-| 2 | `04_aislar.sql` | Corta toda dependencia hacia `public` / `zentra_erp`. Idempotente: si ya está aislado no hace nada. |
-| 3 | `02_grants.sql` | Grants a `anon`, `authenticated`, `service_role` + default privileges. |
-| 4 | `03_empresa_caribena.sql` | Inserta la empresa con UUID nuevo y le replica los módulos. Imprime el `empresa_id`. |
+| 2 | `02_aislar.sql` | Corta toda dependencia hacia `public` / `zentra_erp`. Idempotente: si ya está aislado no hace nada. |
+| 3 | `03_grants.sql` | Grants a `anon`, `authenticated`, `service_role` + default privileges. |
+| 4 | `04_empresa_caribena.sql` | Inserta la empresa con UUID nuevo y le replica los módulos. Imprime el `empresa_id`. |
 
-Corré `04_aislar.sql` **antes** de los grants, para que las funciones que trae
+Corré `02_aislar.sql` **antes** de los grants, para que las funciones que trae
 al schema queden cubiertas por ellos.
 
 ## Qué hace el aislamiento

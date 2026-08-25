@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Neura ERP — Caribeña
--- PASO 1/3: clonar la ESTRUCTURA del schema `enlodemari` en `caribenaerp`
+-- PASO 1/4: clonar la ESTRUCTURA del schema `enlodemari` en `caribenaerp`
 --           SIN copiar datos de las tablas.
 --
 -- Cómo correrlo: Supabase → SQL Editor → pegar TODO → Run.
@@ -18,7 +18,7 @@
 --     valor inicial.
 --   · Objetos de otros schemas (`public`, `zentra_erp`, `auth`, `storage`).
 --     Las FKs que apuntan a esos schemas se mantienen apuntando ahí.
---   · Los GRANTs → van en el PASO 2 (02_grants.sql).
+--   · Los GRANTs → van en el PASO 3 (03_grants.sql).
 --
 -- Todo corre dentro de una transacción: si algo falla, no queda nada a medias.
 -- Aborta si `caribenaerp` ya existe (para rehacerlo: DROP SCHEMA caribenaerp CASCADE).

@@ -1,9 +1,9 @@
 -- =============================================================================
 -- Neura ERP — Caribeña
--- PASO 3/3: crear la empresa propia de esta instancia (id nuevo, independiente
+-- PASO 4/4: crear la empresa propia de esta instancia (id nuevo, independiente
 --           del de En lo de Mari) y habilitarle los mismos módulos.
 --
--- Correr DESPUÉS de 01_clone_schema_estructura.sql y 02_grants.sql.
+-- Correr DESPUÉS de 01_clone_schema_estructura.sql, 02_aislar.sql y 03_grants.sql.
 --
 -- El script es defensivo: mira qué columnas existen realmente en
 -- `caribenaerp.empresas` y sólo completa las que encuentra. Si hay columnas

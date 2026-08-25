@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Neura ERP — Caribeña · BOOTSTRAP COMPLETO (schema + tablas + grants + empresa)
 --
--- Equivale a correr 01 + 02 + 03 de esta carpeta, pero en UNA SOLA TRANSACCIÓN:
+-- Equivale a correr 01 + 02 + 03 + 04 de esta carpeta, pero en UNA SOLA TRANSACCIÓN:
 -- o entra todo, o no entra nada.
 --
 -- Cómo correrlo: Supabase → SQL Editor → pegar TODO → Run.
