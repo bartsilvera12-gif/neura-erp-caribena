@@ -1,5 +1,5 @@
 /**
- * Comprueba si el `rol` del catálogo (zentra_erp.usuarios) implica
+ * Comprueba si el `rol` del catálogo (`usuarios` del schema de la instancia) implica
  * acceso a configuración restringida (CRM, facturación, etc.).
  * Comparación case-insensitive por datos históricos o espacios.
  */

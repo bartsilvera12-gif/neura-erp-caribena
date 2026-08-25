@@ -9,7 +9,7 @@ export type UsuarioErpBasico = {
 };
 
 /**
- * Resuelve la fila `zentra_erp.usuarios` para la sesión de Auth.
+ * Resuelve la fila `usuarios` del schema de la instancia para la sesión de Auth.
  * Prioridad: `auth_user_id` → emails (JWT + GoTrue admin por si el JWT viene incompleto) con variantes de typo.
  */
 export async function resolveUsuarioErpFromAuthUser(
