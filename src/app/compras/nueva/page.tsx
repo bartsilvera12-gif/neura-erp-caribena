@@ -162,21 +162,36 @@ export default function NuevaCompraPage() {
   const costoUnitarioPYG = costoInputNum * tipoCambioNum;
   const precioVentaNum = parseFloat(form.precio_venta) || 0;
 
-  const subtotal = cantidadNum > 0 && costoUnitarioPYG > 0
+  /**
+   * IVA incluido, como se factura en Paraguay.
+   *
+   * El costo unitario que carga el usuario es el que figura en la factura del
+   * proveedor, y ese precio YA tiene el IVA adentro. Por eso el impuesto no se
+   * suma: se extrae del total.
+   *
+   *   total = cantidad × costo unitario   (lo que realmente se paga)
+   *   IVA 10% → total / 11                (el 10% es 1/11 del precio final)
+   *   IVA  5% → total / 21
+   *   base gravada = total − IVA
+   *
+   * Antes se calculaba al revés (total = base + IVA), y una compra de 49 × 8.000
+   * mostraba 431.200 cuando al proveedor se le pagan 392.000.
+   */
+  const total = cantidadNum > 0 && costoUnitarioPYG > 0
     ? cantidadNum * costoUnitarioPYG
     : 0;
   const montoIva =
     form.iva_tipo === "exenta" ? 0
-    : form.iva_tipo === "5"    ? subtotal * 0.05
-    :                            subtotal * 0.10;
-  const total = subtotal + montoIva;
+    : form.iva_tipo === "5"    ? total / 21
+    :                            total / 11;
+  const subtotal = total - montoIva;
 
   const margenVenta =
     precioVentaNum > 0 && costoUnitarioPYG > 0
       ? ((precioVentaNum - costoUnitarioPYG) / precioVentaNum) * 100
       : null;
 
-  const calculosListos = subtotal > 0 && precioVentaNum > 0;
+  const calculosListos = total > 0 && precioVentaNum > 0;
   const productoSeleccionado = productos.find((p) => p.id === form.producto_id);
 
   // Margen preview dentro del formulario de nuevo producto
@@ -725,23 +740,29 @@ export default function NuevaCompraPage() {
               onChange={(v) => setForm((prev) => ({ ...prev, iva_tipo: v }))}
             />
 
-            {subtotal > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 text-center">
-                  <p className="text-xs text-gray-400 mb-1">Subtotal</p>
-                  <p className="text-sm font-semibold tabular-nums text-gray-700">{formatGs(subtotal)}</p>
+            {total > 0 && (
+              <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+                    <p className="mb-1 text-xs text-slate-500">Gravada</p>
+                    <p className="text-sm font-semibold tabular-nums text-slate-700">{formatGs(subtotal)}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+                    <p className="mb-1 text-xs text-slate-500">IVA incluido</p>
+                    <p className="text-sm font-semibold tabular-nums text-slate-700">
+                      {form.iva_tipo === "exenta" ? "—" : formatGs(montoIva)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[#4FAEB2] px-3 py-3 text-center text-white">
+                    <p className="mb-1 text-xs text-white/80">Total a pagar</p>
+                    <p className="text-sm font-bold tabular-nums">{formatGs(total)}</p>
+                  </div>
                 </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 text-center">
-                  <p className="text-xs text-gray-400 mb-1">IVA</p>
-                  <p className="text-sm font-semibold tabular-nums text-gray-700">
-                    {form.iva_tipo === "exenta" ? "—" : formatGs(montoIva)}
-                  </p>
-                </div>
-                <div className="bg-[#0EA5E9] text-white rounded-lg px-3 py-3 text-center">
-                  <p className="text-xs text-gray-300 mb-1">Total</p>
-                  <p className="text-sm font-bold tabular-nums">{formatGs(total)}</p>
-                </div>
-              </div>
+                <p className="text-xs text-slate-500">
+                  El IVA está incluido en el costo unitario, no se suma. Gravada e IVA son el
+                  desglose del total que se le paga al proveedor.
+                </p>
+              </>
             )}
           </section>
 
