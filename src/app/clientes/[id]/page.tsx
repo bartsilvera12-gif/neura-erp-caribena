@@ -42,11 +42,6 @@ import { useFacturaSifenEstados } from "@/hooks/useFacturaSifenEstados";
 import MontoInput from "@/components/ui/MontoInput";
 import { getPlanes } from "@/lib/planes/storage";
 import type { Cliente, NotaCliente } from "@/lib/clientes/types";
-import {
-  etiquetaVisibleTipoServicio,
-  type ClienteTipoServicioRow,
-} from "@/lib/clientes/tipo-servicio-catalogo";
-import { filasTiposDesdeSistemaEstatico, fetchTiposFormCliente } from "@/lib/clientes/fetch-tipos-servicio-form";
 import type { Factura } from "@/lib/gestion-clientes/types";
 import {
   clasesBadgeEstadoFacturaUi,
@@ -83,15 +78,24 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ── Tipos de pestaña ──────────────────────────────────────────────────────────
 
 type TabId = "informacion" | "estado_cuenta" | "suscripciones" | "marketing" | "proyectos" | "actividad" | "notas";
+// Los ids de estado_cuenta, suscripciones, marketing y actividad siguen en el
+// tipo porque su contenido sigue en el archivo, pero ya no figuran en TABS: no
+// hay forma de llegar a ellos.
 
+/**
+ * Pestañas de la ficha.
+ *
+ * Se sacaron Estado de cuenta, Suscripciones, Marketing y Actividad: ninguna
+ * tiene forma de llenarse en un local gastronómico —no se emiten facturas ni
+ * suscripciones desde acá— y mostraban siempre vacío.
+ *
+ * "Proyectos" pasa a llamarse "Pedidos", que es lo que son en este negocio:
+ * la misma tabla que alimenta el tablero de cocina.
+ */
 const TABS: { id: TabId; label: string; showWhen?: (c: Cliente) => boolean }[] = [
-  { id: "informacion",   label: "Información"      },
-  { id: "estado_cuenta", label: "Estado de cuenta" },
-  { id: "suscripciones", label: "Suscripciones"    },
-  { id: "marketing",     label: "Marketing",        showWhen: (c) => c.tipo_servicio_cliente === "marketing" },
-  { id: "proyectos",     label: "Proyectos"         },
-  { id: "actividad",     label: "Actividad"         },
-  { id: "notas",         label: "Notas"             },
+  { id: "informacion", label: "Información" },
+  { id: "proyectos",   label: "Pedidos"     },
+  { id: "notas",       label: "Notas"       },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -280,32 +284,6 @@ export default function ClienteDetailPage() {
    *  para tenants erp_* no expuestos) y el botón parecía "no hacer nada". Ahora exponemos el motivo. */
   const [errorFacturaContado, setErrorFacturaContado] = useState<string | null>(null);
 
-  const [filasTiposServicio, setFilasTiposServicio] = useState<ClienteTipoServicioRow[]>(() => filasTiposDesdeSistemaEstatico());
-  const labelTipoServicioMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const t of filasTiposServicio) m[t.slug] = t.nombre;
-    return m;
-  }, [filasTiposServicio]);
-  const opcionesTipoServicio = useMemo(() => {
-    const t = (form.tipo_servicio_cliente ?? "").trim();
-    const list = filasTiposServicio;
-    if (!t) return list;
-    if (list.some((f) => f.slug === t)) return list;
-    return [
-      ...list,
-      {
-        id: `ghost-${t}`,
-        empresa_id: "",
-        slug: t,
-        nombre: etiquetaVisibleTipoServicio(t, labelTipoServicioMap),
-        activo: false,
-        orden: 0,
-        es_sistema: false,
-        created_at: "",
-        updated_at: "",
-      } satisfies ClienteTipoServicioRow,
-    ];
-  }, [form.tipo_servicio_cliente, filasTiposServicio, labelTipoServicioMap]);
 
   const sifenPorFactura = useFacturaSifenEstados(facturas.map((f) => f.id));
   const suscripcionActiva = useMemo(
@@ -317,12 +295,6 @@ export default function ClienteDetailPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    const inc = (form.tipo_servicio_cliente || cliente?.tipo_servicio_cliente || "").trim() || null;
-    void fetchTiposFormCliente(inc).then(setFilasTiposServicio);
-  }, [id, form.tipo_servicio_cliente, cliente?.tipo_servicio_cliente]);
 
   const cargar = useCallback(async () => {
     setCargandoCliente(true);
@@ -1040,24 +1012,6 @@ export default function ClienteDetailPage() {
             <button
               type="button"
               onClick={() => {
-                setFormSusc({
-                  plan_id: "",
-                  precio: "",
-                  fecha_inicio: new Date().toISOString().slice(0, 10),
-                  duracion_meses: "12",
-                  dia_facturacion: "1",
-                  dia_vencimiento: "10",
-                  generar_factura_este_mes: false,
-                });
-                setModalSuscripcion(true);
-              }}
-              className={`${btnSecundario} ${btnChico}`}
-            >
-              Nueva suscripción
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setFormFacturaContado({ monto: "", descripcion: "Venta al contado", iva_tipo: "iva_10" });
                 setErrorFacturaContado(null);
                 setModalFacturaContado(true);
@@ -1077,24 +1031,7 @@ export default function ClienteDetailPage() {
           {(
             [
               { label: "Origen", value: cliente.origen },
-              {
-                label: "Tipo servicio",
-                value: etiquetaVisibleTipoServicio(
-                  cliente.tipo_servicio_cliente ?? null,
-                  labelTipoServicioMap
-                ),
-              },
               { label: "Condición", value: cliente.condicion_pago ?? "—" },
-              {
-                label: "Plan activo",
-                value: cargandoDetalleCliente ? (
-                  <span className="inline-block h-4 w-36 max-w-full animate-pulse rounded-md bg-slate-200" aria-hidden />
-                ) : suscripcionActiva ? (
-                  `${planes.find((p) => p.id === suscripcionActiva.plan_id)?.nombre ?? suscripcionActiva.plan_nombre ?? "Plan"} (${suscripcionActiva.moneda})`
-                ) : (
-                  "—"
-                ),
-              },
               { label: "Moneda", value: cliente.moneda_preferida ?? "GS" },
               {
                 label: "Vendedor",
@@ -1480,24 +1417,6 @@ export default function ClienteDetailPage() {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Tipo de servicio</label>
-                  <SelectField
-                    name="tipo_servicio_cliente"
-                    value={form.tipo_servicio_cliente}
-                    onChange={handleChange}
-                    className={inputClass}
-                  >
-                    <option value="">— Ninguno —</option>
-                    {opcionesTipoServicio.map((f) => (
-                      <option key={f.slug} value={f.slug}>
-                        {f.nombre}
-                        {!f.activo && (form.tipo_servicio_cliente || "").trim() === f.slug ? " (inactivo)" : ""}
-                      </option>
-                    ))}
-                  </SelectField>
                 </div>
 
                 {form.tipo_cliente === "empresa" && (
@@ -2164,8 +2083,8 @@ export default function ClienteDetailPage() {
           {activeTab === "proyectos" && (
             <PlaceholderTab
               icon={<Folder />}
-              title="Proyectos"
-              desc="Proyectos en curso y finalizados asociados a este cliente, con etapas y responsables."
+              title="Pedidos"
+              desc="Pedidos de este cliente, con su estado en el tablero de cocina."
             />
           )}
 
