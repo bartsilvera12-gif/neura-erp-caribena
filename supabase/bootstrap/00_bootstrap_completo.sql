@@ -855,6 +855,10 @@ DECLARE
   c          text;
   n          int;
   rel        regclass;
+  guard      record;
+  nuevo_def  text;
+  u          text;
+  nombre_src text;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
@@ -865,7 +869,74 @@ BEGIN
 
   rel := (dst || '.empresas')::regclass;
 
-  -- ── id ─────────────────────────────────────────────────────────────────────
+  -- Instancia monocliente: una sola empresa. Si ya hay una, no crear otra.
+  EXECUTE format('SELECT count(*) FROM %I.empresas', dst) INTO n;
+  IF n > 0 THEN
+    RAISE EXCEPTION
+      'Ya hay % empresa(s) en %.empresas. Esta es una instancia monocliente: no se crea otra. Si querés rehacerla, borrá la fila existente primero.',
+      n, dst;
+  END IF;
+
+  ---------------------------------------------------------------------------
+  -- 4.1 Re-apuntar los locks monocliente heredados de enlodemari
+  ---------------------------------------------------------------------------
+
+  -- Nombre de la empresa del schema origen, para limpiar también el texto de
+  -- los mensajes de esos guards. Best-effort: si no se puede leer, se ignora.
+  BEGIN
+    FOREACH c IN ARRAY ARRAY['nombre','nombre_empresa','razon_social','nombre_comercial'] LOOP
+      IF EXISTS (SELECT 1 FROM pg_attribute a
+                 WHERE a.attrelid = 'enlodemari.empresas'::regclass
+                   AND a.attname = c AND a.attnum > 0 AND NOT a.attisdropped) THEN
+        EXECUTE format('SELECT %I::text FROM enlodemari.empresas LIMIT 1', c) INTO nombre_src;
+        EXIT WHEN nombre_src IS NOT NULL AND nombre_src <> '';
+      END IF;
+    END LOOP;
+  EXCEPTION WHEN others THEN
+    nombre_src := NULL;
+  END;
+
+  FOR guard IN
+    SELECT DISTINCT p.oid, p.proname, pg_get_functiondef(p.oid) AS def
+    FROM pg_trigger t
+    JOIN pg_class c2      ON c2.oid = t.tgrelid
+    JOIN pg_namespace n2  ON n2.oid = c2.relnamespace
+    JOIN pg_proc p        ON p.oid  = t.tgfoid
+    JOIN pg_namespace np  ON np.oid = p.pronamespace
+    WHERE n2.nspname = dst AND c2.relname = 'empresas'
+      AND NOT t.tgisinternal
+      AND np.nspname = dst
+  LOOP
+    nuevo_def := guard.def;
+
+    -- Cualquier UUID literal del cuerpo pasa a ser el de la empresa nueva.
+    FOR u IN
+      SELECT DISTINCT x[1]
+      FROM regexp_matches(guard.def,
+             '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+             'g') AS g(x)
+    LOOP
+      nuevo_def := replace(nuevo_def, u, nueva_id::text);
+    END LOOP;
+
+    -- Y el nombre viejo en los mensajes, si lo pudimos averiguar.
+    IF nombre_src IS NOT NULL AND nombre_src <> '' AND nombre_src <> nombre_emp THEN
+      nuevo_def := replace(nuevo_def, nombre_src, nombre_emp);
+      nuevo_def := replace(nuevo_def, upper(nombre_src), upper(nombre_emp));
+    END IF;
+
+    IF nuevo_def IS DISTINCT FROM guard.def THEN
+      EXECUTE nuevo_def;
+      RAISE NOTICE '[4.1] lock monocliente %.%() re-apuntado a la empresa de Caribeña.',
+        dst, guard.proname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 4.2 Insertar la empresa
+  ---------------------------------------------------------------------------
+
+  -- id
   IF EXISTS (SELECT 1 FROM pg_attribute a
              WHERE a.attrelid = rel AND a.attname = 'id'
                AND a.attnum > 0 AND NOT a.attisdropped) THEN
@@ -873,7 +944,7 @@ BEGIN
     col_vals  := col_vals  || (quote_literal(nueva_id::text) || '::uuid');
   END IF;
 
-  -- ── nombre comercial (varias convenciones posibles) ────────────────────────
+  -- nombre comercial (varias convenciones posibles)
   FOREACH c IN ARRAY ARRAY['nombre','nombre_empresa','razon_social','nombre_comercial'] LOOP
     IF EXISTS (SELECT 1 FROM pg_attribute a
                WHERE a.attrelid = rel AND a.attname = c
@@ -884,7 +955,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- ── RUC ────────────────────────────────────────────────────────────────────
+  -- RUC
   IF ruc_emp IS NOT NULL THEN
     FOREACH c IN ARRAY ARRAY['ruc','ruc_empresa','documento'] LOOP
       IF EXISTS (SELECT 1 FROM pg_attribute a
@@ -897,7 +968,7 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- ── activo ─────────────────────────────────────────────────────────────────
+  -- activo
   FOREACH c IN ARRAY ARRAY['activo','activa'] LOOP
     IF EXISTS (SELECT 1 FROM pg_attribute a
                WHERE a.attrelid = rel AND a.attname = c
@@ -908,7 +979,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- ── data_schema: en instancia dedicada apunta al schema propio ─────────────
+  -- data_schema: en instancia dedicada apunta al schema propio
   IF EXISTS (SELECT 1 FROM pg_attribute a
              WHERE a.attrelid = rel AND a.attname = 'data_schema'
                AND a.attnum > 0 AND NOT a.attisdropped) THEN
@@ -916,7 +987,7 @@ BEGIN
     col_vals  := col_vals  || quote_literal(dst);
   END IF;
 
-  -- ── ¿Queda alguna columna obligatoria que no sepamos llenar? ───────────────
+  -- ¿Queda alguna columna obligatoria que no sepamos llenar?
   SELECT string_agg(a.attname || ' (' || format_type(a.atttypid, a.atttypmod) || ')',
                     ', ' ORDER BY a.attnum)
     INTO faltantes
@@ -929,7 +1000,6 @@ BEGIN
     AND NOT (a.attname::text = ANY (col_names));
 
   IF faltantes IS NOT NULL THEN
-    -- Volcar la estructura completa para poder resolverlo de una sola vez.
     SELECT string_agg(
              a.attname || ' ' || format_type(a.atttypid, a.atttypmod)
              || CASE WHEN a.attnotnull THEN ' NOT NULL' ELSE '' END
@@ -955,10 +1025,12 @@ BEGIN
   RAISE NOTICE 'EMPRESA_ID = %', nueva_id;
   RAISE NOTICE '────────────────────────────────────────────────────────';
 
-  -- ── Módulos habilitados ────────────────────────────────────────────────────
+  ---------------------------------------------------------------------------
+  -- 4.3 Módulos habilitados
   -- Se replica el allowlist de En lo de Mari, apuntado a la empresa nueva.
   -- Se copian todas las columnas comunes menos id/empresa_id. Es una lectura
   -- puntual del bootstrap: no deja ninguna dependencia permanente.
+  ---------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
              WHERE ns.nspname = dst AND cl.relname = 'empresa_modulos' AND cl.relkind = 'r')
      AND EXISTS (SELECT 1 FROM pg_class cl JOIN pg_namespace ns ON ns.oid = cl.relnamespace
