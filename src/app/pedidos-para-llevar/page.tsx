@@ -219,7 +219,7 @@ export default function PedidosParaLlevarPage() {
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej. Karen"
+              placeholder="Ingresá un nombre"
               maxLength={120}
               disabled={creating}
               autoFocus
