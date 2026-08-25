@@ -25,6 +25,18 @@ interface CatRow { id: string; nombre: string }
 interface UbiRow { id: string; nombre: string; tipo: string }
 interface ProvRow { id: string; nombre: string }
 
+/**
+ * Lee una cantidad escrita a mano.
+ *
+ * Acá se escribe 1,5 y no 1.5, y parseFloat("1,5") devuelve 1 — corta en la coma
+ * y guarda medio kilo de queso como uno, sin avisar. Se normaliza la coma antes
+ * de parsear.
+ */
+function parseCantidad(v: string): number {
+  const n = parseFloat(String(v).trim().replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function NuevoProductoPage() {
   const router = useRouter();
   const [errorDuplicado, setErrorDuplicado] = useState<string | null>(null);
@@ -361,10 +373,8 @@ export default function NuevoProductoPage() {
           sku: form.sku.trim().toUpperCase(),
           costo_promedio: parseFloat(form.costo_promedio) || 0,
           precio_venta: parseFloat(form.precio_venta) || 0,
-          // parseFloat y no parseInt: un insumo se mide en KG o LT y 0,5 kg de
-          // queso se guardaba como 0.
-          stock_actual: parseFloat(form.stock_actual) || 0,
-          stock_minimo: parseFloat(form.stock_minimo) || 0,
+          stock_actual: parseCantidad(form.stock_actual),
+          stock_minimo: parseCantidad(form.stock_minimo),
           unidad_medida: form.unidad_medida.trim().toUpperCase(),
           metodo_valuacion: form.metodo_valuacion,
           codigo_barras: codigo,
@@ -1022,14 +1032,13 @@ export default function NuevoProductoPage() {
               <div>
                 <label className={labelClass}>Stock actual</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="stock_actual"
                   value={form.stock_actual}
                   onChange={handleChange}
                   placeholder="Ej: 50"
                   className={inputClass}
-                  min={0}
-                  step="any"
                   required={showStock}
                 />
               </div>
@@ -1037,19 +1046,18 @@ export default function NuevoProductoPage() {
               <div>
                 <label className={labelClass}>Stock mínimo</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="stock_minimo"
                   value={form.stock_minimo}
                   onChange={handleChange}
                   placeholder="Ej: 10"
                   className={inputClass}
-                  min={0}
-                  step="any"
                   required={showStock}
                 />
               </div>
             </div>
-            {parseFloat(form.stock_actual) > 0 && (
+            {parseCantidad(form.stock_actual) > 0 && (
               <p className="mt-2 text-xs text-gray-400">
                 Se generará automáticamente un movimiento de inventario inicial con {form.stock_actual} unidades al guardar.
               </p>

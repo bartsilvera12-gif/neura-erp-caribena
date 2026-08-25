@@ -26,6 +26,18 @@ interface CatRow { id: string; nombre: string }
 interface UbiRow { id: string; nombre: string; tipo: string }
 interface ProvRow { id: string; nombre: string }
 
+/**
+ * Lee una cantidad escrita a mano.
+ *
+ * Acá se escribe 1,5 y no 1.5, y parseFloat("1,5") devuelve 1 — corta en la coma
+ * y guarda medio kilo de queso como uno, sin avisar. Se normaliza la coma antes
+ * de parsear.
+ */
+function parseCantidad(v: string): number {
+  const n = parseFloat(String(v).trim().replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function EditarProductoPage() {
   const router = useRouter();
   const params = useParams();
@@ -285,10 +297,8 @@ export default function EditarProductoPage() {
         sku: form.sku.trim().toUpperCase(),
         costo_promedio: parseFloat(form.costo_promedio) || 0,
         precio_venta: parseFloat(form.precio_venta) || 0,
-        // parseFloat y no parseInt: un insumo se mide en KG o LT y 0,5 kg de
-        // queso se guardaba como 0.
-        stock_actual: parseFloat(form.stock_actual) || 0,
-        stock_minimo: parseFloat(form.stock_minimo) || 0,
+        stock_actual: parseCantidad(form.stock_actual),
+        stock_minimo: parseCantidad(form.stock_minimo),
         unidad_medida: form.unidad_medida.trim().toUpperCase() || "UNIDAD",
         metodo_valuacion: form.metodo_valuacion,
         categoria_principal_id: categoriaId,
@@ -623,7 +633,7 @@ export default function EditarProductoPage() {
             </div>
 
             {/* Configuración gastronómica — oculta (no relevante en UX simplificada) */}
-            <div className="hidden mt-5 pt-4 border-t border-gray-100">
+            <div className="hidden mt-5 pt-4 border-t border-gray-100" data-oculto>
               <p className="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-3">
                 Configuración gastronómica
               </p>
@@ -748,17 +758,35 @@ export default function EditarProductoPage() {
             )}
           </div>
 
+          <div className={showStock ? "" : "hidden"}>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <input
+                type="checkbox"
+                checked={controlaStock}
+                onChange={(e) => setControlaStock(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#4FAEB2] focus:ring-[#4FAEB2]"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-800">Llevar control de stock</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {esInsumo
+                    ? "Necesario para que las recetas descuenten este insumo cuando la comanda entra a cocina. Sin esto la cantidad no se usa."
+                    : "Descuenta al vender y avisa cuando queda poco."}
+                </span>
+              </span>
+            </label>
+          </div>
+
           <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 ${showStock ? "" : "hidden"}`}>
             <div>
               <label className={labelClass}>Stock actual</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="stock_actual"
                 value={form.stock_actual}
                 onChange={handleChange}
                 className={inputClass}
-                min={0}
-                step="any"
                 required={showStock}
               />
               <p className="mt-1 text-xs text-gray-400">
@@ -768,13 +796,12 @@ export default function EditarProductoPage() {
             <div>
               <label className={labelClass}>Stock mínimo</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="stock_minimo"
                 value={form.stock_minimo}
                 onChange={handleChange}
                 className={inputClass}
-                min={0}
-                step="any"
                 required={showStock}
               />
             </div>
