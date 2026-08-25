@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Bell, ChevronDown, LogOut, Menu } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, ChevronDown, ChevronRight, LogOut, Menu } from "lucide-react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { signOut } from "@/lib/auth";
 import { useBoot } from "@/components/BootContext";
+import { resolverRuta } from "@/lib/navegacion/ruta-actual";
 
 type HeaderUsuario = {
   nombre: string | null;
@@ -41,6 +42,8 @@ function roleLabel(rol: string | null | undefined): string {
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
+  const miga = resolverRuta(pathname ?? "");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [usuario, setUsuario] = useState<HeaderUsuario | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -84,7 +87,7 @@ export default function Header() {
   return (
     <header
       id="neura-header"
-      className="z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200/90 bg-white/95 px-3 sm:px-6 shadow-[inset_0_-1px_0_0_rgba(10,37,64,0.05)] backdrop-blur-sm"
+      className="z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.18)] backdrop-blur-xl backdrop-saturate-150 sm:px-6"
     >
       {/* Boton hamburger (solo mobile) */}
       <button
@@ -96,8 +99,28 @@ export default function Header() {
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Spacer en desktop para empujar el resto a la derecha */}
-      <div className="hidden lg:block lg:flex-1" />
+      {/* Miga de pan. Antes acá había un spacer vacío: en desktop la mitad
+          izquierda de la barra quedaba en blanco y la pantalla no decía dónde
+          estabas hasta llegar al <h1> del contenido. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {miga ? (
+          <nav aria-label="Ubicación" className="flex min-w-0 items-center gap-1.5">
+            <span className="hidden truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:inline">
+              {miga.seccion}
+            </span>
+            <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-slate-300 sm:block" aria-hidden />
+            <span className="truncate text-sm font-semibold text-slate-800">{miga.titulo}</span>
+            {miga.accion ? (
+              <>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden />
+                <span className="truncate rounded-md bg-[#4FAEB2]/10 px-2 py-0.5 text-xs font-semibold text-[#3F8E91]">
+                  {miga.accion}
+                </span>
+              </>
+            ) : null}
+          </nav>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-2">
         {/* Notificaciones */}

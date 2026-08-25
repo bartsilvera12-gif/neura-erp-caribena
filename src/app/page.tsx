@@ -549,15 +549,37 @@ function KpiCard({
   }
   return (
     <motion.div
-      whileHover={{ y: -2 }}
-      className="rounded-2xl border border-[#4FAEB2]/30 bg-white p-6 shadow-sm ring-1 ring-[#4FAEB2]/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      whileHover={{ y: -3 }}
+      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-lg"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-slate-400 [&>svg]:h-6 [&>svg]:w-6" aria-hidden>{icon}</div>
+      {/* Filete superior turquesa: da identidad de marca a la tarjeta y separa
+          el bloque del fondo sin necesidad de un borde grueso. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#4FAEB2] via-[#4FAEB2]/70 to-transparent opacity-70 transition-opacity group-hover:opacity-100"
+      />
+      {/* Halo de color que aparece al pasar el mouse. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#4FAEB2]/10 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
+      />
+
+      <div className="relative flex items-start justify-between gap-2">
+        {/* El ícono en una baldosa tintada, en lugar de suelto en gris: le da
+            peso visual al bloque y ancla la lectura arriba a la izquierda. */}
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#4FAEB2]/20 bg-gradient-to-br from-[#4FAEB2]/12 to-[#4FAEB2]/5 text-[#3F8E91] [&>svg]:h-5 [&>svg]:w-5"
+          aria-hidden
+        >
+          {icon}
+        </div>
         {variation !== undefined && (
           <span
-            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
-              variation >= 0 ? "bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]" : "bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]"
+            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
+              variation >= 0
+                ? "bg-[var(--badge-success-bg)] text-[var(--badge-success-text)] ring-emerald-600/10"
+                : "bg-[var(--badge-error-bg)] text-[var(--badge-error-text)] ring-red-600/10"
             }`}
           >
             {variation >= 0 ? "+" : ""}
@@ -565,9 +587,10 @@ function KpiCard({
           </span>
         )}
       </div>
-      <p className={`mt-3 text-2xl xl:text-3xl font-bold tabular-nums leading-tight tracking-tight ${color}`}>{value}</p>
-      <p className="mt-1 text-xs font-medium text-[#475569]">{label}</p>
-      {sub && <p className="mt-1 text-xs text-[#475569]">{sub}</p>}
+
+      <p className={`relative mt-4 text-2xl font-bold leading-tight tracking-tight tabular-nums xl:text-3xl ${color}`}>{value}</p>
+      <p className="relative mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      {sub && <p className="relative mt-1 text-xs text-slate-500">{sub}</p>}
     </motion.div>
   );
 }
