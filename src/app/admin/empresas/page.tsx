@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { Building2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -40,7 +41,7 @@ export default function AdminEmpresasPage() {
 
   async function handleEliminar(e: Empresa) {
     setErrorLista(null);
-    const ok = window.confirm(
+    const ok = await confirmar(
       `¿Eliminar la empresa «${e.nombre_empresa}»?\n\n` +
         "Se borrarán usuarios del ERP, el esquema de datos de esa empresa (tablas tenant) y las cuentas de inicio de sesión asociadas en Auth. No se puede deshacer."
     );

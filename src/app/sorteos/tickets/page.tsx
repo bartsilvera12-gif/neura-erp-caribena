@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -75,7 +76,7 @@ export default function SorteosTicketsPage() {
   }
 
   async function resendTicket(ticketId: string) {
-    if (!confirm("¿Reenviar la imagen por WhatsApp al cliente?")) return;
+    if (!(await confirmar("¿Reenviar la imagen por WhatsApp al cliente?"))) return;
     setBusyId(ticketId);
     setErr(null);
     try {
@@ -93,7 +94,7 @@ export default function SorteosTicketsPage() {
   }
 
   async function regenerateTicket(ticketId: string) {
-    if (!confirm("¿Regenerar el PNG (nueva revisión)? No se reenvía solo.")) return;
+    if (!(await confirmar("¿Regenerar el PNG (nueva revisión)? No se reenvía solo."))) return;
     setBusyId(ticketId);
     setErr(null);
     try {

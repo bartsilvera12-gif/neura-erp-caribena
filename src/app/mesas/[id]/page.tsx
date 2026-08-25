@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { AlertTriangle, Pizza, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -125,7 +126,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
 
   async function onCancelItem(item: MesaSesionItem) {
     if (item.id.startsWith("tmp-")) return;
-    if (item.estado === "enviado" && !confirm("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?")) return;
+    if (item.estado === "enviado" && !(await confirmar("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?"))) return;
     const prev = items;
     setItems((p) => p.filter((i) => i.id !== item.id));
     const r = await actualizarItemMesa(item.id, { cancelar: true });
@@ -151,7 +152,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     setError(null);
     const hayPendientes = items.some((i) => i.estado === "pendiente");
     if (hayPendientes) {
-      const enviar = confirm("Hay productos sin enviar a comanda. ¿Querés enviarlos a cocina antes de pedir la cuenta?");
+      const enviar = await confirmar("Hay productos sin enviar a comanda. ¿Querés enviarlos a cocina antes de pedir la cuenta?");
       if (enviar) {
         const c = await enviarComandaMesa(id);
         if (!c.success) { setError(c.error); return; }
@@ -165,7 +166,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   }
 
   async function onCancelarCuenta() {
-    if (!confirm(`¿Cancelar la cuenta de la mesa ${numero}? Esto no factura ni cobra nada.`)) return;
+    if (!(await confirmar(`¿Cancelar la cuenta de la mesa ${numero}? Esto no factura ni cobra nada.`))) return;
     setBusy(true);
     const r = await cancelarCuentaMesa(id);
     setBusy(false);

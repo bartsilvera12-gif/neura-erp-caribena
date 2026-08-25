@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { AlertTriangle, Pizza, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -115,7 +116,7 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
 
   async function onCancelItem(item: MesaSesionItem) {
     if (item.id.startsWith("tmp-")) return;
-    if (item.estado === "enviado" && !confirm("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?")) return;
+    if (item.estado === "enviado" && !(await confirmar("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?"))) return;
     const prev = items;
     setItems((p) => p.filter((i) => i.id !== item.id));
     const r = await actualizarItemMesa(item.id, { cancelar: true });
@@ -138,7 +139,7 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
   }
 
   async function onCancelarCuenta() {
-    if (!confirm(`¿Cancelar el pedido ${formatPL(sesion?.numero_pl ?? null)}? Esto no factura ni cobra nada.`)) return;
+    if (!(await confirmar(`¿Cancelar el pedido ${formatPL(sesion?.numero_pl ?? null)}? Esto no factura ni cobra nada.`))) return;
     setBusy(true);
     const r = await cancelarPL(sesionId);
     setBusy(false);

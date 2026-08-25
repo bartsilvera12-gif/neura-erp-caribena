@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useState } from "react";
 import { ConfigFormCard, ConfigSectionTitle } from "@/components/config/global-config-primitives";
@@ -327,7 +328,7 @@ export default function ConfiguracionCrmPipelinePage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        if (confirm("¿Eliminar esta etapa? Los prospectos en esta etapa quedarán sin etapa asignada.")) {
+                        if (await confirmar("¿Eliminar esta etapa? Los prospectos en esta etapa quedarán sin etapa asignada.")) {
                           await deleteEtapa(e.id);
                           loadEtapas();
                         }
@@ -674,7 +675,7 @@ export default function ConfiguracionCrmPipelinePage() {
                           className="whitespace-nowrap text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
                           disabled={busyTipoServ}
                           onClick={async () => {
-                            if (!window.confirm("¿Eliminar permanentemente este segmento? (sin clientes vinculados)")) {
+                            if (!(await confirmar("¿Eliminar permanentemente este segmento? (sin clientes vinculados)"))) {
                               return;
                             }
                             setMensajeTipos({ err: undefined, ok: undefined });

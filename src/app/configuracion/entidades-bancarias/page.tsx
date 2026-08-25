@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -73,7 +74,7 @@ export default function EntidadesBancariasPage() {
     flash(e.activo ? "Entidad desactivada." : "Entidad activada."); recargar();
   }
   async function eliminar(e: EntidadBancaria) {
-    if (!confirm(`¿Eliminar "${e.nombre}"? Si tiene conciliaciones asociadas, se desactiva en vez de borrarse.`)) return;
+    if (!(await confirmar(`¿Eliminar "${e.nombre}"? Si tiene conciliaciones asociadas, se desactiva en vez de borrarse.`))) return;
     const r = await eliminarEntidadBancaria(e.id);
     if (!r.success) { setError(r.error); return; }
     flash(r.eliminada ? "Entidad eliminada." : "Tiene conciliaciones: se desactivó en vez de borrarse."); recargar();

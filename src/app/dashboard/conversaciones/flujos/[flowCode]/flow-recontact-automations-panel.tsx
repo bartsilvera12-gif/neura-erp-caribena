@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -475,7 +476,7 @@ export function FlowRecontactAutomationsPanel(props: {
   }
 
   async function removeRule(row: RecontactRuleRowOut) {
-    if (!window.confirm(`¿Eliminar la automatización «${row.nombre}»?`)) return;
+    if (!(await confirmar(`¿Eliminar la automatización «${row.nombre}»?`))) return;
     setError(null);
     try {
       const res = await fetchWithSupabaseSession(`${baseUrl}/${encodeURIComponent(row.id)}`, {

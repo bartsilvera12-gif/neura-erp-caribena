@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -43,7 +44,7 @@ export default function GastosPage() {
   }, []);
 
   async function handleEliminar(g: Gasto) {
-    if (!confirm(`¿Eliminar el gasto "${g.descripcion || g.categoria || "sin descripción"}"?`)) return;
+    if (!(await confirmar(`¿Eliminar el gasto "${g.descripcion || g.categoria || "sin descripción"}"?`))) return;
     setEliminando(g.id);
     try {
       await deleteGasto(g.id);

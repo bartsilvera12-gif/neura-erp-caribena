@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -61,7 +62,7 @@ export default function ComandasPage() {
   }
 
   async function onCancelar(c: ComandaCard) {
-    if (!confirm(`¿Cancelar la comanda N°${c.numero} (Mesa ${c.mesa_numero ?? "?"})? No afecta la cuenta de la mesa.`)) return;
+    if (!(await confirmar(`¿Cancelar la comanda N°${c.numero} (Mesa ${c.mesa_numero ?? "?"})? No afecta la cuenta de la mesa.`))) return;
     setError(null); setBusy(c.id);
     const r = await cancelarComanda(c.id);
     setBusy(null);

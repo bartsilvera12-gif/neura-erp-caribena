@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -170,7 +171,7 @@ export default function EditarRecetaPage() {
   }
 
   async function removeItem(itemId: string) {
-    if (!confirm("¿Eliminar este insumo de la receta?")) return;
+    if (!(await confirmar("¿Eliminar este insumo de la receta?"))) return;
     const res = await fetchWithSupabaseSession(`/api/recetas/${id}/items/${itemId}`, {
       method: "DELETE",
     });
@@ -183,7 +184,7 @@ export default function EditarRecetaPage() {
   }
 
   async function deleteReceta() {
-    if (!confirm("¿Eliminar receta completa? Esta acción no se puede deshacer.")) return;
+    if (!(await confirmar("¿Eliminar receta completa? Esta acción no se puede deshacer."))) return;
     const res = await fetchWithSupabaseSession(`/api/recetas/${id}`, { method: "DELETE" });
     const body = await res.json();
     if (!res.ok || body?.success === false) {

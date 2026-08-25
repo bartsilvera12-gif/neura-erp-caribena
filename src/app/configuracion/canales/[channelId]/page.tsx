@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -53,7 +54,7 @@ export default function EditarCanalPage() {
   }, [allowed, channelId, load]);
 
   async function handleDelete() {
-    if (!channelId || !confirm("¿Eliminar este canal? Las conversaciones asociadas pueden quedar huérfanas.")) {
+    if (!channelId || !(await confirmar("¿Eliminar este canal? Las conversaciones asociadas pueden quedar huérfanas."))) {
       return;
     }
     setDeleting(true);

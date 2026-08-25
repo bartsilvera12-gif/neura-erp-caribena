@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -185,7 +186,7 @@ export default function EditarColaPage() {
   }
 
   async function handleDeleteQueue() {
-    if (!confirm("¿Eliminar esta cola? Los agentes asociados se eliminarán.")) return;
+    if (!(await confirmar("¿Eliminar esta cola? Los agentes asociados se eliminarán."))) return;
     try {
       await apiDeleteQueue(queueId);
       router.push("/configuracion/colas");
@@ -768,7 +769,7 @@ function AgentEditorRow({
   }
 
   async function remove() {
-    if (!confirm("¿Quitar este agente de la cola?")) return;
+    if (!(await confirmar("¿Quitar este agente de la cola?"))) return;
     await apiRemoveQueueAgent(queueId, agent.id);
     onChange();
   }

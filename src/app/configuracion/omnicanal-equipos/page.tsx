@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -100,7 +101,7 @@ export default function OmnicanalEquiposPage() {
   }
 
   async function handleRemove(id: string) {
-    if (!window.confirm("¿Quitar este agente del supervisor?")) return;
+    if (!(await confirmar("¿Quitar este agente del supervisor?"))) return;
     setError(null);
     try {
       await removeSupervisionLink(id);

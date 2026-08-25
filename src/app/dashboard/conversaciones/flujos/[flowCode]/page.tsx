@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { GripVertical, Trash2 } from "lucide-react";

@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -1024,7 +1025,7 @@ export function ConversacionesClient({
 
     let confirmHumanOverride = false;
     if (sel.human_taken_over || sel.flow_status === "human") {
-      const ok = window.confirm(
+      const ok = await confirmar(
         "La conversación está en modo humano. ¿Reenviar igualmente el mensaje del paso actual del bot?"
       );
       if (!ok) return;
@@ -1054,7 +1055,7 @@ export function ConversacionesClient({
     try {
       let { res, json } = await postOnce(confirmHumanOverride);
       if (res.status === 409 && json.needs_human_override_confirmation) {
-        const ok = window.confirm(
+        const ok = await confirmar(
           "La conversación está en modo humano. ¿Reenviar igualmente el mensaje del paso actual del bot?"
         );
         if (!ok) return;

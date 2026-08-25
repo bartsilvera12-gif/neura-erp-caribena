@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -124,7 +125,7 @@ export default function OmnicanalHorariosPage() {
   }
 
   async function eliminar(id: string) {
-    if (!confirm("¿Eliminar este horario? Los usuarios que lo usaban quedarán sin turno asignado.")) return;
+    if (!(await confirmar("¿Eliminar este horario? Los usuarios que lo usaban quedarán sin turno asignado."))) return;
     setSaving(true);
     try {
       await deleteOmnicanalWorkSchedule(id);
