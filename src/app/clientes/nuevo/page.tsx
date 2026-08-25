@@ -672,34 +672,14 @@ function NuevoClienteForm() {
               </div>
               {/* "Vendedor responsable (usuario ERP)" se quita del alta: el
                   campo de texto libre de abajo cubre el caso. */}
-              <div>
-                <label className={labelClass}>Vendedor asignado (texto libre)</label>
-                <input
-                  type="text"
-                  name="vendedor_asignado"
-                  value={form.vendedor_asignado}
-                  onChange={handleChange}
-                  placeholder="Referencia escrita (opcional)"
-                  className={`${inputClass} uppercase`}
-                />
-              </div>
+              {/* "Vendedor asignado (texto libre)" quitado del alta. */}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>Origen del cliente</label>
-                <SelectField
-                  name="origen"
-                  value={form.origen}
-                  onChange={(e) => setForm((prev) => ({ ...prev, origen: e.target.value as OrigenCliente }))}
-                  className={inputClass}
-                  disabled={!!fromCrmId}
-                >
-                  <option value="MANUAL">Manual</option>
-                  <option value="CRM">CRM</option>
-                  <option value="VENTA">Venta</option>
-                </SelectField>
-              </div>
+              {/* "Origen del cliente" quitado del alta: lo determina el propio
+                  flujo — MANUAL por defecto, y CRM cuando se llega desde un
+                  prospecto (?from_crm=). Elegirlo a mano solo daba lugar a que
+                  no coincidiera con la realidad. */}
               <div>
                 <label className={labelClass}>Estado inicial</label>
                 <SelectField
