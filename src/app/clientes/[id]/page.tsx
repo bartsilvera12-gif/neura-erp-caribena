@@ -1876,7 +1876,7 @@ export default function ClienteDetailPage() {
               {gestionTributariaEmpresa && (
                 <section className="space-y-3">
                   <details
-                    className="group rounded-2xl border border-indigo-100/80 bg-gradient-to-b from-slate-50/80 to-white shadow-sm open:shadow-md transition-shadow [open]:shadow-md"
+                    className="group rounded-2xl border border-[#4FAEB2]/20 bg-gradient-to-b from-slate-50/80 to-white shadow-sm open:shadow-md transition-shadow [open]:shadow-md"
                     open={tributBlockOpen}
                     onToggle={(e) => {
                       setTributBlockOpen((e.currentTarget as HTMLDetailsElement).open);
@@ -1891,7 +1891,7 @@ export default function ClienteDetailPage() {
                         </p>
                       </div>
                       <span
-                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 group-open:bg-indigo-50 group-open:text-indigo-800 group-open:border-indigo-100"
+                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 group-open:bg-[#4FAEB2]/10 group-open:text-[#2F6E71] group-open:border-[#4FAEB2]/20"
                         aria-hidden
                       >
                         Expandir

@@ -28,7 +28,7 @@ export default function ImportExcelButton({
         type="button"
         onClick={() => setOpen(true)}
         className={
-          "inline-flex items-center gap-1.5 text-sm font-medium text-indigo-700 hover:text-indigo-900 border border-indigo-200 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors " +
+          "inline-flex items-center gap-1.5 text-sm font-medium text-[#3F8E91] hover:text-[#2F6E71] border border-[#4FAEB2]/30 hover:bg-[#4FAEB2]/10 px-3 py-2 rounded-lg transition-colors " +
           className
         }
       >

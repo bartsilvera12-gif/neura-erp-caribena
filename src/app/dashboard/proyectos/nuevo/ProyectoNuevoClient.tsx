@@ -144,7 +144,7 @@ export default function ProyectoNuevoClient() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/proyectos" className="text-sm text-indigo-600 hover:underline">
+        <Link href="/dashboard/proyectos" className="text-sm text-[#3F8E91] hover:underline">
           ← Volver
         </Link>
       </div>
@@ -270,8 +270,8 @@ export default function ProyectoNuevoClient() {
         </label>
 
         {esWeb ? (
-          <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50/40 p-4">
-            <h2 className="text-sm font-semibold text-indigo-900">Datos del proyecto (web)</h2>
+          <div className="space-y-3 rounded-lg border border-[#4FAEB2]/20 bg-[#4FAEB2]/6 p-4">
+            <h2 className="text-sm font-semibold text-[#2F6E71]">Datos del proyecto (web)</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {PROYECTO_DATOS_BRIEF_FIELDS.map((f) =>
                 f.kind === "checkbox" ? (
@@ -348,7 +348,7 @@ export default function ProyectoNuevoClient() {
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+          className="rounded-lg bg-[#4FAEB2] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3F8E91] disabled:opacity-60"
         >
           {saving ? "Guardando…" : "Crear proyecto"}
         </button>

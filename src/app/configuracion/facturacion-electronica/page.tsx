@@ -564,7 +564,7 @@ export default function FacturacionElectronicaSifenPage() {
           </span>
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-              tieneCert ? "bg-indigo-50 text-indigo-900 border-indigo-200" : "bg-slate-100 text-slate-500 border-slate-200"
+              tieneCert ? "bg-[#4FAEB2]/8 text-[#2F6E71] border-[#4FAEB2]/30" : "bg-slate-100 text-slate-500 border-slate-200"
             }`}
           >
             Certificado: {tieneCert ? "Cargado" : "No cargado"}

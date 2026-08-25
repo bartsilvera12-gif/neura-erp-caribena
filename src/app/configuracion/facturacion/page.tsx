@@ -130,7 +130,7 @@ export default function ConfiguracionFacturacionPage() {
         <ConfigFormCard>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-800">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#4FAEB2]/20 bg-[#4FAEB2]/8 text-[#2F6E71]">
                 <Users className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0">
@@ -162,7 +162,7 @@ export default function ConfiguracionFacturacionPage() {
                       disabled={!esAdmin || gestionGuardando || gestionTributaria === null}
                       onClick={() => void toggleGestionTributaria(!gestionTributaria)}
                       className={`relative inline-flex h-8 w-12 shrink-0 rounded-full transition-colors ${
-                        gestionTributaria ? "bg-indigo-600" : "bg-slate-300"
+                        gestionTributaria ? "bg-[#4FAEB2]" : "bg-slate-300"
                       } ${!esAdmin || gestionTributaria === null ? "opacity-50" : ""}`}
                     >
                       <span

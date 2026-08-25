@@ -93,7 +93,7 @@ export default function MonitoreoPage() {
       )}
 
       {uxRole === "supervisor" && !loading ? (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+        <div className="rounded-xl border border-[#4FAEB2]/30 bg-[#4FAEB2]/8 px-4 py-3 text-sm text-[#255658]">
           <span className="font-semibold">Vista de supervisor.</span> Métricas y tablas muestran solo el equipo a tu
           cargo
           {uxTeamCount !== null ? (

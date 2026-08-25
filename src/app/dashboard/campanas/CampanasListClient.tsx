@@ -75,7 +75,7 @@ export default function CampanasListClient() {
         </div>
         <Link
           href="/dashboard/campanas/nuevo"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          className="rounded-lg bg-[#4FAEB2] px-4 py-2 text-sm font-medium text-white hover:bg-[#3F8E91]"
         >
           Nueva campaña
         </Link>
@@ -120,11 +120,11 @@ export default function CampanasListClient() {
                   <td className="px-4 py-3 text-right tabular-nums">{r.total_count}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{r.sent_count}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-red-600">{r.failed_count}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-indigo-700">{r.replied_count}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-[#3F8E91]">{r.replied_count}</td>
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/dashboard/campanas/${r.id}`}
-                      className="text-indigo-600 hover:underline"
+                      className="text-[#3F8E91] hover:underline"
                     >
                       Ver
                     </Link>

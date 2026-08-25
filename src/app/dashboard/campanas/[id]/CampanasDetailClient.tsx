@@ -462,7 +462,7 @@ export default function CampanasDetailClient({ campaignId }: { campaignId: strin
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div>
-        <Link href="/dashboard/campanas" className="text-sm text-indigo-600 hover:underline">
+        <Link href="/dashboard/campanas" className="text-sm text-[#3F8E91] hover:underline">
           ← Campañas
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-slate-900">{String(campaign.name)}</h1>

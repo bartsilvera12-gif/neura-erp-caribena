@@ -101,10 +101,10 @@ export function ClientePerfilTributarioForm({
   }
 
   return (
-    <div className="rounded-xl border border-indigo-100 bg-gradient-to-b from-indigo-50/40 to-white p-5 space-y-5 shadow-sm">
+    <div className="rounded-xl border border-[#4FAEB2]/20 bg-gradient-to-b from-indigo-50/40 to-white p-5 space-y-5 shadow-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-900/70">Perfil tributario</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#2F6E71]/80">Perfil tributario</p>
           <p className="text-sm text-slate-600 mt-1">
             Opcional. Datos para cumplimiento y honorarios profesionales; no sustituye la identificación comercial del cliente.
           </p>
@@ -117,7 +117,7 @@ export function ClientePerfilTributarioForm({
             aria-checked={value.perfil_activo}
             onClick={() => onChange({ ...value, perfil_activo: !value.perfil_activo })}
             className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors ${
-              value.perfil_activo ? "bg-indigo-600" : "bg-slate-300"
+              value.perfil_activo ? "bg-[#4FAEB2]" : "bg-slate-300"
             }`}
           >
             <span

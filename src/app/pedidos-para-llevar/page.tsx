@@ -98,7 +98,7 @@ export default function PedidosParaLlevarPage() {
         <button
           type="button"
           onClick={() => { setNombre(""); setModalError(null); setModalOpen(true); }}
-          className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95"
+          className="rounded-xl bg-[#4FAEB2] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95"
         >
           + Nuevo Para llevar
         </button>
@@ -125,7 +125,7 @@ export default function PedidosParaLlevarPage() {
                     <button
                       type="button"
                       onClick={() => router.push(`/mesas/pl/${sesion.id}`)}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:border-indigo-300 hover:shadow-md active:scale-[0.98]"
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:border-[#4FAEB2]/50 hover:shadow-md active:scale-[0.98]"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -162,12 +162,12 @@ export default function PedidosParaLlevarPage() {
                 {pendientes.map((c) => {
                   const items = c.items.filter((i) => !i.cancelado);
                   return (
-                    <li key={c.id} className="flex flex-col justify-between rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm">
+                    <li key={c.id} className="flex flex-col justify-between rounded-2xl border border-[#4FAEB2]/30 bg-white p-4 shadow-sm">
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-800">Para llevar</span>
+                              <span className="rounded-md bg-[#4FAEB2]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#2F6E71]">Para llevar</span>
                               <span className="font-bold tabular-nums text-slate-800">{formatPL(c.numero_pl)}</span>
                             </div>
                             {c.nombre_cliente && <p className="mt-0.5 text-sm text-slate-600">{c.nombre_cliente}</p>}
@@ -196,7 +196,7 @@ export default function PedidosParaLlevarPage() {
                         type="button"
                         onClick={() => onImprimir(c)}
                         disabled={busy === c.id}
-                        className="mt-4 w-full rounded-xl bg-indigo-600 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
+                        className="mt-4 w-full rounded-xl bg-[#4FAEB2] px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95 disabled:opacity-50"
                       >
                         {busy === c.id ? "Imprimiendo…" : "Imprimir"}
                       </button>
@@ -211,8 +211,18 @@ export default function PedidosParaLlevarPage() {
 
       {/* Modal Nuevo Para llevar */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !creating && setModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !creating && setModalOpen(false)}>
+          {/* Mismo material que ConfirmDialog: borde, franja de marca y sombra
+              profunda. Sin eso el modal se leía como un diálogo del navegador. */}
+          <div
+            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#4FAEB2] via-[#4FAEB2]/80 to-[#4FAEB2]/30"
+            />
+            <div className="px-5 pb-4 pt-5">
             <h3 className="text-lg font-bold text-slate-800">Nuevo Para llevar</h3>
             <p className="mt-1 text-sm text-slate-500">Nombre del cliente (opcional). El correlativo PL se asigna automáticamente.</p>
             <input
@@ -223,17 +233,18 @@ export default function PedidosParaLlevarPage() {
               maxLength={120}
               disabled={creating}
               autoFocus
-              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
               onKeyDown={(e) => { if (e.key === "Enter") void onCrear(); }}
             />
             {modalError && <p className="mt-2 text-sm text-red-600"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {modalError}</p>}
-            <div className="mt-4 flex justify-end gap-2">
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
               <button type="button" disabled={creating} onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/60 disabled:opacity-50">
                 Cancelar
               </button>
               <button type="button" disabled={creating} onClick={onCrear}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                className="rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] disabled:opacity-50">
                 {creating ? "Creando…" : "Crear"}
               </button>
             </div>

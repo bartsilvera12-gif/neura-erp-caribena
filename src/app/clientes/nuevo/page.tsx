@@ -800,7 +800,7 @@ function NuevoClienteForm() {
 
           {gestionTributariaEmpresa && (
             <section className="space-y-3">
-              <details className="group rounded-2xl border border-indigo-100/80 bg-gradient-to-b from-slate-50/80 to-white shadow-sm open:shadow-md transition-shadow [open]:shadow-md">
+              <details className="group rounded-2xl border border-[#4FAEB2]/20 bg-gradient-to-b from-slate-50/80 to-white shadow-sm open:shadow-md transition-shadow [open]:shadow-md">
                 <summary className="cursor-pointer list-none px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-2 text-left [&::-webkit-details-marker]:hidden">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Opcional</p>
@@ -808,7 +808,7 @@ function NuevoClienteForm() {
                     <p className="text-xs text-slate-500 mt-0.5 max-w-xl">Expandir para IVA, IRE, honorarios y obligaciones. Los datos fiscales no reemplazan la ficha comercial.</p>
                   </div>
                   <span
-                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 group-open:bg-indigo-50 group-open:text-indigo-800 group-open:border-indigo-100"
+                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 group-open:bg-[#4FAEB2]/10 group-open:text-[#2F6E71] group-open:border-[#4FAEB2]/20"
                     aria-hidden
                   >
                     Expandir

@@ -79,7 +79,7 @@ export function ClienteSearchSelect({ clientes, value, onChange }: Props) {
             <li key={c.id}>
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-indigo-50"
+                className="w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-[#4FAEB2]/10"
                 onClick={() => {
                   onChange(c.id);
                   setQ("");

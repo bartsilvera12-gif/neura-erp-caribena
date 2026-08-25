@@ -113,7 +113,7 @@ export default function ExcelImportWizard({
                 </div>
               )}
               {typeof preview.summary.movimientos_a_generar === "number" && (
-                <div className="text-xs bg-indigo-50 border border-indigo-200 rounded p-2 text-indigo-800">
+                <div className="text-xs bg-[#4FAEB2]/8 border border-[#4FAEB2]/30 rounded p-2 text-[#2F6E71]">
                   <strong>Impacto en inventario:</strong>{" "}
                   {preview.summary.movimientos_a_generar} movimiento(s) ·
                   +{preview.summary.unidades_entrada ?? 0} entrada(s) ·
@@ -151,7 +151,7 @@ export default function ExcelImportWizard({
                 <Stat label="Warnings" value={commit.summary.warnings} color="amber" />
               </div>
               {typeof commit.summary.movimientos_generados === "number" && (
-                <div className="text-xs bg-indigo-50 border border-indigo-200 rounded p-2 text-indigo-800">
+                <div className="text-xs bg-[#4FAEB2]/8 border border-[#4FAEB2]/30 rounded p-2 text-[#2F6E71]">
                   <strong>Movimientos generados:</strong> {commit.summary.movimientos_generados} ·
                   +{commit.summary.unidades_entrada ?? 0} entrada(s) ·
                   −{commit.summary.unidades_salida ?? 0} salida(s)

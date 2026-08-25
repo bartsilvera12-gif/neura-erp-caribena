@@ -267,7 +267,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
             </button>
             {hayPendientes && (
               <button type="button" onClick={onEnviarComanda} disabled={busy}
-                className="rounded-xl bg-indigo-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-indigo-700 active:scale-95 disabled:opacity-50">
+                className="rounded-xl bg-[#4FAEB2] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95 disabled:opacity-50">
                 Enviar comanda
               </button>
             )}

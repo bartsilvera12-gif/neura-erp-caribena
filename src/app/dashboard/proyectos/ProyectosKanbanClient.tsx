@@ -13,7 +13,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { readSaasBriefData } from "@/lib/proyectos/brief-data";
@@ -544,7 +544,9 @@ export default function ProyectosKanbanClient() {
                       />
                     ))}
                     {items.length === 0 ? (
-                      <div className="py-8 text-center text-xs text-slate-400">Soltá tarjetas acá</div>
+                      <div className="rounded-xl border-2 border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+                        Soltá tarjetas acá
+                      </div>
                     ) : null}
                   </div>
                 </KanbanColumnView>
@@ -597,7 +599,7 @@ function KanbanColumnView({ col, children }: KanbanColumnViewProps) {
       // legibles. shrink-0 evita que se compriman.
       className={`flex w-[82vw] max-w-[320px] shrink-0 flex-col rounded-lg border bg-slate-50/80 transition-colors sm:w-[300px] lg:w-[260px] ${
         isOver && !col.inactiveFallback
-          ? "border-indigo-300 bg-indigo-50/70 ring-2 ring-indigo-100"
+          ? "border-[#4FAEB2]/50 bg-[#4FAEB2]/8 ring-2 ring-[#4FAEB2]/20"
           : "border-slate-200"
       }`}
     >
@@ -616,7 +618,7 @@ function ProjectCardView({
   moving,
   dragOverlay,
 }: ProjectCardViewProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: projectDragId(p.id),
     disabled: dragOverlay === true,
     data: { projectId: p.id, estadoId: p.estado_id },
@@ -630,9 +632,15 @@ function ProjectCardView({
   const priorityStyles = getPriorityCardStyles(p.prioridad);
   const pedido = readPedidoBrief(p.brief_data);
 
-  const style: CSSProperties | undefined = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+  /**
+   * A propósito NO se aplica el `transform` de useDraggable a esta tarjeta.
+   *
+   * Con un <DragOverlay> montado hay dos nodos en juego: el overlay, que sigue
+   * al cursor, y la tarjeta original, que debe quedarse quieta marcando el
+   * hueco de donde salió. Al trasladar también la original se veían las dos
+   * copias desplazadas a la vez, una encima del "Soltá tarjetas acá" de la
+   * columna vecina, y desaparecía la referencia del lugar de origen.
+   */
   const baseBadgeClass =
     "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-4";
   const neutralBadgeClass =
@@ -641,12 +649,11 @@ function ProjectCardView({
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
       className={`touch-none rounded-xl border border-l-4 bg-white p-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
         dragOverlay ? "rotate-1 cursor-grabbing shadow-2xl" : "cursor-grab active:cursor-grabbing"
-      } ${priorityStyles.cardAccentClass} ${isDragging ? "opacity-40" : ""} ${moving ? "ring-2 ring-sky-100" : ""}`}
+      } ${priorityStyles.cardAccentClass} ${isDragging ? "opacity-40 saturate-0" : ""} ${moving ? "ring-2 ring-sky-100" : ""}`}
     >
       <button
         type="button"
