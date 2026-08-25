@@ -160,6 +160,28 @@ const MENU_STRUCTURE: MenuItem[] = [
   },
 ];
 
+/**
+ * Agrupación visual del menú: header chico en mayúsculas + ítems debajo, cada
+ * sección colapsable. Sólo agrupa; NO decide permisos — eso sigue saliendo de
+ * `empresa_modulos`, así que una sección con todos sus ítems ocultos no se
+ * dibuja.
+ *
+ * Los `keys` que no figuren acá caen en "Otros" (ver SECTION_FALLBACK), para que
+ * agregar un ítem al menú nunca lo haga desaparecer del sidebar por olvido.
+ */
+const MENU_SECTIONS: { label: string; keys: string[] }[] = [
+  { label: "General",     keys: ["dashboard"] },
+  { label: "Omnicanal",   keys: ["conversaciones", "historial-omnicanal", "conversaciones-finalizadas", "monitoreo"] },
+  { label: "Salón",       keys: ["mesas", "comandas", "pedidos-para-llevar", "proyectos"] },
+  { label: "Comercial",   keys: ["ventas", "clientes", "gestion-clientes", "crm"] },
+  { label: "Operaciones", keys: ["inventario", "recetas", "compras", "gastos"] },
+  { label: "Contable",    keys: ["reportes", "comisiones", "notas_credito"] },
+  { label: "Marketing",   keys: ["campanas", "marketing", "marketing_ops", "sorteos"] },
+  { label: "Administración", keys: ["usuarios", "configuracion", "planes"] },
+];
+
+const SECTION_FALLBACK = "Otros";
+
 function modulosSyntheticFromMenu(): ModuloEmpresa[] {
   return MENU_STRUCTURE.map((item) => ({
     id: item.slug,
@@ -324,6 +346,7 @@ export default function Sidebar() {
   );
   const [favoritos, setFavoritos] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({
     inventario: true,
     sorteos: true,
@@ -522,6 +545,35 @@ export default function Sidebar() {
     setExpandedItems((prev) => ({ ...prev, [menuKey]: !prev[menuKey] }));
   };
 
+  /** Qué secciones quedaron colapsadas, por label. Se lee al montar y se guarda
+   *  en cada cambio. Sin valor previo, todas arrancan expandidas. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("zentra:sidebar:collapsedSections");
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, boolean>;
+        if (parsed && typeof parsed === "object") setCollapsedSections(parsed);
+      }
+    } catch {
+      /* localStorage puede fallar en modo privado; se ignora */
+    }
+  }, []);
+
+  const toggleSection = (label: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [label]: !prev[label] };
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("zentra:sidebar:collapsedSections", JSON.stringify(next));
+        }
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const slugToId = (slug: string) => modulos.find((m) => m.slug === slug)?.id ?? slug;
 
   const favoritosItemsFiltered = useMemo(() => {
@@ -549,6 +601,34 @@ export default function Sidebar() {
         menuItemMatchesQuery(item, menuSearchQuery)
     );
   }, [favoritos, menuSearchQuery, modulos, esSuperAdmin, inactiveSlugsSet, strictAllowlist]);
+
+  /**
+   * Reparte `mainItemsFiltered` en las secciones de MENU_SECTIONS, conservando
+   * el orden declarado ahí. Las secciones que quedan sin ítems visibles no se
+   * dibujan. Lo que no esté asignado a ninguna sección cae en "Otros", así
+   * agregar un ítem al menú nunca lo hace desaparecer del sidebar.
+   */
+  const seccionesVisibles = useMemo(() => {
+    const restantes = new Map(mainItemsFiltered.map((i) => [i.key, i]));
+    const out: { label: string; items: MenuItem[] }[] = [];
+
+    for (const section of MENU_SECTIONS) {
+      const items: MenuItem[] = [];
+      for (const k of section.keys) {
+        const item = restantes.get(k);
+        if (item) {
+          items.push(item);
+          restantes.delete(k);
+        }
+      }
+      if (items.length > 0) out.push({ label: section.label, items });
+    }
+
+    if (restantes.size > 0) {
+      out.push({ label: SECTION_FALLBACK, items: [...restantes.values()] });
+    }
+    return out;
+  }, [mainItemsFiltered]);
 
   const anyMenuVisible =
     favoritosItemsFiltered.length > 0 ||
@@ -700,30 +780,68 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* Menú principal */}
-        <div className="space-y-0.5">
-          {!collapsed && mainItemsFiltered.length > 0 && (
-            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">General</p>
-          )}
-          {cargando ? (
-            <div className="px-3 py-2 text-sm text-slate-500 animate-pulse">Cargando…</div>
-          ) : (
-            mainItemsFiltered.map((item) => (
-              <NavItem
-                key={item.key}
-                item={item}
-                itemId={slugToId(item.slug)}
-                isActive={isActive(item.slug, item.href)}
-                isFavorito={favoritos.includes(slugToId(item.slug))}
-                onToggleFavorito={handleToggleFavorito}
-                hasAccess={hasAccess(item.slug)}
-                collapsed={collapsed}
-                expanded={expandedItems[item.key] ?? false}
-                onToggleExpand={() => toggleExpand(item.key)}
-              />
-            ))
-          )}
-        </div>
+        {/* Menú principal, agrupado en secciones colapsables */}
+        {cargando && mainItemsFiltered.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-slate-500 animate-pulse">Cargando…</div>
+        ) : (
+          seccionesVisibles.map(({ label, items }) => {
+            // Con el sidebar entero colapsado se ven sólo los íconos: ahí no hay
+            // header ni nada que colapsar por sección.
+            const seccionCerrada = !collapsed && (collapsedSections[label] ?? false);
+            const tieneActivo = items.some((i) => isActive(i.slug, i.href));
+            return (
+              <div key={label} className="mb-3">
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(label)}
+                    title={`${seccionCerrada ? "Expandir" : "Colapsar"} ${label}`}
+                    aria-expanded={!seccionCerrada}
+                    className="group mb-2 flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-[color:var(--zentra-sidebar-hover)]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`h-2 w-2 rounded-full transition-colors ${
+                          tieneActivo
+                            ? "bg-[color:var(--zentra-sidebar-accent)]"
+                            : "bg-slate-500/60"
+                        }`}
+                        aria-hidden
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 group-hover:text-slate-100">
+                        {label}
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:text-slate-200 ${
+                        seccionCerrada ? "-rotate-90" : ""
+                      }`}
+                      aria-hidden
+                    />
+                  </button>
+                )}
+                {!seccionCerrada && (
+                  <div className="space-y-0.5">
+                    {items.map((item) => (
+                      <NavItem
+                        key={item.key}
+                        item={item}
+                        itemId={slugToId(item.slug)}
+                        isActive={isActive(item.slug, item.href)}
+                        isFavorito={favoritos.includes(slugToId(item.slug))}
+                        onToggleFavorito={handleToggleFavorito}
+                        hasAccess={hasAccess(item.slug)}
+                        collapsed={collapsed}
+                        expanded={expandedItems[item.key] ?? false}
+                        onToggleExpand={() => toggleExpand(item.key)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
 
         {/* Admin */}
         {esSuperAdmin && adminEmpresasMatchesQuery(menuSearchQuery) && (
