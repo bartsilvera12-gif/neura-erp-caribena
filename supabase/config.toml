@@ -10,14 +10,12 @@ enabled = true
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-# Instancia dedicada monocliente (Caribeña): schema único `caribenaerp`.
-# `zentra_erp` se mantiene en la lista por compatibilidad con migraciones históricas y
-# scripts de diagnóstico que aún referencian el schema legacy; será removido en una fase posterior
-# una vez auditados todos los hardcodes en src/**.
-schemas = ["public", "graphql_public", "caribenaerp", "zentra_erp"]
+# Instancia dedicada monocliente (Caribeña): schema único `caribenaerp`, aislado.
+# `zentra_erp` NO se expone: esta instancia no lee ni escribe el catálogo compartido.
+schemas = ["public", "graphql_public", "caribenaerp"]
 # Extra schemas to add to the search_path of every request. `caribenaerp` va primero para priorizar
 # resolución de objetos en el schema activo de la instancia.
-extra_search_path = ["caribenaerp", "public", "extensions", "zentra_erp"]
+extra_search_path = ["caribenaerp", "public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
 # for accidental or malicious requests.
 max_rows = 1000

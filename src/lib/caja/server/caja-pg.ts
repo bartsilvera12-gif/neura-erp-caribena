@@ -1,4 +1,5 @@
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
+import { SUPABASE_APP_SCHEMA } from "@/lib/supabase/schema";
 import type {
   Caja,
   CajaDetalle,
@@ -232,7 +233,7 @@ type Sb = ReturnType<typeof createServiceRoleClientWithDbSchema>;
 
 /**
  * Resuelve nombres de usuario (apertura/cierre) desde el catálogo central
- * zentra_erp.usuarios. Lectura best-effort: si falla, los nombres quedan null.
+ * `caribenaerp.usuarios`. Lectura best-effort: si falla, los nombres quedan null.
  */
 async function attachUsuarioNombres(sb: Sb, resumenes: CajaResumen[]): Promise<void> {
   const ids = new Set<string>();
@@ -242,7 +243,7 @@ async function attachUsuarioNombres(sb: Sb, resumenes: CajaResumen[]): Promise<v
   }
   if (ids.size === 0) return;
   try {
-    const q = await sb.schema("zentra_erp").from("usuarios").select("id, nombre").in("id", [...ids]);
+    const q = await sb.schema(SUPABASE_APP_SCHEMA).from("usuarios").select("id, nombre").in("id", [...ids]);
     if (q.error || !q.data) return;
     const byId = new Map<string, string>();
     for (const u of q.data as Array<{ id: string; nombre: string | null }>) {

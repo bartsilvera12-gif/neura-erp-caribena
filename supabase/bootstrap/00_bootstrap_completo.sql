@@ -14,13 +14,18 @@
 --          índices → foreign keys → vistas y matviews (WITH NO DATA) →
 --          triggers → RLS + todas las policies → comentarios.
 --          SIN DATOS: el schema queda vacío y las secuencias en su valor inicial.
--- PASO 2 — GRANTs para anon / authenticated / service_role / postgres, más
+-- PASO 2 — AÍSLA el schema: corta toda dependencia hacia `public` y `zentra_erp`
+--          (FKs, funciones, policies, triggers, defaults, vistas), clonando
+--          localmente las funciones que hagan falta. Termina con un reporte de
+--          lo que no se pudo aislar.
+-- PASO 3 — GRANTs para anon / authenticated / service_role / postgres, más
 --          ALTER DEFAULT PRIVILEGES para los objetos que crees más adelante.
--- PASO 3 — crea la empresa Caribeña con un UUID nuevo (independiente del de
+-- PASO 4 — crea la empresa Caribeña con un UUID nuevo (independiente del de
 --          En lo de Mari) y le replica el allowlist de módulos.
 --
--- NO clona objetos de otros schemas (`public`, `zentra_erp`, `auth`, `storage`).
--- Las FKs que apuntan ahí se mantienen apuntando a su schema original.
+-- Lo único que queda compartido, por diseño de Supabase, es la infraestructura
+-- del proyecto: `auth`, `storage`, `extensions`, `pg_catalog`. Para desacoplar
+-- también eso hace falta un proyecto Supabase aparte.
 --
 -- Aborta si `caribenaerp` ya existe. Para rehacerlo:
 --     DROP SCHEMA caribenaerp CASCADE;
@@ -53,6 +58,81 @@ RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
            '(^|[^A-Za-z0-9_$."])' || src || '(?=[^A-Za-z0-9_$]|$)',
            '\1' || dst, 'g')
 $fn$;
+
+-- Reescribe `public.x` / `zentra_erp.x` → `caribenaerp.x`, pero SÓLO si
+-- `caribenaerp.x` existe (tabla, vista, función o tipo). Si no existe, no
+-- inventa nada: deja la referencia como está y el reporte final la lista.
+CREATE FUNCTION pg_temp.localizar(t text, dst text)
+RETURNS text LANGUAGE plpgsql STABLE AS $lz$
+DECLARE
+  m     text[];
+  out_t text := pg_catalog.coalesce(t, '');
+  sch   text;
+  obj   text;
+BEGIN
+  IF out_t = '' THEN
+    RETURN out_t;
+  END IF;
+  FOR m IN
+    SELECT DISTINCT x
+    FROM pg_catalog.regexp_matches(out_t,
+           '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+  LOOP
+    sch := m[1];
+    obj := m[2];
+    IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname = dst AND c.relname = obj)
+       OR EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+               WHERE n.nspname = dst AND p.proname = obj)
+       OR EXISTS (SELECT 1 FROM pg_type ty JOIN pg_namespace n ON n.oid = ty.typnamespace
+               WHERE n.nspname = dst AND ty.typname = obj) THEN
+      out_t := pg_catalog.regexp_replace(out_t,
+                 '(^|[^A-Za-z0-9_$."])' || sch || '\.' || obj || '(?=[^A-Za-z0-9_$]|$)',
+                 '\1' || dst || '.' || obj, 'g');
+    END IF;
+  END LOOP;
+  RETURN out_t;
+END
+$lz$;
+
+-- Todo el texto de definiciones del schema, para detectar qué referencias
+-- externas siguen vivas.
+CREATE FUNCTION pg_temp.inventario(dst text)
+RETURNS text LANGUAGE sql STABLE AS $inv$
+  SELECT pg_catalog.string_agg(d, E'\n') FROM (
+    SELECT pg_catalog.pg_get_functiondef(p.oid) AS d
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = dst AND p.prokind IN ('f','p')
+    UNION ALL
+    SELECT pg_catalog.pg_get_expr(ad.adbin, ad.adrelid)
+      FROM pg_attrdef ad JOIN pg_class c ON c.oid = ad.adrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = dst
+    UNION ALL
+    SELECT pg_catalog.pg_get_constraintdef(co.oid)
+      FROM pg_constraint co JOIN pg_class c ON c.oid = co.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = dst
+    UNION ALL
+    SELECT pg_catalog.pg_get_indexdef(i.indexrelid)
+      FROM pg_index i JOIN pg_class ic ON ic.oid = i.indexrelid
+      JOIN pg_namespace n ON n.oid = ic.relnamespace
+     WHERE n.nspname = dst
+    UNION ALL
+    SELECT pg_catalog.pg_get_viewdef(c.oid, true)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = dst AND c.relkind IN ('v','m')
+    UNION ALL
+    SELECT pg_catalog.pg_get_triggerdef(t.oid)
+      FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = dst AND NOT t.tgisinternal
+    UNION ALL
+    SELECT pg_catalog.coalesce(pol.qual,'') || ' ' || pg_catalog.coalesce(pol.with_check,'')
+      FROM pg_catalog.pg_policies pol
+     WHERE pol.schemaname = dst
+  ) q
+$inv$;
 
 
 -- #############################################################################
@@ -402,7 +482,297 @@ $clone$;
 
 
 -- #############################################################################
--- ## PASO 2 — GRANTS
+-- ## PASO 2 — AISLAMIENTO
+-- ## Corta toda dependencia de `caribenaerp` hacia `public` y `zentra_erp`.
+-- ## Regla de oro: sólo reescribe hacia local cuando la gemela local EXISTE.
+-- ## Lo que no se puede aislar queda intacto y sale en el reporte final.
+-- #############################################################################
+
+DO $aislar$
+DECLARE
+  dst       text := 'caribenaerp';
+  r         record;
+  inv       text;
+  nuevo     text;
+  stmt      text;
+  s         text;
+  pend      text[];
+  pasada    int;
+  clonadas  int;
+  n_cambios int := 0;
+BEGIN
+  ---------------------------------------------------------------------------
+  -- 2.A Traer las funciones externas que el schema todavía llama.
+  --     Iterativo: una función clonada puede llamar a otra.
+  ---------------------------------------------------------------------------
+  pasada := 0;
+  LOOP
+    pasada   := pasada + 1;
+    clonadas := 0;
+    EXIT WHEN pasada > 6;
+
+    inv := pg_catalog.coalesce(pg_temp.inventario(dst), '');
+
+    FOR r IN
+      SELECT DISTINCT x[1] AS sch, x[2] AS fname
+      FROM pg_catalog.regexp_matches(inv,
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(', 'g') AS x
+    LOOP
+      -- Sólo si allá es realmente una función y acá no hay gemela.
+      CONTINUE WHEN NOT EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = r.sch AND p.proname = r.fname AND p.prokind IN ('f','p'));
+      CONTINUE WHEN EXISTS (
+        SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = dst AND p.proname = r.fname);
+
+      DECLARE
+        p2 record;
+      BEGIN
+        FOR p2 IN
+          SELECT p.oid,
+                 pg_catalog.pg_get_functiondef(p.oid) AS def,
+                 pg_catalog.pg_get_function_identity_arguments(p.oid) AS args,
+                 p.proconfig
+          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = r.sch AND p.proname = r.fname AND p.prokind IN ('f','p')
+        LOOP
+          -- Reapuntar el NOMBRE de la función al schema destino...
+          stmt := pg_catalog.regexp_replace(
+                    p2.def,
+                    '^(CREATE OR REPLACE FUNCTION|CREATE FUNCTION|CREATE OR REPLACE PROCEDURE|CREATE PROCEDURE)[[:space:]]+'
+                      || r.sch || '\.',
+                    '\1 ' || dst || '.');
+          -- ...y localizar lo que su cuerpo referencia y tenga gemela acá.
+          stmt := pg_temp.localizar(stmt, dst);
+          EXECUTE stmt;
+
+          -- Si la original fijaba search_path, ponerlo con el schema propio primero.
+          IF p2.proconfig IS NOT NULL
+             AND EXISTS (SELECT 1 FROM pg_catalog.unnest(p2.proconfig) AS cfg
+                         WHERE cfg LIKE 'search\_path=%') THEN
+            EXECUTE pg_catalog.format(
+              'ALTER ROUTINE %I.%I(%s) SET search_path TO %I, public, extensions',
+              dst, r.fname, p2.args, dst);
+          END IF;
+
+          clonadas  := clonadas + 1;
+          n_cambios := n_cambios + 1;
+          RAISE NOTICE '[2.A] función %.%(%) clonada a %.', r.sch, r.fname, p2.args, dst;
+        END LOOP;
+      END;
+    END LOOP;
+
+    EXIT WHEN clonadas = 0;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.B Cuerpos de las funciones locales
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT p.proname, pg_catalog.pg_get_functiondef(p.oid) AS def
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = dst AND p.prokind IN ('f','p')
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE nuevo;
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.B] función %.% reescrita.', dst, r.proname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.C Defaults de columnas
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT c.relname, a.attname, pg_catalog.pg_get_expr(ad.adbin, ad.adrelid) AS def
+    FROM pg_attrdef ad
+    JOIN pg_class c     ON c.oid = ad.adrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_attribute a ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+    WHERE n.nspname = dst AND c.relkind IN ('r','p') AND a.attgenerated = ''
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE pg_catalog.format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT %s',
+                dst, r.relname, r.attname, nuevo);
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.C] default de %.%.% reescrito.', dst, r.relname, r.attname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.D Foreign keys: repuntar a la tabla gemela local
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT c.relname, co.conname, pg_catalog.pg_get_constraintdef(co.oid) AS def
+    FROM pg_constraint co
+    JOIN pg_class c      ON c.oid  = co.conrelid
+    JOIN pg_namespace n  ON n.oid  = c.relnamespace
+    JOIN pg_class cr     ON cr.oid = co.confrelid
+    JOIN pg_namespace nr ON nr.oid = cr.relnamespace
+    WHERE n.nspname = dst AND co.contype = 'f' AND nr.nspname <> dst
+    ORDER BY c.relname, co.conname
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE pg_catalog.format('ALTER TABLE %I.%I DROP CONSTRAINT %I', dst, r.relname, r.conname);
+      EXECUTE pg_catalog.format('ALTER TABLE %I.%I ADD CONSTRAINT %I %s',
+                dst, r.relname, r.conname, nuevo);
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.D] FK %.% repuntada a local.', r.relname, r.conname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.E Check constraints
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT c.relname, co.conname, pg_catalog.pg_get_constraintdef(co.oid) AS def
+    FROM pg_constraint co
+    JOIN pg_class c     ON c.oid = co.conrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = dst AND co.contype = 'c'
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE pg_catalog.format('ALTER TABLE %I.%I DROP CONSTRAINT %I', dst, r.relname, r.conname);
+      EXECUTE pg_catalog.format('ALTER TABLE %I.%I ADD CONSTRAINT %I %s',
+                dst, r.relname, r.conname, nuevo);
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.E] CHECK %.% reescrito.', r.relname, r.conname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.F Índices con expresión
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT ic.relname AS idxname, pg_catalog.pg_get_indexdef(i.indexrelid) AS def
+    FROM pg_index i
+    JOIN pg_class ic    ON ic.oid = i.indexrelid
+    JOIN pg_namespace n ON n.oid = ic.relnamespace
+    WHERE n.nspname = dst
+      AND NOT EXISTS (SELECT 1 FROM pg_constraint co
+                      WHERE co.conindid = i.indexrelid AND co.contype IN ('p','u','x'))
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE pg_catalog.format('DROP INDEX %I.%I', dst, r.idxname);
+      EXECUTE nuevo;
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.F] índice % reescrito.', r.idxname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.G Policies de RLS
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT p.tablename, p.policyname, p.permissive, p.roles, p.cmd, p.qual, p.with_check
+    FROM pg_catalog.pg_policies p
+    WHERE p.schemaname = dst
+    ORDER BY p.tablename, p.policyname
+  LOOP
+    CONTINUE WHEN pg_temp.localizar(pg_catalog.coalesce(r.qual,''), dst)
+                    IS NOT DISTINCT FROM pg_catalog.coalesce(r.qual,'')
+                  AND pg_temp.localizar(pg_catalog.coalesce(r.with_check,''), dst)
+                    IS NOT DISTINCT FROM pg_catalog.coalesce(r.with_check,'');
+
+    SELECT pg_catalog.string_agg(
+             CASE WHEN x IN ('public','-') THEN 'public' ELSE pg_catalog.quote_ident(x) END, ', ')
+      INTO stmt
+    FROM pg_catalog.unnest(r.roles::text[]) AS x;
+
+    EXECUTE pg_catalog.format('DROP POLICY %I ON %I.%I', r.policyname, dst, r.tablename);
+    EXECUTE pg_catalog.format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s %s %s',
+      r.policyname, dst, r.tablename,
+      CASE WHEN pg_catalog.upper(r.permissive) = 'PERMISSIVE' THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+      r.cmd,
+      pg_catalog.coalesce(stmt, 'public'),
+      CASE WHEN r.qual IS NOT NULL
+           THEN 'USING (' || pg_temp.localizar(r.qual, dst) || ')' ELSE '' END,
+      CASE WHEN r.with_check IS NOT NULL
+           THEN 'WITH CHECK (' || pg_temp.localizar(r.with_check, dst) || ')' ELSE '' END);
+    n_cambios := n_cambios + 1;
+    RAISE NOTICE '[2.G] policy % en % reescrita.', r.policyname, r.tablename;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.H Triggers
+  ---------------------------------------------------------------------------
+  FOR r IN
+    SELECT c.relname, t.tgname, pg_catalog.pg_get_triggerdef(t.oid) AS def
+    FROM pg_trigger t
+    JOIN pg_class c     ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = dst AND NOT t.tgisinternal
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    IF nuevo IS DISTINCT FROM r.def THEN
+      EXECUTE pg_catalog.format('DROP TRIGGER %I ON %I.%I', r.tgname, dst, r.relname);
+      EXECUTE nuevo;
+      n_cambios := n_cambios + 1;
+      RAISE NOTICE '[2.H] trigger % en % reescrito.', r.tgname, r.relname;
+    END IF;
+  END LOOP;
+
+  ---------------------------------------------------------------------------
+  -- 2.I Vistas y matviews (drop de las afectadas + recreación con reintentos)
+  ---------------------------------------------------------------------------
+  pend := '{}';
+  FOR r IN
+    SELECT c.relname, c.relkind, pg_catalog.pg_get_viewdef(c.oid, true) AS def
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = dst AND c.relkind IN ('v','m')
+  LOOP
+    nuevo := pg_temp.localizar(r.def, dst);
+    CONTINUE WHEN nuevo IS NOT DISTINCT FROM r.def;
+
+    IF r.relkind = 'v' THEN
+      pend := pend || pg_catalog.format('CREATE VIEW %I.%I AS %s',
+                dst, r.relname, pg_catalog.rtrim(pg_catalog.rtrim(nuevo), ';'));
+      EXECUTE pg_catalog.format('DROP VIEW %I.%I CASCADE', dst, r.relname);
+    ELSE
+      pend := pend || pg_catalog.format('CREATE MATERIALIZED VIEW %I.%I AS %s WITH NO DATA',
+                dst, r.relname, pg_catalog.rtrim(pg_catalog.rtrim(nuevo), ';'));
+      EXECUTE pg_catalog.format('DROP MATERIALIZED VIEW %I.%I CASCADE', dst, r.relname);
+    END IF;
+    n_cambios := n_cambios + 1;
+  END LOOP;
+
+  pasada := 0;
+  WHILE pg_catalog.array_length(pend, 1) > 0 AND pasada < 12 LOOP
+    pasada := pasada + 1;
+    DECLARE
+      restantes text[] := '{}';
+    BEGIN
+      FOREACH s IN ARRAY pend LOOP
+        BEGIN
+          EXECUTE s;
+        EXCEPTION WHEN others THEN
+          restantes := restantes || s;
+        END;
+      END LOOP;
+      IF pg_catalog.array_length(restantes, 1)
+         IS NOT DISTINCT FROM pg_catalog.array_length(pend, 1) THEN
+        FOREACH s IN ARRAY restantes LOOP
+          EXECUTE s;   -- que se propague el error real
+        END LOOP;
+      END IF;
+      pend := restantes;
+    END;
+  END LOOP;
+
+  RAISE NOTICE 'PASO 2 listo: % objetos aislados. Revisá el REPORTE del final.', n_cambios;
+END
+$aislar$;
+
+
+-- #############################################################################
+-- ## PASO 3 — GRANTS
 -- ## Replica el patrón que Supabase aplica a `public`: los roles de PostgREST
 -- ## reciben acceso al schema y lo que filtra de verdad es RLS, ya clonado.
 -- #############################################################################
@@ -456,13 +826,13 @@ BEGIN
     END IF;
   END LOOP;
 
-  RAISE NOTICE 'PASO 2 listo: grants aplicados sobre %.', dst;
+  RAISE NOTICE 'PASO 3 listo: grants aplicados sobre %.', dst;
 END
 $grants$;
 
 
 -- #############################################################################
--- ## PASO 3 — EMPRESA CARIBEÑA (id propio)
+-- ## PASO 4 — EMPRESA CARIBEÑA (id propio)
 -- ##
 -- ## Defensivo: mira qué columnas existen realmente en `caribenaerp.empresas`
 -- ## y sólo completa las que encuentra. Si hay columnas NOT NULL sin default
@@ -565,7 +935,7 @@ BEGIN
     END IF;
   END IF;
 
-  RAISE NOTICE 'PASO 3 listo.';
+  RAISE NOTICE 'PASO 4 listo.';
 END
 $seed$;
 
@@ -626,3 +996,86 @@ ORDER BY 1;
 -- VERIFICACIÓN 3 — el empresa_id de Caribeña
 -- =============================================================================
 SELECT * FROM caribenaerp.empresas;
+
+-- =============================================================================
+-- VERIFICACIÓN 4 — AISLAMIENTO. Cada fila es una dependencia que TODAVÍA sale
+-- de `caribenaerp` hacia un schema de negocio. Si sale VACÍO, está aislado.
+-- `motivo` explica por qué quedó.
+-- =============================================================================
+SELECT 'foreign_key' AS tipo, c.relname AS objeto, co.conname AS detalle,
+       nr.nspname || '.' || cr.relname AS apunta_a,
+       CASE WHEN EXISTS (SELECT 1 FROM pg_class c2 JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+                         WHERE n2.nspname = 'caribenaerp' AND c2.relname = cr.relname)
+            THEN 'hay gemela local: revisar a mano'
+            ELSE 'no existe caribenaerp.' || cr.relname || ' (tabla realmente compartida)'
+       END AS motivo
+FROM pg_constraint co
+JOIN pg_class c      ON c.oid  = co.conrelid
+JOIN pg_namespace n  ON n.oid  = c.relnamespace
+JOIN pg_class cr     ON cr.oid = co.confrelid
+JOIN pg_namespace nr ON nr.oid = cr.relnamespace
+WHERE n.nspname = 'caribenaerp' AND co.contype = 'f'
+  AND nr.nspname NOT IN ('caribenaerp','pg_catalog','extensions')
+
+UNION ALL
+SELECT 'funcion', p.proname, x[1] || '.' || x[2], x[1] || '.' || x[2],
+  CASE WHEN EXISTS (SELECT 1 FROM pg_proc p2 JOIN pg_namespace n2 ON n2.oid = p2.pronamespace
+                    WHERE n2.nspname = 'caribenaerp' AND p2.proname = x[2])
+         OR EXISTS (SELECT 1 FROM pg_class c2 JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+                    WHERE n2.nspname = 'caribenaerp' AND c2.relname = x[2])
+       THEN 'hay gemela local: revisar a mano'
+       ELSE 'no existe caribenaerp.' || x[2]
+  END
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+CROSS JOIN LATERAL regexp_matches(pg_get_functiondef(p.oid),
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+WHERE n.nspname = 'caribenaerp' AND p.prokind IN ('f','p')
+
+UNION ALL
+SELECT 'policy', pol.tablename, pol.policyname, x[1] || '.' || x[2],
+  CASE WHEN EXISTS (SELECT 1 FROM pg_proc p2 JOIN pg_namespace n2 ON n2.oid = p2.pronamespace
+                    WHERE n2.nspname = 'caribenaerp' AND p2.proname = x[2])
+       THEN 'hay gemela local: revisar a mano'
+       ELSE 'no existe caribenaerp.' || x[2]
+  END
+FROM pg_policies pol
+CROSS JOIN LATERAL regexp_matches(coalesce(pol.qual,'') || ' ' || coalesce(pol.with_check,''),
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+WHERE pol.schemaname = 'caribenaerp'
+
+UNION ALL
+SELECT 'trigger', c.relname, t.tgname, x[1] || '.' || x[2],
+  CASE WHEN EXISTS (SELECT 1 FROM pg_proc p2 JOIN pg_namespace n2 ON n2.oid = p2.pronamespace
+                    WHERE n2.nspname = 'caribenaerp' AND p2.proname = x[2])
+       THEN 'hay gemela local: revisar a mano'
+       ELSE 'no existe caribenaerp.' || x[2]
+  END
+FROM pg_trigger t
+JOIN pg_class c     ON c.oid = t.tgrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN LATERAL regexp_matches(pg_get_triggerdef(t.oid),
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+WHERE n.nspname = 'caribenaerp' AND NOT t.tgisinternal
+
+UNION ALL
+SELECT 'default', c.relname, a.attname, x[1] || '.' || x[2],
+       'no existe caribenaerp.' || x[2]
+FROM pg_attrdef ad
+JOIN pg_class c     ON c.oid = ad.adrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+CROSS JOIN LATERAL regexp_matches(pg_get_expr(ad.adbin, ad.adrelid),
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+WHERE n.nspname = 'caribenaerp'
+
+UNION ALL
+SELECT 'vista', c.relname, '', x[1] || '.' || x[2],
+       'no existe caribenaerp.' || x[2]
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN LATERAL regexp_matches(pg_get_viewdef(c.oid, true),
+             '(public|zentra_erp)\.([A-Za-z_][A-Za-z0-9_]*)', 'g') AS x
+WHERE n.nspname = 'caribenaerp' AND c.relkind IN ('v','m')
+
+ORDER BY 1, 2, 3;

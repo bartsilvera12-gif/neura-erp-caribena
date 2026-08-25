@@ -14,6 +14,7 @@ import { refreshCampaignCounters } from "@/lib/campaigns/campaign-job-service";
 import { getChatPostgresPool } from "@/lib/supabase/chat-pg-pool";
 import { getChatServiceClientForEmpresa } from "@/lib/supabase/chat-service-role-empresa";
 import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
+import { SUPABASE_APP_SCHEMA } from "@/lib/supabase/schema";
 
 export function parseCampaignRecipientExternalId(
   externalId: string
@@ -27,20 +28,24 @@ function quoteSchemaIdent(schema: string): string {
   return `"${schema.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Instancia dedicada monocliente: los destinatarios de campaña viven únicamente
+ * en el schema propio. No se barren `public`, `zentra_erp` ni schemas `erp_*` /
+ * `er_*` de otros clientes — esta instancia no debe leerlos ni escribirlos.
+ */
 async function listCampaignRecipientSchemas(pool: Pool): Promise<string[]> {
-  const { rows } = await pool.query<{ nspname: string }>(`
+  const { rows } = await pool.query<{ nspname: string }>(
+    `
     SELECT DISTINCT n.nspname
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.relname = 'chat_campaign_recipients'
       AND c.relkind = 'r'
-      AND (
-        n.nspname IN ('public', 'zentra_erp')
-        OR n.nspname ~ '^er_[0-9a-f]{32}$'
-        OR n.nspname LIKE 'erp\\_%' ESCAPE '\\'
-      )
+      AND n.nspname = $1
     ORDER BY 1
-  `);
+  `,
+    [SUPABASE_APP_SCHEMA]
+  );
   return rows.map((r) => r.nspname);
 }
 

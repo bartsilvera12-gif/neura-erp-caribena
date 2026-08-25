@@ -2,10 +2,12 @@ import { Suspense } from "react";
 import { getCurrentUserDisplayNameServer } from "@/lib/auth/get-current-user-display-name-server";
 import { getChatDataSchemaForCurrentUser } from "@/lib/chat/empresa-chat-schema-server";
 import { getConversacionesInboxBootstrap, type InboxCabeceraInsignia } from "@/lib/chat/chat-ops-actions";
+import { SUPABASE_APP_SCHEMA } from "@/lib/supabase/schema";
 import { ConversacionesClient, type ConversacionesInitialOperationalPresence } from "./ConversacionesClient";
 
 export default async function ConversacionesInboxPage() {
-  let chatDataSchema = "zentra_erp";
+  // Instancia dedicada: el fallback es el schema propio, nunca el catálogo compartido.
+  let chatDataSchema = SUPABASE_APP_SCHEMA;
   try {
     chatDataSchema = await getChatDataSchemaForCurrentUser();
   } catch (e) {
