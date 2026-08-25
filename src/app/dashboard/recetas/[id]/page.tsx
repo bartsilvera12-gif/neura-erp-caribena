@@ -53,6 +53,29 @@ type Producto = {
   unidad_medida: string | null;
 };
 
+/**
+ * Unidades que se pueden usar en una línea de receta para un insumo dado.
+ *
+ * Se acota a la familia de la unidad del producto (masa o volumen) porque el
+ * costeo convierte entre ellas: dejar texto libre permitía escribir "g" en una
+ * línea y "G" en otra, o una unidad de otra familia que no se puede convertir.
+ * Si la unidad del producto no pertenece a ninguna familia (UNIDAD, CAJA…), la
+ * única opción es esa misma.
+ */
+const FAMILIAS_UNIDAD: Record<string, string[]> = {
+  MASA: ["KG", "G"],
+  VOL: ["LT", "ML"],
+};
+
+function unidadesCompatibles(unidadProducto: string | null | undefined): string[] {
+  const u = (unidadProducto ?? "").trim().toUpperCase();
+  if (!u) return [];
+  for (const opciones of Object.values(FAMILIAS_UNIDAD)) {
+    if (opciones.includes(u)) return opciones;
+  }
+  return [u];
+}
+
 function fmtGs(n: number | null | undefined) {
   if (n == null) return "—";
   return "Gs. " + Number(n).toLocaleString("es-PY", { maximumFractionDigits: 0 });
@@ -112,10 +135,23 @@ export default function EditarRecetaPage() {
     return insumos.filter((p) => !usados.has(p.id));
   }, [insumos, items]);
 
+  const insumoSeleccionado = useMemo(
+    () => insumosDisponibles.find((p) => p.id === newInsumoId) ?? null,
+    [insumosDisponibles, newInsumoId]
+  );
+
+  // La unidad elegida tiene que seguir siendo válida para el insumo activo.
+  useEffect(() => {
+    const opciones = unidadesCompatibles(insumoSeleccionado?.unidad_medida);
+    if (opciones.length > 0 && !opciones.includes(newUnidad.trim().toUpperCase())) {
+      setNewUnidad(insumoSeleccionado?.unidad_medida?.trim().toUpperCase() ?? opciones[0]);
+    }
+  }, [insumoSeleccionado, newUnidad]);
+
   useEffect(() => {
     if (insumosDisponibles.length > 0 && !newInsumoId) {
       setNewInsumoId(insumosDisponibles[0].id);
-      setNewUnidad(insumosDisponibles[0].unidad_medida ?? "");
+      setNewUnidad((insumosDisponibles[0].unidad_medida ?? "").trim().toUpperCase());
     }
   }, [insumosDisponibles, newInsumoId]);
 
@@ -403,7 +439,7 @@ export default function EditarRecetaPage() {
                 onChange={(e) => {
                   setNewInsumoId(e.target.value);
                   const p = insumosDisponibles.find((x) => x.id === e.target.value);
-                  if (p) setNewUnidad(p.unidad_medida ?? "");
+                  if (p) setNewUnidad((p.unidad_medida ?? "").trim().toUpperCase());
                 }}
                 className="md:col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
@@ -422,13 +458,17 @@ export default function EditarRecetaPage() {
                 placeholder="Cantidad"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
-              <input
-                type="text"
+              <SelectField
                 value={newUnidad}
                 onChange={(e) => setNewUnidad(e.target.value)}
-                placeholder="Unidad"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
+                aria-label="Unidad del insumo"
+              >
+                {unidadesCompatibles(insumoSeleccionado?.unidad_medida).map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </SelectField>
               <input
                 type="number"
                 step="0.01"
