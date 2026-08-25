@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChefHat, Pencil, Plus, Trash2 } from "lucide-react";
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -507,6 +507,18 @@ export default function InventarioPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Receta: solo para lo que el local prepara. Un producto de
+                            reventa no tiene nada que costear ni que descontar. */}
+                        {p.es_vendible !== false && p.controla_stock === false && (
+                          <Link
+                            href={`/dashboard/recetas/nueva?producto=${p.id}`}
+                            className={btnIcono}
+                            aria-label={`Receta de ${p.nombre}`}
+                            title="Ver o crear la receta"
+                          >
+                            <ChefHat className="h-4 w-4" aria-hidden />
+                          </Link>
+                        )}
                         <Link
                           href={`/inventario/${p.id}/editar`}
                           className={btnIcono}

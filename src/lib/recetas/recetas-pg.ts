@@ -70,6 +70,26 @@ export async function getReceta(sb: AppSupabaseClient, empresaId: string, id: st
   return data as RecetaRow | null;
 }
 
+/**
+ * Producto al que pertenece la receta, con el dato que define todo el circuito:
+ * si lleva stock se fabrica con el botón Producir; si no, sus insumos se
+ * descuentan cuando la comanda entra a cocina.
+ */
+export async function getProductoDeReceta(
+  sb: AppSupabaseClient,
+  empresaId: string,
+  productoId: string
+) {
+  const { data, error } = await sb
+    .from("productos")
+    .select("id, nombre, sku, unidad_medida, controla_stock, stock_actual, costo_promedio, precio_venta")
+    .eq("empresa_id", empresaId)
+    .eq("id", productoId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function listRecetaItems(sb: AppSupabaseClient, recetaId: string) {
   const { data, error } = await sb
     .from("receta_items")
@@ -228,7 +248,7 @@ export async function listProductos(
 ) {
   let q = sb
     .from("productos")
-    .select("id, nombre, sku, precio_venta, costo_promedio, stock_actual, unidad_medida, es_insumo, es_vendible")
+    .select("id, nombre, sku, precio_venta, costo_promedio, stock_actual, unidad_medida, es_insumo, es_vendible, controla_stock")
     .eq("empresa_id", empresaId)
     .eq("activo", true)
     .order("nombre");

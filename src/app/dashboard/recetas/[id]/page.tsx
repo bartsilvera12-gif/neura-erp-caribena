@@ -51,6 +51,8 @@ type Producto = {
   costo_promedio: number;
   stock_actual: number;
   unidad_medida: string | null;
+  /** false = se arma al momento del pedido; true = se guarda con stock. */
+  controla_stock?: boolean;
 };
 
 /**
@@ -90,6 +92,10 @@ export default function EditarRecetaPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [costeo, setCosteo] = useState<Costeo | null>(null);
   const [insumos, setInsumos] = useState<Producto[]>([]);
+  const [producto, setProducto] = useState<Producto | null>(null);
+  const [cantProducir, setCantProducir] = useState("1");
+  const [produciendo, setProduciendo] = useState(false);
+  const [avisoProduccion, setAvisoProduccion] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,6 +120,7 @@ export default function EditarRecetaPage() {
     setReceta(recBody.data.receta);
     setItems(recBody.data.items ?? []);
     setCosteo(recBody.data.costeo ?? null);
+    setProducto((recBody.data.producto ?? null) as Producto | null);
     if (prodRes.ok && prodBody?.success) {
       setInsumos((prodBody.data.productos ?? []) as Producto[]);
     }
@@ -154,6 +161,49 @@ export default function EditarRecetaPage() {
       setNewUnidad((insumosDisponibles[0].unidad_medida ?? "").trim().toUpperCase());
     }
   }, [insumosDisponibles, newInsumoId]);
+
+  /**
+   * Fabrica el producto: descuenta los insumos y suma el resultado al stock.
+   * Solo tiene sentido para lo que se guarda hecho — una prepizza, una salsa
+   * madre. Lo que sale directo al plato descuenta sus insumos cuando la comanda
+   * entra a cocina, no acá.
+   */
+  async function producir() {
+    const cantidad = Number(cantProducir);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      setError("Indicá cuántas unidades vas a producir.");
+      return;
+    }
+    setProduciendo(true);
+    setError(null);
+    setAvisoProduccion(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/recetas/${id}/producir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cantidad }),
+      });
+      const body = await res.json();
+      if (!res.ok || body?.success === false) {
+        setError(body?.error ?? "No se pudo producir.");
+        return;
+      }
+      const d = body.data;
+      const faltantes: Array<{ insumo_nombre: string; stock_resultante: number }> = d.faltantes ?? [];
+      setAvisoProduccion(
+        `Se produjeron ${d.cantidad_producida} de ${d.producto_nombre}. Stock: ${d.stock_resultante}. ` +
+          `Costo unitario: ${fmtGs(d.costo_unitario)}.` +
+          (faltantes.length > 0
+            ? ` Atención: ${faltantes.map((f) => `${f.insumo_nombre} quedó en ${f.stock_resultante}`).join(", ")}.`
+            : "")
+      );
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error de red");
+    } finally {
+      setProduciendo(false);
+    }
+  }
 
   async function saveHeader() {
     if (!receta) return;
@@ -270,6 +320,68 @@ export default function EditarRecetaPage() {
           <Trash2 className="h-4 w-4" /> Eliminar receta
         </button>
       </div>
+
+      {/* Cómo esta receta toca el inventario. Es lo primero que hay que
+          entender de la pantalla, así que va antes que los números. */}
+      {producto && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {producto.controla_stock === false ? (
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800">Se arma al momento del pedido</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {producto.nombre} no lleva stock propio: se vende siempre que haya insumos. Los de
+                  esta receta se descuentan solos cuando la comanda entra a cocina.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#4FAEB2]/12 px-3 py-1 text-xs font-semibold text-[#2F6E71] ring-1 ring-inset ring-[#4FAEB2]/25">
+                Consumo automático
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">Se produce y se guarda</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {producto.nombre} lleva stock propio ({producto.stock_actual} {producto.unidad_medida ?? "u."}).
+                  Al producir se descuentan los insumos y se suma lo fabricado.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-end gap-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Cantidad
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step="any"
+                    value={cantProducir}
+                    onChange={(e) => setCantProducir(e.target.value)}
+                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={producir}
+                  disabled={produciendo || items.length === 0}
+                  title={items.length === 0 ? "Cargá al menos un insumo antes de producir" : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChefHat className="h-4 w-4" aria-hidden />
+                  {produciendo ? "Produciendo…" : "Producir"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {avisoProduccion && (
+        <div className="mb-4 rounded-xl border border-[#4FAEB2]/25 bg-[#4FAEB2]/8 px-4 py-3 text-sm text-[#2F6E71]">
+          {avisoProduccion}
+        </div>
+      )}
 
       {/* Costeo summary */}
       {costeo && (

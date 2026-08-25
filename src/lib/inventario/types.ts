@@ -1,6 +1,14 @@
 export type MetodoValuacion = "CPP" | "FIFO" | "LIFO";
 export type TipoMovimiento = "ENTRADA" | "SALIDA" | "AJUSTE";
-export type OrigenMovimiento = "compra" | "venta" | "ajuste_manual" | "inventario_inicial";
+export type OrigenMovimiento =
+  | "compra"
+  | "venta"
+  | "ajuste_manual"
+  | "inventario_inicial"
+  /** Insumo descontado por la receta de un producto que entró a cocina. */
+  | "consumo_receta"
+  /** Producto fabricado a partir de su receta (botón Producir). */
+  | "produccion";
 
 export interface Producto {
   id: string;

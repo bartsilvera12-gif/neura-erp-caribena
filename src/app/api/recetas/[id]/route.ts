@@ -6,6 +6,7 @@ import {
   deleteReceta,
   getReceta,
   getRecetaCosteo,
+  getProductoDeReceta,
   listRecetaItems,
   updateReceta,
 } from "@/lib/recetas/recetas-pg";
@@ -21,11 +22,16 @@ export async function GET(request: NextRequest, { params }: RouteCtx) {
     if (!receta) {
       return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
     }
-    const [items, costeo] = await Promise.all([
+    const [items, costeo, producto] = await Promise.all([
       listRecetaItems(ctx.supabase, id),
       getRecetaCosteo(ctx.supabase, id),
+      getProductoDeReceta(
+        ctx.supabase,
+        ctx.auth.empresa_id,
+        (receta as { producto_id: string }).producto_id
+      ),
     ]);
-    return NextResponse.json(successResponse({ receta, items, costeo }));
+    return NextResponse.json(successResponse({ receta, items, costeo, producto }));
   } catch (err) {
     console.error("[/api/recetas/[id] GET]", err instanceof Error ? err.message : err);
     return NextResponse.json(errorResponse("No se pudo cargar la receta."), { status: 500 });

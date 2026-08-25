@@ -2,7 +2,7 @@
 
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { ChefHat, ArrowLeft, Loader2 } from "lucide-react";
@@ -17,6 +17,10 @@ type Producto = {
 
 export default function NuevaRecetaPage() {
   const router = useRouter();
+  // Se llega acá desde el botón Receta de un producto en Inventario, que pasa
+  // el id. Sin eso, el usuario tenía que buscar el producto a mano en una
+  // lista que además esconde los que ya tienen receta.
+  const productoParam = useSearchParams().get("producto");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [productoId, setProductoId] = useState("");
   const [nombre, setNombre] = useState("");
@@ -40,9 +44,27 @@ export default function NuevaRecetaPage() {
         if (res.ok && body?.success) {
           const list = (body.data?.productos ?? []) as Producto[];
           setProductos(list);
-          if (list.length > 0) {
-            setProductoId(list[0].id);
-            setRendUnidad(list[0].unidad_medida ?? "");
+
+          const pedido = productoParam ? list.find((p) => p.id === productoParam) : null;
+
+          // Que no esté en la lista significa que YA tiene receta: en vez de un
+          // formulario vacío, lo llevamos a la que existe.
+          if (productoParam && !pedido) {
+            const rec = await fetchWithSupabaseSession("/api/recetas", { cache: "no-store" });
+            const recBody = await rec.json();
+            const existente = (recBody?.data?.recetas ?? []).find(
+              (r: { producto_id: string }) => r.producto_id === productoParam
+            ) as { id: string } | undefined;
+            if (existente) {
+              router.replace(`/dashboard/recetas/${existente.id}`);
+              return;
+            }
+          }
+
+          const elegido = pedido ?? list[0];
+          if (elegido) {
+            setProductoId(elegido.id);
+            setRendUnidad(elegido.unidad_medida ?? "");
           }
         } else {
           setError(body?.error ?? "Error al cargar productos");
@@ -54,7 +76,7 @@ export default function NuevaRecetaPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [productoParam, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

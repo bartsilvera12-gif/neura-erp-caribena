@@ -1,3 +1,4 @@
+import { consumirInsumosDeComanda } from "@/lib/recetas/server/consumo-pg";
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
 import type { ComandaCard, ComandaHistorialFiltros, ComandaItem, EstadoComanda } from "@/lib/comandas/types";
 
@@ -242,8 +243,17 @@ export async function getComandaDetallePg(
 
 /**
  * Registra una impresión (o reimpresión): incrementa print_count, marca la
- * comanda como `impresa` y guarda printed_at/printed_by. NO toca mesa, venta,
- * caja ni stock.
+ * comanda como `impresa` y guarda printed_at/printed_by. No toca mesa, venta
+ * ni caja.
+ *
+ * Sí descuenta los insumos de las recetas: imprimir es el momento en que el
+ * pedido entra a cocina y se empieza a usar la mercadería. El descuento es
+ * idempotente (ver consumirInsumosDeComanda), así que reimprimir por un papel
+ * trabado no vuelve a descontar.
+ *
+ * Si el descuento falla, la impresión igual se registra: dejar a la cocina sin
+ * su ticket por un problema de inventario sería el peor de los dos errores. El
+ * fallo queda en el log para revisarlo.
  */
 export async function registrarImpresionPg(
   schema: string,
@@ -269,6 +279,25 @@ export async function registrarImpresionPg(
     .eq("empresa_id", empresaId).eq("id", comandaId)
     .select(COMANDA_COLS).single();
   if (upd.error) throw new Error(upd.error.message);
+
+  try {
+    const consumo = await consumirInsumosDeComanda(schema, empresaId, comandaId, {
+      id: usuarioId,
+      nombre: null,
+    });
+    if (consumo.faltantes.length > 0) {
+      console.warn("[comandas] insumos en negativo tras la comanda", {
+        comandaId,
+        faltantes: consumo.faltantes.map((f) => `${f.insumo_nombre}: ${f.stock_resultante}`),
+      });
+    }
+  } catch (e) {
+    console.error("[comandas] no se pudieron descontar los insumos", {
+      comandaId,
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   const cards = await armarCards(sb, empresaId, [upd.data as unknown as ComandaRow]);
   return cards[0];
 }
