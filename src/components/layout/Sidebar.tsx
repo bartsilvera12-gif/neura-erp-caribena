@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, Percent, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
+import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { getCurrentUser } from "@/lib/auth";
@@ -123,7 +123,6 @@ const MENU_STRUCTURE: MenuItem[] = [
   },
   { key: "gastos", slug: "gastos", label: "Gastos", href: "/gastos", icon: Receipt },
   // Pagos oculto en instancia Caribeña (no usa este módulo).
-  { key: "comisiones", slug: "comisiones", label: "Comisiones", href: "/comisiones", icon: Percent },
   {
     key: "notas_credito",
     slug: "notas_credito",
@@ -142,8 +141,6 @@ const MENU_STRUCTURE: MenuItem[] = [
       { label: "Entidades bancarias", href: "/configuracion/entidades-bancarias" },
     ],
   },
-  { key: "planes", slug: "planes", label: "Planes", href: "/planes", icon: FileText },
-  { key: "gestion-clientes", slug: "gestion-clientes", label: "Gestión Clientes", href: "/gestion-clientes", icon: Users },
   { key: "crm", slug: "crm", label: "CRM Funnel", href: "/crm", icon: Sparkles },
   { key: "marketing", slug: "marketing", label: "Marketing Legacy", href: "/marketing", icon: Megaphone },
   { key: "marketing_ops", slug: "marketing_ops", label: "Marketing Ops", href: "/dashboard/marketing-ops", icon: Megaphone },
@@ -177,9 +174,9 @@ const MENU_SECTIONS: { label: string; keys: string[] }[] = [
   { label: "General",     keys: ["dashboard"] },
   { label: "Omnicanal",   keys: ["conversaciones", "historial-omnicanal", "conversaciones-finalizadas", "monitoreo"] },
   { label: "Salón",       keys: ["mesas", "comandas", "pedidos-para-llevar", "proyectos"] },
-  { label: "Comercial",   keys: ["ventas", "clientes", "gestion-clientes", "crm"] },
+  { label: "Comercial",   keys: ["ventas", "clientes", "crm"] },
   { label: "Operaciones", keys: ["inventario", "recetas", "compras", "gastos"] },
-  { label: "Contable",    keys: ["reportes", "comisiones", "notas_credito"] },
+  { label: "Contable",    keys: ["reportes", "notas_credito"] },
   { label: "Marketing",   keys: ["campanas", "marketing", "marketing_ops", "sorteos"] },
   { label: "Administración", keys: ["usuarios", "configuracion", "planes"] },
 ];

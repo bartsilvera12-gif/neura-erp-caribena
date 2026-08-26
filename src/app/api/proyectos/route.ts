@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getChatServiceClientForEmpresa } from "@/app/api/chat/_chat-service-client";
+import { getChatServiceClientForEmpresa } from "@/lib/supabase/chat-service-role-empresa";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { enrichProyectosRows } from "@/lib/proyectos/enrich-proyectos";
 import { insertHistorialCambioEstado } from "@/lib/proyectos/historial-actions";

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getChatServiceClientForEmpresa } from "@/app/api/chat/_chat-service-client";
+import { getChatServiceClientForEmpresa } from "@/lib/supabase/chat-service-role-empresa";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { requireProyectosApiAccess } from "@/lib/proyectos/proyectos-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service-admin";

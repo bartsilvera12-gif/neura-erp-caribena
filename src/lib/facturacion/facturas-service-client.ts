@@ -2,7 +2,7 @@ import {
   getUserAndEmpresa,
   type UsuarioConEmpresa,
 } from "@/lib/middleware/auth";
-import { createTenantPgChatSupabaseShim } from "@/lib/chat/tenant-pg-chat-supabase-shim";
+import { createTenantPgChatSupabaseShim } from "@/lib/supabase/tenant-pg-supabase-shim";
 import {
   createServiceRoleClientForEmpresa,
   fetchDataSchemaForEmpresaId,

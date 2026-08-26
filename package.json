@@ -59,11 +59,9 @@
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
-    "@fontsource/inter": "^5.2.8",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.0",
     "@xmldom/xmldom": "^0.9.9",
-    "fontkit": "^2.0.4",
     "framer-motion": "^12.36.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.577.0",

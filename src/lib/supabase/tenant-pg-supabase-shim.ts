@@ -1,8 +1,11 @@
 import type { Pool } from "pg";
-import type { SupabaseAdmin } from "@/lib/chat/types";
 import type { AppSupabaseClient } from "@/lib/supabase/schema";
+
 import { quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
+
+/** Alias histórico: en el módulo de chat este tipo se llamaba SupabaseAdmin. */
+type SupabaseAdmin = AppSupabaseClient;
 
 /**
  * Shim mínimo PostgREST→Postgres para tablas chat_* / sorteos en schemas tenant no expuestos.

@@ -14,7 +14,7 @@ import { createServiceRoleClientForEmpresa } from "@/lib/supabase/empresa-data-s
 import {
   isUsuariosOmnicanalTenantUnavailableError,
   sanitizePostgrestErrorForLog,
-} from "@/lib/chat/postgrest-schema-error";
+} from "@/lib/supabase/postgrest-schema-error";
 
 const ERP_ROLES = ["usuario", "supervisor", "administrador"] as const;
 
