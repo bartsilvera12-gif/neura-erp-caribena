@@ -9,6 +9,7 @@ import {
 import type {
   ComandaEnvioInfo,
   ComandaEnvioResult,
+  EstadoMesa,
   Mesa,
   MesaConResumen,
   MesaDetalle,
@@ -1079,4 +1080,115 @@ export async function cancelarSesionPLPg(
     .update({ estado: "cancelada", cerrada_at: new Date().toISOString() })
     .eq("empresa_id", empresaId).eq("id", sesionId).is("venta_id", null);
   if (upd.error) throw new Error(upd.error.message);
+}
+
+/**
+ * Edita número y nombre de una mesa.
+ *
+ * El número es único por empresa, así que se valida antes para poder devolver un
+ * mensaje entendible en vez del error crudo de la base.
+ */
+export async function actualizarMesaPg(
+  schema: string,
+  empresaId: string,
+  mesaId: string,
+  patch: { numero?: number; nombre?: string | null; activo?: boolean }
+): Promise<Mesa> {
+  const sb = createServiceRoleClientWithDbSchema(schema);
+
+  const actualQ = await sb
+    .from("mesas")
+    .select("id, numero, nombre, estado, activo")
+    .eq("empresa_id", empresaId)
+    .eq("id", mesaId)
+    .maybeSingle();
+  if (actualQ.error) throw new Error(actualQ.error.message);
+  if (!actualQ.data) throw new Error("Mesa no encontrada.");
+  const actual = actualQ.data as { numero: unknown; activo: unknown };
+
+  const cambios: Record<string, unknown> = {};
+
+  if (patch.numero !== undefined && patch.numero !== num(actual.numero)) {
+    if (!Number.isInteger(patch.numero) || patch.numero < 1 || patch.numero > 9999) {
+      throw new Error("El número de mesa debe ser un entero entre 1 y 9999.");
+    }
+    const ocupadoQ = await sb
+      .from("mesas")
+      .select("id")
+      .eq("empresa_id", empresaId)
+      .eq("numero", patch.numero)
+      .neq("id", mesaId)
+      .limit(1);
+    if (ocupadoQ.error) throw new Error(ocupadoQ.error.message);
+    if ((ocupadoQ.data ?? []).length > 0) {
+      throw new Error(`Ya existe la mesa ${patch.numero}.`);
+    }
+    cambios.numero = patch.numero;
+  }
+
+  if (patch.nombre !== undefined) cambios.nombre = patch.nombre?.trim() || null;
+
+  if (patch.activo !== undefined && patch.activo !== actual.activo) {
+    cambios.activo = patch.activo;
+    // El estado acompaña: una mesa dada de baja no puede seguir figurando libre.
+    cambios.estado = patch.activo ? "libre" : "inactiva";
+  }
+
+  if (Object.keys(cambios).length === 0) {
+    return {
+      id: mesaId,
+      numero: num(actual.numero),
+      nombre: (actualQ.data as { nombre: string | null }).nombre,
+      estado: (actualQ.data as { estado: EstadoMesa }).estado,
+      activo: !!actual.activo,
+    };
+  }
+
+  cambios.updated_at = new Date().toISOString();
+  const updQ = await sb
+    .from("mesas")
+    .update(cambios)
+    .eq("empresa_id", empresaId)
+    .eq("id", mesaId)
+    .select("id, numero, nombre, estado, activo")
+    .maybeSingle();
+  if (updQ.error) throw new Error(updQ.error.message);
+  if (!updQ.data) throw new Error("Mesa no encontrada.");
+  const r = updQ.data as { id: string; numero: unknown; nombre: string | null; estado: EstadoMesa; activo: boolean };
+  return { id: r.id, numero: num(r.numero), nombre: r.nombre, estado: r.estado, activo: !!r.activo };
+}
+
+export interface BorradoMesa {
+  borrada: boolean;
+  /** Sesiones que impiden el borrado. > 0 obliga a dar de baja en su lugar. */
+  sesiones: number;
+}
+
+/**
+ * Borra una mesa que nunca se usó.
+ *
+ * Importante: mesa_sesiones.mesa_id tiene ON DELETE CASCADE. Borrar una mesa con
+ * historial se llevaría en silencio sus cuentas —incluidas las ya facturadas—,
+ * así que se cuenta primero y, si hay aunque sea una, no se borra: el llamador
+ * decide si darla de baja.
+ */
+export async function eliminarMesaPg(
+  schema: string,
+  empresaId: string,
+  mesaId: string
+): Promise<BorradoMesa> {
+  const sb = createServiceRoleClientWithDbSchema(schema);
+
+  const sesQ = await sb
+    .from("mesa_sesiones")
+    .select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId)
+    .eq("mesa_id", mesaId);
+  if (sesQ.error) throw new Error(sesQ.error.message);
+  const sesiones = sesQ.count ?? 0;
+  if (sesiones > 0) return { borrada: false, sesiones };
+
+  const delQ = await sb.from("mesas").delete().eq("empresa_id", empresaId).eq("id", mesaId);
+  if (delQ.error) throw new Error(delQ.error.message);
+  return { borrada: true, sesiones: 0 };
 }

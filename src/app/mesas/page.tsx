@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Plus, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { confirmar } from "@/components/ui/ConfirmDialog";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { crearMesas, getMesasConUltimoNumero } from "@/lib/mesas/storage";
+import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import type { EstadoMesa, MesaConResumen } from "@/lib/mesas/types";
 
 function formatGs(v: number) {
@@ -28,6 +31,7 @@ const ESTADO_STYLE: Record<EstadoMesa, MesaStyle> = {
 
 export default function MesasPage() {
   const router = useRouter();
+  const { isAdmin } = useIsAdmin();
   const [mesas, setMesas] = useState<MesaConResumen[]>([]);
   const [ultimoNumero, setUltimoNumero] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -40,6 +44,77 @@ export default function MesasPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
   const [avisoAlta, setAvisoAlta] = useState<string | null>(null);
+
+  // Edición de una mesa concreta
+  const [editando, setEditando] = useState<MesaConResumen | null>(null);
+  const [edNumero, setEdNumero] = useState("");
+  const [edNombre, setEdNombre] = useState("");
+  const [edGuardando, setEdGuardando] = useState(false);
+  const [edError, setEdError] = useState<string | null>(null);
+
+  function abrirEdicion(m: MesaConResumen) {
+    setEditando(m);
+    setEdNumero(String(m.mesa.numero));
+    setEdNombre(m.mesa.nombre ?? "");
+    setEdError(null);
+  }
+
+  async function guardarEdicion() {
+    if (!editando || edGuardando) return;
+    setEdGuardando(true);
+    setEdError(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/mesas/${editando.mesa.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero: parseInt(edNumero, 10), nombre: edNombre.trim() || null }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        setEdError(body?.error ?? "No se pudo guardar.");
+        return;
+      }
+      setEditando(null);
+      await recargar();
+    } catch (e) {
+      setEdError(e instanceof Error ? e.message : "Error de red");
+    } finally {
+      setEdGuardando(false);
+    }
+  }
+
+  /**
+   * Borra la mesa. Si ya tuvo cuentas, el servidor responde 409: borrarla
+   * arrastraría ese historial (la relación es ON DELETE CASCADE), así que se
+   * ofrece darla de baja.
+   */
+  async function eliminarMesa(m: MesaConResumen) {
+    const nombre = m.mesa.nombre ? `${m.mesa.numero} — ${m.mesa.nombre}` : `${m.mesa.numero}`;
+    if (!(await confirmar(`¿Borrar la mesa ${nombre}?`, { confirmLabel: "Borrar" }))) return;
+    setEdError(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/mesas/${m.mesa.id}`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+
+      if (res.status === 409 && body?.puede_desactivar) {
+        const baja = await confirmar(`${body.error}\n\n¿Querés darla de baja?`, {
+          confirmLabel: "Dar de baja",
+          destructivo: false,
+        });
+        if (!baja) return;
+        const res2 = await fetchWithSupabaseSession(`/api/mesas/${m.mesa.id}?desactivar=1`, { method: "DELETE" });
+        const body2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || body2?.success === false) setEdError(body2?.error ?? "No se pudo dar de baja.");
+        else { setEditando(null); await recargar(); }
+        return;
+      }
+
+      if (!res.ok || body?.success === false) setEdError(body?.error ?? "No se pudo borrar la mesa.");
+      else { setEditando(null); await recargar(); }
+    } catch (e) {
+      setEdError(e instanceof Error ? e.message : "Error de red");
+    }
+  }
 
   const recargar = () =>
     getMesasConUltimoNumero().then((d) => {
@@ -150,11 +225,22 @@ export default function MesasPage() {
             const st = ESTADO_STYLE[m.mesa.estado];
             const activa = !!m.sesion;
             return (
+              <div key={m.mesa.id} className="relative">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => abrirEdicion(m)}
+                  className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white/90 text-slate-400 shadow-sm backdrop-blur transition-colors hover:border-[#4FAEB2]/50 hover:text-[#3F8E91]"
+                  aria-label={`Editar mesa ${m.mesa.numero}`}
+                  title="Editar o borrar"
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              )}
               <button
-                key={m.mesa.id}
                 type="button"
                 onClick={() => router.push(`/mesas/${m.mesa.id}`)}
-                className={`group flex min-h-[150px] flex-col items-center justify-center gap-2 rounded-3xl border p-5 text-center shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md active:scale-[0.98] ${st.card}`}
+                className={`group flex min-h-[150px] w-full flex-col items-center justify-center gap-2 rounded-3xl border p-5 text-center shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md active:scale-[0.98] ${st.card}`}
               >
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-extrabold transition-transform duration-200 group-hover:scale-105 ${st.tile}`}>
                   {m.mesa.numero}
@@ -173,6 +259,7 @@ export default function MesasPage() {
                   <span className="mt-0.5 text-[11px] text-slate-300">Tocá para abrir</span>
                 )}
               </button>
+              </div>
             );
           })}
         </div>
@@ -285,6 +372,112 @@ export default function MesasPage() {
                 <Plus className="h-4 w-4" aria-hidden />
                 {guardando ? "Creando…" : "Crear"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editar / borrar una mesa */}
+      {editando && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={() => !edGuardando && setEditando(null)}
+        >
+          <div
+            className="my-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none block h-1 bg-gradient-to-r from-[#4FAEB2] via-[#4FAEB2]/80 to-[#4FAEB2]/30"
+            />
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-semibold text-slate-800">
+                Mesa {editando.mesa.numero}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setEditando(null)}
+                disabled={edGuardando}
+                className="text-slate-400 transition-colors hover:text-slate-700 disabled:opacity-50"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Número
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={edNumero}
+                    onChange={(e) => setEdNumero(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Nombre (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={edNombre}
+                    onChange={(e) => setEdNombre(e.target.value)}
+                    placeholder="Ej: Terraza"
+                    maxLength={60}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                  />
+                </div>
+              </div>
+
+              {editando.sesion && (
+                <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  Esta mesa tiene una cuenta abierta. Cambiarle el número ahora puede confundir al
+                  mozo que la está atendiendo.
+                </p>
+              )}
+
+              {edError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {edError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => eliminarMesa(editando)}
+                disabled={edGuardando}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                Borrar
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditando(null)}
+                  disabled={edGuardando}
+                  className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/60 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardarEdicion}
+                  disabled={edGuardando || !edNumero.trim()}
+                  className="rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {edGuardando ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
