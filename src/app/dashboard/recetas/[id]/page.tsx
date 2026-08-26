@@ -101,9 +101,14 @@ export default function EditarRecetaPage() {
 
   // form add item
   const [newInsumoId, setNewInsumoId] = useState("");
-  const [newCantidad, setNewCantidad] = useState<number>(1);
+  const [newCantidad, setNewCantidad] = useState("1");
+  /** Espejo de texto del rendimiento: el campo tiene que poder quedar vacío
+   *  mientras se lo edita, cosa que un estado numérico no permite. */
+  const [rendimientoTxt, setRendimientoTxt] = useState("1");
   const [newUnidad, setNewUnidad] = useState("");
-  const [newMerma, setNewMerma] = useState<number>(0);
+  // La merma se pide en porcentaje, que es como la piensa el cocinero y como
+  // la muestra la tabla de abajo. En la base vive como fracción (0–0.99).
+  const [newMermaPct, setNewMermaPct] = useState("");
   const [addingItem, setAddingItem] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -118,6 +123,7 @@ export default function EditarRecetaPage() {
       return;
     }
     setReceta(recBody.data.receta);
+    setRendimientoTxt(String(recBody.data.receta?.rendimiento_cantidad ?? 1));
     setItems(recBody.data.items ?? []);
     setCosteo(recBody.data.costeo ?? null);
     setProducto((recBody.data.producto ?? null) as Producto | null);
@@ -213,7 +219,7 @@ export default function EditarRecetaPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nombre: receta.nombre,
-        rendimiento_cantidad: receta.rendimiento_cantidad,
+        rendimiento_cantidad: parseFloat(rendimientoTxt.replace(",", ".")) || 1,
         rendimiento_unidad: receta.rendimiento_unidad,
         notas: receta.notas,
         activa: receta.activa,
@@ -228,7 +234,9 @@ export default function EditarRecetaPage() {
   }
 
   async function addItem() {
-    if (!newInsumoId || newCantidad <= 0) return;
+    const cantidad = parseFloat(newCantidad.replace(",", "."));
+    if (!newInsumoId || !Number.isFinite(cantidad) || cantidad <= 0) return;
+    const mermaPct = parseFloat(newMermaPct.replace(",", ".")) || 0;
     setAddingItem(true);
     try {
       const res = await fetchWithSupabaseSession(`/api/recetas/${id}/items`, {
@@ -236,9 +244,9 @@ export default function EditarRecetaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           insumo_producto_id: newInsumoId,
-          cantidad: Number(newCantidad),
+          cantidad,
           unidad_medida: newUnidad.trim() || null,
-          merma_pct: Number(newMerma) || 0,
+          merma_pct: Math.min(Math.max(mermaPct, 0), 99) / 100,
         }),
       });
       const body = await res.json();
@@ -247,9 +255,9 @@ export default function EditarRecetaPage() {
         return;
       }
       setNewInsumoId("");
-      setNewCantidad(1);
+      setNewCantidad("1");
       setNewUnidad("");
-      setNewMerma(0);
+      setNewMermaPct("");
       await refresh();
     } finally {
       setAddingItem(false);
@@ -433,12 +441,12 @@ export default function EditarRecetaPage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Rendimiento</label>
             <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={receta.rendimiento_cantidad}
-              onChange={(e) => setReceta({ ...receta, rendimiento_cantidad: Number(e.target.value) || 1 })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              type="text"
+              inputMode="decimal"
+              value={rendimientoTxt}
+              onChange={(e) => setRendimientoTxt(e.target.value)}
+              placeholder="Ej: 1"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm tabular-nums"
             />
           </div>
           <div>
@@ -561,40 +569,53 @@ export default function EditarRecetaPage() {
                   </option>
                 ))}
               </SelectField>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={newCantidad}
-                onChange={(e) => setNewCantidad(Number(e.target.value))}
-                placeholder="Cantidad"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-              <SelectField
-                value={newUnidad}
-                onChange={(e) => setNewUnidad(e.target.value)}
-                aria-label="Unidad del insumo"
-              >
-                {unidadesCompatibles(insumoSeleccionado?.unidad_medida).map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </SelectField>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="0.99"
-                value={newMerma}
-                onChange={(e) => setNewMerma(Number(e.target.value))}
-                placeholder="Merma (0-0.99)"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Cantidad
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={newCantidad}
+                  onChange={(e) => setNewCantidad(e.target.value)}
+                  placeholder="Ej: 200"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Unidad
+                </label>
+                <SelectField
+                  value={newUnidad}
+                  onChange={(e) => setNewUnidad(e.target.value)}
+                  aria-label="Unidad del insumo"
+                >
+                  {unidadesCompatibles(insumoSeleccionado?.unidad_medida).map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Merma %
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={newMermaPct}
+                  onChange={(e) => setNewMermaPct(e.target.value)}
+                  placeholder="Ej: 5"
+                  title="Cuánto se pierde al preparar: recortes, cáscara, evaporación."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                />
+              </div>
               <button
                 onClick={addItem}
-                disabled={addingItem || !newInsumoId || newCantidad <= 0}
-                className="md:col-span-5 inline-flex items-center justify-center gap-1 rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                disabled={addingItem || !newInsumoId || !(parseFloat(newCantidad.replace(",", ".")) > 0)}
+                className="md:col-span-5 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" /> {addingItem ? "Agregando…" : "Agregar insumo"}
               </button>
