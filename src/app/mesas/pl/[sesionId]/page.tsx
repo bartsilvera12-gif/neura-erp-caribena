@@ -5,6 +5,7 @@ import { AlertTriangle, Pizza, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
+import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
 import {
   actualizarItemMesa, agregarItemPL, cancelarPL,
@@ -114,6 +115,17 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
     if (!r.success) { setItems(prev); setError(r.error); }
   }
 
+  /** Nota de cocina de un ítem ya cargado ("sin aceitunas"). */
+  async function onCambiarNota(item: MesaSesionItem, observacion: string | null): Promise<boolean> {
+    if (item.id.startsWith("tmp-")) return false;
+    setError(null);
+    const prev = items;
+    setItems((p) => p.map((i) => (i.id === item.id ? { ...i, observacion } : i)));
+    const r = await actualizarItemMesa(item.id, { observacion });
+    if (!r.success) { setItems(prev); setError(r.error); return false; }
+    return true;
+  }
+
   async function onCancelItem(item: MesaSesionItem) {
     if (item.id.startsWith("tmp-")) return;
     if (item.estado === "enviado" && !(await confirmar("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?"))) return;
@@ -197,8 +209,12 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
                     {it.es_mitad_mitad && it.mitad_1_nombre && it.mitad_2_nombre && (
                       <p className="text-xs text-amber-700">½ {it.mitad_1_nombre} + ½ {it.mitad_2_nombre}</p>
                     )}
-                    {it.observacion && <p className="text-xs text-amber-700">— {it.observacion}</p>}
                     <p className="text-xs text-slate-400">{formatGs(it.precio_unitario)} c/u</p>
+                    <NotaCocina
+                      valor={it.observacion}
+                      editable={!porCobrar && !enviado && !tmp}
+                      onGuardar={(texto) => onCambiarNota(it, texto)}
+                    />
                     {!porCobrar && !enviado && !tmp && (
                       <div className="mt-1 flex items-center gap-2">
                         <button type="button" onClick={() => onChangeQty(it, -1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">−</button>
