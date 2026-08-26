@@ -90,7 +90,11 @@ const MENU_STRUCTURE: MenuItem[] = [
   { key: "comandas", slug: "comandas", label: "Comandas", href: "/comandas", icon: ClipboardList },
   { key: "pedidos-para-llevar", slug: "comandas", label: "Pedidos para llevar", href: "/pedidos-para-llevar", icon: ClipboardList },
   { key: "ventas", slug: "ventas", label: "Caja", href: "/ventas", icon: ShoppingCart },
-  { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3 },
+  { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3, children: [
+    { label: "Compras", href: "/reportes/compras" },
+    { label: "Cierres de caja", href: "/reportes/cierres-caja" },
+    { label: "Conciliación bancaria", href: "/reportes/conciliacion-bancaria" },
+  ] },
   {
     key: "proyectos",
     slug: "proyectos",

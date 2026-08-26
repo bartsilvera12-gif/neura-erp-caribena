@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Receipt, Landmark } from "lucide-react";
+import { BarChart3, Landmark, Receipt, ShoppingBag } from "lucide-react";
+import { card } from "@/lib/ui/estilos";
 
 function ReportCard({
   href, titulo, descripcion, boton, icon: Icon,
@@ -9,37 +10,40 @@ function ReportCard({
   href: string; titulo: string; descripcion: string; boton: string; icon: typeof BarChart3;
 }) {
   return (
-    <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-[#4FAEB2]/15 transition-shadow hover:shadow-md">
+    <Link
+      href={href}
+      className={`${card} group flex flex-col p-5 transition-shadow hover:shadow-md`}
+    >
       <div className="flex items-center gap-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#4FAEB2]/10 text-[#0EA5E9]">
-          <Icon className="h-5 w-5" />
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#4FAEB2]/20 bg-gradient-to-br from-[#4FAEB2]/12 to-[#4FAEB2]/5 text-[#3F8E91]">
+          <Icon className="h-5 w-5" aria-hidden />
         </span>
         <h2 className="text-base font-semibold text-slate-800">{titulo}</h2>
       </div>
       <p className="mt-3 flex-1 text-sm text-slate-500">{descripcion}</p>
-      <Link
-        href={href}
-        className="mt-4 inline-flex items-center justify-center rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#0284C7]"
-      >
-        {boton}
-      </Link>
-    </div>
+      <span className="mt-4 text-sm font-semibold text-[#3F8E91] group-hover:underline">
+        {boton} →
+      </span>
+    </Link>
   );
 }
 
 export default function ReportesPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-[#4FAEB2]" style={{ boxShadow: "0 0 0 3px rgba(79,174,178,0.18)" }} />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4FAEB2]">Zentra · Operaciones</p>
-        </div>
-        <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Reportes</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Cierres de caja y estado de cuenta de la lomitería</p>
+        <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
+        <p className="mt-1 text-sm text-slate-500">Caja, compras y control bancario.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ReportCard
+          href="/reportes/compras"
+          titulo="Compras"
+          descripcion="Qué se compró y a quién, con el desglose por proveedor y por producto, y cuánto quedó a crédito."
+          boton="Ver compras"
+          icon={ShoppingBag}
+        />
         <ReportCard
           href="/reportes/cierres-caja"
           titulo="Cierres de caja"
@@ -49,7 +53,7 @@ export default function ReportesPage() {
         />
         <ReportCard
           href="/reportes/estado-cuenta"
-          titulo="Estado de cuenta de la lomitería"
+          titulo="Estado de cuenta"
           descripcion="Resumen financiero por cajas cerradas."
           boton="Ver estado"
           icon={Receipt}

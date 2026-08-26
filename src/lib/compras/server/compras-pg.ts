@@ -389,3 +389,141 @@ export async function deleteCompraConReversa(
     client.release();
   }
 }
+
+// ─── Reporte de compras ────────────────────────────────────────────────────
+
+export interface ReporteComprasFiltro {
+  /** "YYYY-MM-DD". Inclusive. */
+  desde: string | null;
+  /** "YYYY-MM-DD". Inclusive: se compara contra el día completo. */
+  hasta: string | null;
+  proveedorId: string | null;
+}
+
+export interface ReporteCompras {
+  resumen: {
+    ordenes: number;
+    total: number;
+    gravada: number;
+    iva: number;
+    contado: number;
+    credito: number;
+    proveedores: number;
+  };
+  por_proveedor: Array<{ proveedor_id: string; proveedor: string; ordenes: number; total: number }>;
+  por_producto: Array<{ producto: string; cantidad: number; total: number; costo_promedio: number }>;
+  por_dia: Array<{ dia: string; total: number; ordenes: number }>;
+  detalle: CompraRow[];
+}
+
+/**
+ * Agregados de compras para el reporte.
+ *
+ * Las sumas se hacen en la base y no en el cliente: son los mismos datos
+ * recorridos cuatro veces con cortes distintos, y traerse todas las compras del
+ * año al navegador para sumarlas ahí no escala.
+ *
+ * El rango es inclusivo en los dos extremos. `hasta` se compara contra el día
+ * siguiente porque `fecha` es timestamp: usar `<= hasta` dejaría afuera todo lo
+ * cargado después de la medianoche de ese día.
+ */
+export async function reporteCompras(
+  schemaRaw: string,
+  empresaId: string,
+  f: ReporteComprasFiltro
+): Promise<ReporteCompras> {
+  const schema = assertAllowedChatDataSchema(schemaRaw);
+  const t = quoteSchemaTable(schema, "compras");
+
+  const cond = [`empresa_id = $1::uuid`];
+  const vals: unknown[] = [empresaId];
+  if (f.desde) { vals.push(f.desde); cond.push(`fecha >= $${vals.length}::date`); }
+  if (f.hasta) { vals.push(f.hasta); cond.push(`fecha < ($${vals.length}::date + interval '1 day')`); }
+  if (f.proveedorId) { vals.push(f.proveedorId); cond.push(`proveedor_id = $${vals.length}::uuid`); }
+  const where = `WHERE ${cond.join(" AND ")}`;
+
+  const p = pool();
+
+  const [resumen, porProveedor, porProducto, porDia, detalle] = await Promise.all([
+    p.query<{
+      ordenes: string; total: string; gravada: string; iva: string;
+      contado: string; credito: string; proveedores: string;
+    }>(
+      `SELECT COUNT(*)                                              AS ordenes,
+              COALESCE(SUM(total), 0)                               AS total,
+              COALESCE(SUM(subtotal), 0)                            AS gravada,
+              COALESCE(SUM(monto_iva), 0)                           AS iva,
+              COALESCE(SUM(total) FILTER (WHERE tipo_pago = 'contado'), 0) AS contado,
+              COALESCE(SUM(total) FILTER (WHERE tipo_pago = 'credito'), 0) AS credito,
+              COUNT(DISTINCT proveedor_id)                          AS proveedores
+         FROM ${t} ${where}`,
+      vals
+    ),
+    p.query<{ proveedor_id: string; proveedor: string; ordenes: string; total: string }>(
+      `SELECT proveedor_id,
+              MAX(proveedor_nombre) AS proveedor,
+              COUNT(*)              AS ordenes,
+              COALESCE(SUM(total), 0) AS total
+         FROM ${t} ${where}
+        GROUP BY proveedor_id
+        ORDER BY SUM(total) DESC
+        LIMIT 50`,
+      vals
+    ),
+    p.query<{ producto: string; cantidad: string; total: string; costo_promedio: string }>(
+      `SELECT producto_nombre AS producto,
+              COALESCE(SUM(cantidad), 0) AS cantidad,
+              COALESCE(SUM(total), 0)    AS total,
+              CASE WHEN SUM(cantidad) > 0
+                   THEN SUM(total) / SUM(cantidad)
+                   ELSE 0 END AS costo_promedio
+         FROM ${t} ${where}
+        GROUP BY producto_nombre
+        ORDER BY SUM(total) DESC
+        LIMIT 50`,
+      vals
+    ),
+    p.query<{ dia: string; total: string; ordenes: string }>(
+      `SELECT to_char(fecha, 'YYYY-MM-DD') AS dia,
+              COALESCE(SUM(total), 0)      AS total,
+              COUNT(*)                     AS ordenes
+         FROM ${t} ${where}
+        GROUP BY 1
+        ORDER BY 1`,
+      vals
+    ),
+    p.query<CompraRow>(
+      `SELECT ${COLS} FROM ${t} ${where} ORDER BY fecha DESC LIMIT 500`,
+      vals
+    ),
+  ]);
+
+  const n = (v: unknown) => Number(v) || 0;
+  const r = resumen.rows[0];
+
+  return {
+    resumen: {
+      ordenes: n(r?.ordenes),
+      total: n(r?.total),
+      gravada: n(r?.gravada),
+      iva: n(r?.iva),
+      contado: n(r?.contado),
+      credito: n(r?.credito),
+      proveedores: n(r?.proveedores),
+    },
+    por_proveedor: porProveedor.rows.map((x) => ({
+      proveedor_id: x.proveedor_id,
+      proveedor: x.proveedor ?? "—",
+      ordenes: n(x.ordenes),
+      total: n(x.total),
+    })),
+    por_producto: porProducto.rows.map((x) => ({
+      producto: x.producto ?? "—",
+      cantidad: n(x.cantidad),
+      total: n(x.total),
+      costo_promedio: n(x.costo_promedio),
+    })),
+    por_dia: porDia.rows.map((x) => ({ dia: x.dia, total: n(x.total), ordenes: n(x.ordenes) })),
+    detalle: detalle.rows,
+  };
+}
