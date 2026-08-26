@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { crearMesas, getMesasConUltimoNumero } from "@/lib/mesas/storage";
@@ -57,6 +57,23 @@ export default function MesasPage() {
     setEdNumero(String(m.mesa.numero));
     setEdNombre(m.mesa.nombre ?? "");
     setEdError(null);
+  }
+
+  /** Vuelve a poner en el salón una mesa dada de baja. */
+  async function reactivarMesa(m: MesaConResumen) {
+    setEdError(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/mesas/${m.mesa.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activo: true }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) setEdError(body?.error ?? "No se pudo reactivar.");
+      else { setEditando(null); await recargar(); }
+    } catch (e) {
+      setEdError(e instanceof Error ? e.message : "Error de red");
+    }
   }
 
   async function guardarEdicion() {
@@ -117,7 +134,7 @@ export default function MesasPage() {
   }
 
   const recargar = () =>
-    getMesasConUltimoNumero().then((d) => {
+    getMesasConUltimoNumero(isAdmin).then((d) => {
       setMesas(d.mesas);
       setUltimoNumero(d.ultimoNumero);
       setLoading(false);
@@ -127,7 +144,7 @@ export default function MesasPage() {
   useEffect(() => {
     let cancelled = false;
     const load = () =>
-      getMesasConUltimoNumero().then((d) => {
+      getMesasConUltimoNumero(isAdmin).then((d) => {
         if (!cancelled) { setMesas(d.mesas); setUltimoNumero(d.ultimoNumero); setLoading(false); }
       });
     load();
@@ -135,7 +152,9 @@ export default function MesasPage() {
     // está tipeando en "desde".
     const t = setInterval(() => { if (!modalAbierto) load(); }, 15000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [modalAbierto]);
+    // isAdmin llega despues del primer render: sin el en las dependencias, la
+    // lista se cargaba sin las mesas dadas de baja y no volvia a pedirlas.
+  }, [modalAbierto, isAdmin]);
 
   function abrirModal() {
     setDesde(String(ultimoNumero + 1));
@@ -224,8 +243,9 @@ export default function MesasPage() {
           {mesas.map((m) => {
             const st = ESTADO_STYLE[m.mesa.estado];
             const activa = !!m.sesion;
+            const dadaDeBaja = m.mesa.activo === false;
             return (
-              <div key={m.mesa.id} className="relative">
+              <div key={m.mesa.id} className={`relative ${dadaDeBaja ? "opacity-60" : ""}`}>
               {isAdmin && (
                 <button
                   type="button"
@@ -239,22 +259,29 @@ export default function MesasPage() {
               )}
               <button
                 type="button"
-                onClick={() => router.push(`/mesas/${m.mesa.id}`)}
+                onClick={() => {
+                  if (dadaDeBaja) { abrirEdicion(m); return; }
+                  router.push(`/mesas/${m.mesa.id}`);
+                }}
                 className={`group flex min-h-[150px] w-full flex-col items-center justify-center gap-2 rounded-3xl border p-5 text-center shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md active:scale-[0.98] ${st.card}`}
               >
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-extrabold transition-transform duration-200 group-hover:scale-105 ${st.tile}`}>
                   {m.mesa.numero}
                 </div>
-                <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-slate-400">Mesa</span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-slate-400">
+                  {m.mesa.nombre ? m.mesa.nombre : "Mesa"}
+                </span>
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${st.pill}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-                  {st.label}
+                  {dadaDeBaja ? "Dada de baja" : st.label}
                 </span>
                 {activa ? (
                   <div className="mt-0.5 flex flex-col items-center leading-tight">
                     <span className="text-sm font-bold tabular-nums text-slate-800">{formatGs(m.total)}</span>
                     {m.items_count > 0 && <span className="text-[11px] text-slate-400">{m.items_count} ítem(s)</span>}
                   </div>
+                ) : dadaDeBaja ? (
+                  <span className="mt-0.5 text-[11px] text-slate-400">Fuera del salón</span>
                 ) : (
                   <span className="mt-0.5 text-[11px] text-slate-300">Tocá para abrir</span>
                 )}
@@ -435,6 +462,13 @@ export default function MesasPage() {
                 </div>
               </div>
 
+              {editando.mesa.activo === false && (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  Esta mesa está fuera del salón: no se ve para tomar pedidos, pero conserva su
+                  número y su historial de cuentas. Reactivala para volver a usarla.
+                </p>
+              )}
+
               {editando.sesion && (
                 <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -451,15 +485,27 @@ export default function MesasPage() {
             </div>
 
             <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => eliminarMesa(editando)}
-                disabled={edGuardando}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-                Borrar
-              </button>
+              {editando.mesa.activo === false ? (
+                <button
+                  type="button"
+                  onClick={() => reactivarMesa(editando)}
+                  disabled={edGuardando}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  Reactivar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => eliminarMesa(editando)}
+                  disabled={edGuardando}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                  Borrar
+                </button>
+              )}
               <div className="flex items-center gap-2">
                 <button
                   type="button"

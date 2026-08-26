@@ -29,8 +29,11 @@ export async function getMesas(): Promise<MesaConResumen[]> {
 }
 
 /** Mesas + el número más alto en uso, para proponer desde dónde seguir numerando. */
-export async function getMesasConUltimoNumero(): Promise<{ mesas: MesaConResumen[]; ultimoNumero: number }> {
-  const r = await call<{ mesas: MesaConResumen[]; ultimoNumero: number }>("/api/mesas", "GET");
+export async function getMesasConUltimoNumero(
+  incluirInactivas = false
+): Promise<{ mesas: MesaConResumen[]; ultimoNumero: number }> {
+  const url = incluirInactivas ? "/api/mesas?incluirInactivas=1" : "/api/mesas";
+  const r = await call<{ mesas: MesaConResumen[]; ultimoNumero: number }>(url, "GET");
   return r.success ? { mesas: r.mesas, ultimoNumero: r.ultimoNumero ?? 0 } : { mesas: [], ultimoNumero: 0 };
 }
 

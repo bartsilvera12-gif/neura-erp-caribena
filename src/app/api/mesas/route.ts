@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return NextResponse.json(errorResponse(gate.error), { status: gate.status });
     const auth = gate.auth;
     const schema = await fetchDataSchemaForEmpresaId(auth.empresa_id);
-    const mesas = await listarMesasPg(schema, auth.empresa_id);
+    // Solo el salón necesita ocultar las dadas de baja; la pantalla de
+    // administración las pide para poder reactivarlas.
+    const incluirInactivas = request.nextUrl.searchParams.get("incluirInactivas") === "1";
+    const mesas = await listarMesasPg(schema, auth.empresa_id, incluirInactivas);
     const ultimoNumero = await ultimoNumeroMesaPg(schema, auth.empresa_id);
     return NextResponse.json(successResponse({ mesas, ultimoNumero }));
   } catch (err) {

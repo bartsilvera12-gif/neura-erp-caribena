@@ -153,13 +153,36 @@ export async function crearMesasPg(
   const sb = createServiceRoleClientWithDbSchema(schema);
   const numeros = Array.from({ length: cantidad }, (_, i) => desde + i);
 
-  const yaQ = await sb.from("mesas").select("numero").eq("empresa_id", empresaId).in("numero", numeros);
+  const yaQ = await sb
+    .from("mesas")
+    .select("id, numero, activo")
+    .eq("empresa_id", empresaId)
+    .in("numero", numeros);
   if (yaQ.error) throw new Error(yaQ.error.message);
-  const existentes = ((yaQ.data ?? []) as { numero: unknown }[]).map((r) => num(r.numero));
-  const existentesSet = new Set(existentes);
+  const yaFilas = (yaQ.data ?? []) as { id: string; numero: unknown; activo: unknown }[];
+
+  // Una mesa dada de baja ocupa su número pero no se ve en el salón. Volver a
+  // crearla la reactiva en vez de rebotar con "ya existía": es exactamente lo
+  // que quiere quien la escribe, y con el número invisible no había forma de
+  // entender por qué el alta fallaba.
+  const aReactivar = yaFilas.filter((r) => r.activo === false);
+  if (aReactivar.length > 0) {
+    const reactQ = await sb
+      .from("mesas")
+      .update({ activo: true, estado: "libre", updated_at: new Date().toISOString() })
+      .eq("empresa_id", empresaId)
+      .in("id", aReactivar.map((r) => r.id));
+    if (reactQ.error) throw new Error(reactQ.error.message);
+  }
+  const reactivadas = aReactivar.map((r) => num(r.numero)).sort((a, b) => a - b);
+
+  const existentes = yaFilas.filter((r) => r.activo !== false).map((r) => num(r.numero));
+  const existentesSet = new Set([...existentes, ...reactivadas]);
 
   const aCrear = numeros.filter((n) => !existentesSet.has(n));
-  if (aCrear.length === 0) return { creadas: [], existentes: existentes.sort((a, b) => a - b) };
+  if (aCrear.length === 0) {
+    return { creadas: reactivadas, existentes: existentes.sort((a, b) => a - b) };
+  }
 
   // El nombre sólo aplica al alta individual: en un rango sería el mismo para todas.
   const nombreFinal = aCrear.length === 1 ? (nombre?.trim() || null) : null;
@@ -176,17 +199,31 @@ export async function crearMesasPg(
   );
   if (insQ.error) throw new Error(insQ.error.message);
 
-  return { creadas: aCrear, existentes: existentes.sort((a, b) => a - b) };
+  return {
+    creadas: [...reactivadas, ...aCrear].sort((a, b) => a - b),
+    existentes: existentes.sort((a, b) => a - b),
+  };
 }
 
-export async function listarMesasPg(schema: string, empresaId: string): Promise<MesaConResumen[]> {
+/**
+ * Mesas del salón.
+ *
+ * Por defecto solo las activas, que es lo que el mozo tiene que ver. Con
+ * `incluirInactivas` vienen también las dadas de baja, para que un
+ * administrador entienda por qué un número está ocupado y pueda reactivarlas.
+ */
+export async function listarMesasPg(
+  schema: string,
+  empresaId: string,
+  incluirInactivas = false
+): Promise<MesaConResumen[]> {
   const sb = createServiceRoleClientWithDbSchema(schema);
-  const mQ = await sb
+  let q = sb
     .from("mesas")
     .select(MESA_COLS)
-    .eq("empresa_id", empresaId)
-    .eq("activo", true)
-    .order("numero", { ascending: true });
+    .eq("empresa_id", empresaId);
+  if (!incluirInactivas) q = q.eq("activo", true);
+  const mQ = await q.order("numero", { ascending: true });
   if (mQ.error) throw new Error(mQ.error.message);
   const mesas = (mQ.data ?? []).map((r) => mapMesa(r as Record<string, unknown>));
 
