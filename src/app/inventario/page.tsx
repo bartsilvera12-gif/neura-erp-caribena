@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, ChefHat, Package, PackageX, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChefHat, Pencil, Plus, Trash2 } from "lucide-react";
 import SelectField from "@/components/ui/SelectField";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -83,6 +83,34 @@ export default function InventarioPage() {
    * En los vendibles además decide en qué pestaña vive (Reventa lleva stock,
    * Menú no), así que se avisa antes de moverlo de lugar.
    */
+  /**
+   * Cambia el sector de producción del producto.
+   *
+   * No es cosmético: la pizzería recibe copia completa de la comanda, la plancha
+   * solo sus ítems, y "ninguno" no imprime nada. Además, el armador de pizza
+   * mitad y mitad solo ofrece productos del sector pizzería — una pizza cargada
+   * como "ninguno" no aparece ahí, y desde la lista no había forma de notarlo.
+   */
+  async function cambiarSector(p: Producto, sector: string) {
+    setErrorAccion(null);
+    try {
+      const res = await fetch(`/api/productos/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ sector_produccion: sector }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        setErrorAccion(body?.error ?? "No se pudo cambiar el sector.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setErrorAccion(e instanceof Error ? e.message : "Error de red");
+    }
+  }
+
   async function toggleControlaStock(p: Producto) {
     const controla = p.controla_stock !== false;
     const destino = !controla;
@@ -507,6 +535,7 @@ export default function InventarioPage() {
                 <th className={`${th} text-center`}>Stock</th>
                 <th className={`${th} text-center ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>Stock mín.</th>
                 <th className={`${th} hidden lg:table-cell`}>Unidad</th>
+                <th className={`${th} ${tab === "menu" ? "" : "hidden"}`}>Sector</th>
                 <th className={`${th} hidden text-right lg:table-cell`}>
                   <span title="(precio - costo) / precio × 100">Margen s/venta</span>
                 </th>
@@ -517,7 +546,7 @@ export default function InventarioPage() {
             <tbody className={tbody}>
               {productos.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className={celdaVacia}>
+                  <td colSpan={10} className={celdaVacia}>
                     {todos.length === 0
                       ? "Todavía no cargaste productos."
                       : "Ningún producto coincide con los filtros."}
@@ -549,32 +578,54 @@ export default function InventarioPage() {
                         justo donde importa: en Materia prima decide si el insumo
                         baja al cocinar. Ahora la celda lo dice y deja cambiarlo. */}
                     <td className="px-5 py-3.5 text-center">
-                      {p.controla_stock === false ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleControlaStock(p)}
-                          title="Sin control de stock — clic para activarlo"
-                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-inset ring-slate-500/15 transition-colors hover:bg-slate-200 hover:text-slate-700"
-                        >
-                          <PackageX className="h-3 w-3" aria-hidden />
-                          Sin control
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => toggleControlaStock(p)}
-                          title="Lleva stock — clic para quitarle el control"
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold tabular-nums transition-colors hover:bg-slate-100 ${
-                            stockBajo ? "text-red-600" : "text-slate-800"
+                      <button
+                        type="button"
+                        onClick={() => toggleControlaStock(p)}
+                        role="switch"
+                        aria-checked={p.controla_stock !== false}
+                        title={
+                          p.controla_stock === false
+                            ? "No lleva stock. Tocá para empezar a controlarlo."
+                            : "Lleva stock. Tocá para dejar de controlarlo."
+                        }
+                        className="inline-flex items-center gap-2"
+                      >
+                        <span
+                          aria-hidden
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                            p.controla_stock === false ? "bg-slate-200" : "bg-[#4FAEB2]"
                           }`}
                         >
-                          <Package className="h-3 w-3 opacity-50" aria-hidden />
-                          {p.stock_actual}
-                        </button>
-                      )}
+                          <span
+                            className={`absolute h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                              p.controla_stock === false ? "translate-x-0.5" : "translate-x-[18px]"
+                            }`}
+                          />
+                        </span>
+                        {p.controla_stock === false ? (
+                          <span className="text-[11px] font-medium text-slate-400">Sin stock</span>
+                        ) : (
+                          <span className={`text-sm font-semibold tabular-nums ${stockBajo ? "text-red-600" : "text-slate-800"}`}>
+                            {p.stock_actual}
+                          </span>
+                        )}
+                      </button>
                     </td>
                     <td className={`px-5 py-3.5 text-center tabular-nums text-slate-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
                     <td className="hidden px-5 py-3.5 text-slate-600 lg:table-cell">{p.unidad_medida}</td>
+                    <td className={`px-5 py-3.5 ${tab === "menu" ? "" : "hidden"}`}>
+                      <select
+                        value={p.sector_produccion ?? "ninguno"}
+                        onChange={(e) => cambiarSector(p, e.target.value)}
+                        aria-label={`Sector de producción de ${p.nombre}`}
+                        title="Pizzería recibe copia completa de la comanda; plancha solo sus ítems; ninguno no imprime."
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 outline-none transition-colors hover:border-[#4FAEB2]/50 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                      >
+                        <option value="ninguno">Ninguno</option>
+                        <option value="pizzeria">Pizzería</option>
+                        <option value="plancha">Plancha</option>
+                      </select>
+                    </td>
                     <td className={`hidden px-5 py-3.5 text-right font-semibold tabular-nums lg:table-cell ${margenColor(margen)}`}>
                       {margen.toFixed(2)}%
                     </td>

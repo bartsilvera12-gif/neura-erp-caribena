@@ -88,6 +88,18 @@ export default function MitadMitadPicker({
             <p className="py-6 text-center text-sm text-slate-400">Cargando pizzas…</p>
           ) : (
             <>
+              {/* Solo entran los productos del sector pizzería. Sin este aviso,
+                  una pizza cargada con sector "ninguno" simplemente no aparece y
+                  no hay forma de saber por qué. */}
+              {pizzas.length < 2 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {pizzas.length === 0
+                    ? "No hay pizzas cargadas en el sector Pizzería."
+                    : "Solo hay una pizza en el sector Pizzería, y hacen falta dos sabores."}{" "}
+                  Acá aparecen únicamente los productos del menú con sector de producción
+                  <strong> Pizzería</strong>. Podés cambiarlo desde Inventario → Menú, en la columna Sector.
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Mitad 1 — sabor</label>
                 <SelectField value={s1} onChange={(e) => setS1(e.target.value)} className={selectClass}>
