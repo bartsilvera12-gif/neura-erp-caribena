@@ -366,7 +366,7 @@ export default function EditarRecetaPage() {
                     step="any"
                     value={cantProducir}
                     onChange={(e) => setCantProducir(e.target.value)}
-                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
                   />
                 </div>
                 <button
@@ -547,28 +547,31 @@ export default function EditarRecetaPage() {
 
         {/* Add item */}
         <div className="border-t border-gray-200 pt-4">
-          <div className="text-xs font-medium text-gray-600 mb-2">Agregar insumo</div>
           {insumosDisponibles.length === 0 ? (
             <div className="text-sm text-gray-500">
               No hay más insumos disponibles. Marcá productos como insumo (<code>es_insumo=true</code>) desde Inventario.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <SelectField
-                value={newInsumoId}
-                onChange={(e) => {
-                  setNewInsumoId(e.target.value);
-                  const p = insumosDisponibles.find((x) => x.id === e.target.value);
-                  if (p) setNewUnidad((p.unidad_medida ?? "").trim().toUpperCase());
-                }}
-                className="md:col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
-              >
-                {insumosDisponibles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} — {fmtGs(p.costo_promedio)}/{p.unidad_medida ?? ""} (stock {p.stock_actual})
-                  </option>
-                ))}
-              </SelectField>
+            <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-5">
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Insumo
+                </label>
+                <SelectField
+                  value={newInsumoId}
+                  onChange={(e) => {
+                    setNewInsumoId(e.target.value);
+                    const p = insumosDisponibles.find((x) => x.id === e.target.value);
+                    if (p) setNewUnidad((p.unidad_medida ?? "").trim().toUpperCase());
+                  }}
+                >
+                  {insumosDisponibles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} — {fmtGs(p.costo_promedio)}/{p.unidad_medida ?? ""} (stock {p.stock_actual})
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Cantidad
@@ -579,7 +582,7 @@ export default function EditarRecetaPage() {
                   value={newCantidad}
                   onChange={(e) => setNewCantidad(e.target.value)}
                   placeholder="Ej: 200"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
                 />
               </div>
               <div>
@@ -609,7 +612,7 @@ export default function EditarRecetaPage() {
                   onChange={(e) => setNewMermaPct(e.target.value)}
                   placeholder="Ej: 5"
                   title="Cuánto se pierde al preparar: recortes, cáscara, evaporación."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tabular-nums outline-none transition-colors focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
                 />
               </div>
               <button
