@@ -35,6 +35,8 @@ export default function MesasPage() {
   const [mesas, setMesas] = useState<MesaConResumen[]>([]);
   const [ultimoNumero, setUltimoNumero] = useState(0);
   const [loading, setLoading] = useState(true);
+  /** Falló el último refresco: se muestra sin borrar lo que ya estaba. */
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
   // Alta de mesas
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -181,8 +183,22 @@ export default function MesasPage() {
     }
   }
 
+  /**
+   * Refresca el salón.
+   *
+   * Si la llamada falla se conserva la lista anterior. El refresco automático
+   * corre cada 15 segundos y un tropiezo del servidor —un deploy, la sesión
+   * renovándose— no puede vaciar la pantalla: el mozo vería "no hay mesas" con
+   * las mesas ahí, y en medio del servicio eso es peor que un dato viejo.
+   */
   const recargar = () =>
     getMesasConUltimoNumero(isAdmin).then((d) => {
+      if (d.error) {
+        setErrorCarga(d.error);
+        setLoading(false);
+        return d;
+      }
+      setErrorCarga(null);
       setMesas(d.mesas);
       setUltimoNumero(d.ultimoNumero);
       setLoading(false);
@@ -193,7 +209,12 @@ export default function MesasPage() {
     let cancelled = false;
     const load = () =>
       getMesasConUltimoNumero(isAdmin).then((d) => {
-        if (!cancelled) { setMesas(d.mesas); setUltimoNumero(d.ultimoNumero); setLoading(false); }
+        if (cancelled) return;
+        if (d.error) { setErrorCarga(d.error); setLoading(false); return; }
+        setErrorCarga(null);
+        setMesas(d.mesas);
+        setUltimoNumero(d.ultimoNumero);
+        setLoading(false);
       });
     load();
     // Mientras el modal está abierto no refrescamos: pisaría lo que el usuario
@@ -267,6 +288,16 @@ export default function MesasPage() {
           </span>
         ))}
       </div>
+
+      {errorCarga && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            No se pudo actualizar el salón ({errorCarga}). Se está mostrando la última información
+            disponible; vuelve a intentar solo.
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando mesas…</p>

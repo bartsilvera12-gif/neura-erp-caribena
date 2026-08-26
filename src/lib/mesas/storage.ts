@@ -28,13 +28,21 @@ export async function getMesas(): Promise<MesaConResumen[]> {
   return r.success ? r.mesas : [];
 }
 
-/** Mesas + el número más alto en uso, para proponer desde dónde seguir numerando. */
+/**
+ * Mesas + el número más alto en uso, para proponer desde dónde seguir numerando.
+ *
+ * Devuelve `error` en vez de una lista vacía cuando la llamada falla. La
+ * distinción importa: la pantalla refresca sola cada 15 segundos y, si un fallo
+ * pasajero se traducía en `[]`, el salón entero desaparecía y aparecía el cartel
+ * "Todavía no hay mesas cargadas" — con las mesas intactas en la base.
+ */
 export async function getMesasConUltimoNumero(
   incluirInactivas = false
-): Promise<{ mesas: MesaConResumen[]; ultimoNumero: number }> {
+): Promise<{ mesas: MesaConResumen[]; ultimoNumero: number; error?: string }> {
   const url = incluirInactivas ? "/api/mesas?incluirInactivas=1" : "/api/mesas";
   const r = await call<{ mesas: MesaConResumen[]; ultimoNumero: number }>(url, "GET");
-  return r.success ? { mesas: r.mesas, ultimoNumero: r.ultimoNumero ?? 0 } : { mesas: [], ultimoNumero: 0 };
+  if (!r.success) return { mesas: [], ultimoNumero: 0, error: r.error };
+  return { mesas: r.mesas, ultimoNumero: r.ultimoNumero ?? 0 };
 }
 
 /** Alta de mesas numeradas de `desde` a `desde + cantidad - 1`. */
@@ -123,9 +131,16 @@ export function crearParaLlevar(nombreCliente: string | null) {
 }
 
 /** Lista sesiones PL activas (abierta/por_cobrar) para el listado en /mesas. */
-export async function getParaLlevarActivas(): Promise<ParaLlevarConResumen[]> {
+/**
+ * Pedidos para llevar abiertos.
+ *
+ * `null` cuando la llamada falla, para poder distinguirlo de "no hay ninguno":
+ * la pantalla refresca sola cada 15 segundos y un vacío indistinguible borraba
+ * los pedidos en curso ante cualquier tropiezo del servidor.
+ */
+export async function getParaLlevarActivas(): Promise<ParaLlevarConResumen[] | null> {
   const r = await call<{ items: ParaLlevarConResumen[] }>("/api/mesas/para-llevar", "GET");
-  return r.success ? r.items : [];
+  return r.success ? r.items : null;
 }
 
 /** Detalle de una sesión PL. */

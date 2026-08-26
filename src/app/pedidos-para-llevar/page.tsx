@@ -50,8 +50,21 @@ export default function PedidosParaLlevarPage() {
   const [creating, setCreating] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  /**
+   * Refresca la pantalla conservando lo último bueno.
+   *
+   * El refresco corre cada 15 segundos: si un fallo pasajero se pintara como
+   * lista vacía, los pedidos en curso desaparecerían de la vista del mostrador
+   * con la comida ya en cocina.
+   */
   const load = useCallback(async () => {
     const [pend, act] = await Promise.all([fetchPedidosPL("generada"), getParaLlevarActivas()]);
+    if (act === null) {
+      setError("No se pudo actualizar. Se muestra la última información disponible.");
+      setLoading(false);
+      return;
+    }
+    setError(null);
     setPendientes(pend);
     setActivos(act);
     setLoading(false);
