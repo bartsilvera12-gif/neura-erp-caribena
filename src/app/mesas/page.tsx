@@ -381,7 +381,12 @@ export default function MesasPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <h2 className="text-base font-semibold text-slate-800">Crear mesas</h2>
+              <div>
+                <h2 className="text-base font-semibold text-slate-800">Crear mesas</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Se crean numeradas de corrido. La capacidad de cada mesa no se carga acá.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setModalAbierto(false)}
@@ -397,7 +402,7 @@ export default function MesasPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Desde el número
+                    Numerar desde
                   </label>
                   <input
                     type="number"
@@ -409,7 +414,7 @@ export default function MesasPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Cantidad
+                    Cuántas mesas
                   </label>
                   <input
                     type="number"
