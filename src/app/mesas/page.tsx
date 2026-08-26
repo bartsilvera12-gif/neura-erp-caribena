@@ -51,12 +51,60 @@ export default function MesasPage() {
   const [edNombre, setEdNombre] = useState("");
   const [edGuardando, setEdGuardando] = useState(false);
   const [edError, setEdError] = useState<string | null>(null);
+  /** Qué se perdería al borrar la mesa abierta en el modal. */
+  const [impacto, setImpacto] = useState<{
+    sesiones: number; items: number; comandas: number; facturadas: number; cuenta_viva: boolean;
+  } | null>(null);
 
   function abrirEdicion(m: MesaConResumen) {
     setEditando(m);
     setEdNumero(String(m.mesa.numero));
     setEdNombre(m.mesa.nombre ?? "");
     setEdError(null);
+    setImpacto(null);
+    void fetchWithSupabaseSession(`/api/mesas/${m.mesa.id}?impacto=1`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((b) => { if (b?.success) setImpacto(b.data.impacto); })
+      .catch(() => { /* la advertencia se degrada a genérica, no vale romper el modal */ });
+  }
+
+  /**
+   * Borra la mesa con todo su historial.
+   *
+   * La confirmación enumera lo que se pierde con números reales. Es una acción
+   * que no tiene vuelta atrás y que arrastra cosas que el usuario no ve desde
+   * acá — comandas de cocina, líneas de cuenta — así que no alcanza con un
+   * "¿estás seguro?".
+   */
+  async function borrarDefinitivo(m: MesaConResumen) {
+    const i = impacto;
+    const lineas = [
+      `Vas a borrar la mesa ${m.mesa.numero} y todo su historial. Esto no se puede deshacer.`,
+      "",
+      "Se van a borrar:",
+      `· ${i?.sesiones ?? 0} cuenta(s) de esta mesa`,
+      `· ${i?.items ?? 0} línea(s) de pedido`,
+      `· ${i?.comandas ?? 0} comanda(s) de cocina`,
+    ];
+    if ((i?.facturadas ?? 0) > 0) {
+      lineas.push(
+        "",
+        `${i?.facturadas} de esas cuentas ya se facturaron. Las ventas NO se borran: siguen en Caja ` +
+          "y en los reportes, pero dejan de decir de qué mesa salieron."
+      );
+    }
+
+    if (!(await confirmar(lineas.join("\n"), { confirmLabel: "Borrar definitivamente" }))) return;
+
+    setEdError(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/mesas/${m.mesa.id}?forzar=1`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) setEdError(body?.error ?? "No se pudo borrar la mesa.");
+      else { setEditando(null); await recargar(); }
+    } catch (e) {
+      setEdError(e instanceof Error ? e.message : "Error de red");
+    }
   }
 
   /** Vuelve a poner en el salón una mesa dada de baja. */
@@ -462,6 +510,36 @@ export default function MesasPage() {
                 </div>
               </div>
 
+              {/* Solo aparece cuando hay algo que perder: para una mesa sin uso,
+                  el botón "Borrar" de abajo ya la elimina sin ceremonia. */}
+              {impacto && impacto.sesiones > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50/60 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
+                    Borrado definitivo
+                  </p>
+                  <p className="mt-1 text-xs text-red-800">
+                    Esta mesa tiene {impacto.sesiones} cuenta{impacto.sesiones === 1 ? "" : "s"} con{" "}
+                    {impacto.items} línea{impacto.items === 1 ? "" : "s"} de pedido y {impacto.comandas}{" "}
+                    comanda{impacto.comandas === 1 ? "" : "s"} de cocina. Borrarla los elimina para siempre.
+                    {impacto.facturadas > 0 && (
+                      <> Las {impacto.facturadas} venta{impacto.facturadas === 1 ? "" : "s"} ya
+                      facturada{impacto.facturadas === 1 ? "" : "s"} se conserva{impacto.facturadas === 1 ? "" : "n"},
+                      pero pierde{impacto.facturadas === 1 ? "" : "n"} el vínculo con la mesa.</>
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => borrarDefinitivo(editando)}
+                    disabled={edGuardando || impacto.cuenta_viva}
+                    title={impacto.cuenta_viva ? "Cerrá o cancelá la cuenta abierta antes de borrar" : undefined}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    Borrar definitivamente
+                  </button>
+                </div>
+              )}
+
               {editando.mesa.activo === false && (
                 <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                   Esta mesa está fuera del salón: no se ve para tomar pedidos, pero conserva su
@@ -494,6 +572,15 @@ export default function MesasPage() {
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden />
                   Reactivar
+                </button>
+              ) : impacto && impacto.sesiones > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => eliminarMesa(editando)}
+                  disabled={edGuardando}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Dar de baja
                 </button>
               ) : (
                 <button

@@ -1229,3 +1229,95 @@ export async function eliminarMesaPg(
   if (delQ.error) throw new Error(delQ.error.message);
   return { borrada: true, sesiones: 0 };
 }
+
+export interface ImpactoBorrarMesa {
+  sesiones: number;
+  items: number;
+  comandas: number;
+  /** Sesiones ya convertidas en venta. La venta sobrevive; se pierde el vínculo. */
+  facturadas: number;
+  /** Hay una cuenta abierta o por cobrar ahora mismo. */
+  cuenta_viva: boolean;
+}
+
+/**
+ * Qué se lleva puesto borrar esta mesa.
+ *
+ * Sirve para poder advertirlo con números concretos en vez de un "puede que
+ * pierdas datos". La cadena es: mesas → mesa_sesiones (CASCADE) → tanto
+ * mesa_sesion_items como comandas (CASCADE). Las ventas NO se borran —
+ * mesa_sesiones apunta a ventas, no al revés—, pero quedan sin saber de qué mesa
+ * salieron. Los pagos conciliados quedan con la referencia en NULL.
+ */
+export async function impactoBorrarMesaPg(
+  schema: string,
+  empresaId: string,
+  mesaId: string
+): Promise<ImpactoBorrarMesa> {
+  const sb = createServiceRoleClientWithDbSchema(schema);
+
+  const sesQ = await sb
+    .from("mesa_sesiones")
+    .select("id, estado, venta_id")
+    .eq("empresa_id", empresaId)
+    .eq("mesa_id", mesaId);
+  if (sesQ.error) throw new Error(sesQ.error.message);
+  const sesiones = (sesQ.data ?? []) as { id: string; estado: string; venta_id: string | null }[];
+
+  if (sesiones.length === 0) {
+    return { sesiones: 0, items: 0, comandas: 0, facturadas: 0, cuenta_viva: false };
+  }
+
+  const ids = sesiones.map((s) => s.id);
+
+  const itemsQ = await sb
+    .from("mesa_sesion_items")
+    .select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId)
+    .in("sesion_id", ids);
+  if (itemsQ.error) throw new Error(itemsQ.error.message);
+
+  const comQ = await sb
+    .from("comandas")
+    .select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId)
+    .in("sesion_id", ids);
+  if (comQ.error) throw new Error(comQ.error.message);
+
+  return {
+    sesiones: sesiones.length,
+    items: itemsQ.count ?? 0,
+    comandas: comQ.count ?? 0,
+    facturadas: sesiones.filter((s) => s.venta_id).length,
+    cuenta_viva: sesiones.some((s) => s.estado === "abierta" || s.estado === "por_cobrar"),
+  };
+}
+
+/**
+ * Borrado definitivo: arrastra cuentas, ítems y comandas de la mesa.
+ *
+ * Separado de `eliminarMesaPg` a propósito. Aquel se niega a borrar con
+ * historial; este lo hace de todos modos, y por eso solo debería llamarse
+ * después de mostrarle al usuario el detalle de `impactoBorrarMesaPg`.
+ *
+ * Se niega igual en un caso: con una cuenta abierta o por cobrar. Eso no es
+ * historial viejo, es un pedido en curso — probablemente con comida ya en la
+ * cocina — y borrarlo sería perder plata sin registro.
+ */
+export async function eliminarMesaDefinitivoPg(
+  schema: string,
+  empresaId: string,
+  mesaId: string
+): Promise<ImpactoBorrarMesa> {
+  const impacto = await impactoBorrarMesaPg(schema, empresaId, mesaId);
+  if (impacto.cuenta_viva) {
+    throw new Error(
+      "La mesa tiene una cuenta abierta o pendiente de cobro. Cerrala o cancelala antes de borrarla."
+    );
+  }
+
+  const sb = createServiceRoleClientWithDbSchema(schema);
+  const delQ = await sb.from("mesas").delete().eq("empresa_id", empresaId).eq("id", mesaId);
+  if (delQ.error) throw new Error(delQ.error.message);
+  return impacto;
+}

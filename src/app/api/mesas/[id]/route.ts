@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/middleware/require-module";
 import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
-import { actualizarMesaPg, eliminarMesaPg, getMesaDetallePg } from "@/lib/mesas/server/mesas-pg";
+import {
+  actualizarMesaPg,
+  eliminarMesaDefinitivoPg,
+  eliminarMesaPg,
+  getMesaDetallePg,
+  impactoBorrarMesaPg,
+} from "@/lib/mesas/server/mesas-pg";
 import { esRolAdminEmpresaOGlobal } from "@/lib/auth/rol-empresa";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
@@ -13,6 +19,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const auth = gate.auth;
     const { id } = await ctx.params;
     const schema = await fetchDataSchemaForEmpresaId(auth.empresa_id);
+    if (request.nextUrl.searchParams.get("impacto") === "1") {
+      const impacto = await impactoBorrarMesaPg(schema, auth.empresa_id, id);
+      return NextResponse.json(successResponse({ impacto }));
+    }
     const detalle = await getMesaDetallePg(schema, auth.empresa_id, id);
     if (!detalle) return NextResponse.json(errorResponse("Mesa no encontrada."), { status: 404 });
     return NextResponse.json(successResponse({ detalle }));
@@ -78,6 +88,11 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
       return NextResponse.json(successResponse({ mesa, desactivada: true }));
     }
 
+    if (request.nextUrl.searchParams.get("forzar") === "1") {
+      const impacto = await eliminarMesaDefinitivoPg(schema, auth.empresa_id, id);
+      return NextResponse.json(successResponse({ borrada: true, impacto }));
+    }
+
     const out = await eliminarMesaPg(schema, auth.empresa_id, id);
     if (!out.borrada) {
       return NextResponse.json(
@@ -94,6 +109,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
     return NextResponse.json(successResponse({ borrada: true }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "No se pudo borrar la mesa.";
-    return NextResponse.json(errorResponse(msg), { status: /no encontrada/i.test(msg) ? 404 : 500 });
+    const status = /no encontrada/i.test(msg) ? 404 : /cuenta abierta|pendiente de cobro/i.test(msg) ? 409 : 500;
+    return NextResponse.json(errorResponse(msg), { status });
   }
 }
