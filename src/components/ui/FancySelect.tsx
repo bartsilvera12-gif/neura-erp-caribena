@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 export type FancySelectOption = {
   value: string;
@@ -41,6 +42,14 @@ const TRIGGER_BASE =
  *  - Detección automática de dirección (drop-up cuando el listado no entra abajo)
  *  - Opciones con descripción
  *  - Estados disabled (componente y por opción)
+ *
+ * El desplegable se monta en un portal sobre `document.body` con posición
+ * `fixed`, no como hijo absoluto del trigger. Por qué: casi todos los
+ * contenedores del ERP (`card` lleva `overflow-hidden` para que la tabla
+ * respete el radio, y las tablas con scroll horizontal llevan `overflow-x-auto`)
+ * recortaban la lista, que aparecía cortada a una línea y media. Un ancestro
+ * con overflow recorta a cualquier descendiente absoluto, por más z-index que
+ * tenga; salir del árbol es la única forma de no depender de eso.
  */
 export function FancySelect({
   options,
@@ -56,10 +65,22 @@ export function FancySelect({
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [dropUp, setDropUp] = useState(false);
   const listboxId = useId();
+
+  /** Geometría del desplegable en coordenadas de viewport (position: fixed). */
+  const [pos, setPos] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  /** `document` no existe en el render del servidor: el portal espera al cliente. */
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
 
   const selected = useMemo(
     () => options.find((o) => o.value === value) ?? null,
@@ -102,30 +123,61 @@ export function FancySelect({
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) closeMenu();
+      const t = e.target as Node;
+      // El menú vive fuera del árbol del trigger: hay que preguntarle también
+      // a él, o el primer click sobre una opción cerraría antes de elegirla.
+      if (wrapRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      closeMenu();
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open, closeMenu]);
 
-  useLayoutEffect(() => {
-    if (!open || openDirection !== "auto") {
-      if (openDirection === "up") setDropUp(true);
-      else if (openDirection === "down") setDropUp(false);
-      return;
-    }
+  /**
+   * Calcula dónde y con qué alto va el desplegable. Abre hacia abajo salvo que
+   * no entre y arriba haya más lugar; en cualquier caso el alto se recorta al
+   * espacio real, así nunca queda medio menú fuera de la pantalla.
+   */
+  const medir = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const estimatedHeight = Math.min(280, options.length * 40 + 24);
-    if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
-      setDropUp(true);
-    } else {
-      setDropUp(false);
-    }
-  }, [open, openDirection, options.length]);
+    const MARGEN = 8;
+    const SEPARACION = 6;
+    const libreAbajo = window.innerHeight - rect.bottom - SEPARACION - MARGEN;
+    const libreArriba = rect.top - SEPARACION - MARGEN;
+    const alto = Math.min(260, options.length * 40 + 8);
+
+    const haciaArriba =
+      openDirection === "up"
+        ? true
+        : openDirection === "down"
+          ? false
+          : alto > libreAbajo && libreArriba > libreAbajo;
+
+    const disponible = Math.max(120, haciaArriba ? libreArriba : libreAbajo);
+    const maxHeight = Math.min(260, disponible);
+
+    setPos({
+      left: rect.left,
+      width: rect.width,
+      top: haciaArriba ? rect.top - SEPARACION - maxHeight : rect.bottom + SEPARACION,
+      maxHeight,
+    });
+  }, [openDirection, options.length]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    medir();
+    // `capture` para enterarse también del scroll de contenedores internos
+    // (tablas con overflow), que no burbujea hasta window.
+    window.addEventListener("scroll", medir, true);
+    window.addEventListener("resize", medir);
+    return () => {
+      window.removeEventListener("scroll", medir, true);
+      window.removeEventListener("resize", medir);
+    };
+  }, [open, medir]);
 
   useEffect(() => {
     if (!open || activeIndex < 0) return;
@@ -239,18 +291,22 @@ export function FancySelect({
         </span>
       </button>
 
-      {open ? (
+      {open && montado && pos
+        ? createPortal(
         <div
-          className={`absolute left-0 right-0 z-50 ${
-            dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          }`}
+          ref={menuRef}
+          // z por encima de los modales del ERP (el más alto es z-[200]) y por
+          // debajo de la pantalla de carga, que sí debe tapar todo.
+          className="fixed z-[300]"
+          style={{ left: pos.left, top: pos.top, width: pos.width }}
         >
           <ul
             ref={listRef}
             id={listboxId}
             role="listbox"
             tabIndex={-1}
-            className="max-h-[260px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-[#4FAEB2]/15"
+            style={{ maxHeight: pos.maxHeight }}
+            className="overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-[#4FAEB2]/15"
           >
             {options.length === 0 ? (
               <li className="px-3 py-3 text-center text-xs text-slate-400">
@@ -314,8 +370,10 @@ export function FancySelect({
               })
             )}
           </ul>
-        </div>
-      ) : null}
+        </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
