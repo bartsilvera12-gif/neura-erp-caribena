@@ -121,9 +121,12 @@ export default function InventarioPage() {
       ? `"${p.nombre}" va a llevar stock: se carga por compra o producción y al venderlo se descuenta él mismo.`
       : `"${p.nombre}" deja de llevar stock: se va a poder vender sin límite, y si tiene receta sus insumos se descontarán cuando la comanda entre a cocina.`;
 
+    // Para un vendible, el control de stock ES la diferencia entre las
+    // pestañas, así que el producto se muda al cambiarlo. Decirlo evita que
+    // parezca que se borró.
     const mudanza =
       esVendible && !esInsumo
-        ? `\n\nAdemás pasa a la pestaña ${destino ? "Reventa" : "Menú"}.`
+        ? `\n\nAdemás pasa a la pestaña ${destino ? "Reventa" : "Menú"}, y deja de verse en esta.`
         : "";
 
     if (!(await confirmar(explicacion + mudanza, {
@@ -578,6 +581,14 @@ export default function InventarioPage() {
                         justo donde importa: en Materia prima decide si el insumo
                         baja al cocinar. Ahora la celda lo dice y deja cambiarlo. */}
                     <td className="px-5 py-3.5 text-center">
+                      {tab === "reventa" ? (
+                        <span
+                          className={`text-sm font-semibold tabular-nums ${stockBajo ? "text-red-600" : "text-slate-800"}`}
+                          title="Los productos de reventa siempre llevan stock: se compran y se descuentan al venderse."
+                        >
+                          {p.stock_actual}
+                        </span>
+                      ) : (
                       <button
                         type="button"
                         onClick={() => toggleControlaStock(p)}
@@ -610,6 +621,7 @@ export default function InventarioPage() {
                           </span>
                         )}
                       </button>
+                      )}
                     </td>
                     <td className={`px-5 py-3.5 text-center tabular-nums text-slate-500 ${tab === "reventa" ? "hidden lg:table-cell" : "hidden"}`}>{p.stock_minimo}</td>
                     <td className="hidden px-5 py-3.5 text-slate-600 lg:table-cell">{p.unidad_medida}</td>

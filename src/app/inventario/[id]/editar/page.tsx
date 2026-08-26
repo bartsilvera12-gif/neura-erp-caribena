@@ -758,7 +758,10 @@ export default function EditarProductoPage() {
             )}
           </div>
 
-          <div className={showStock ? "" : "hidden"}>
+          {/* En reventa el control de stock no se ofrece: la pestaña se define por
+              tenerlo, y apagarlo movería el producto al Menú. Solo tiene sentido
+              elegirlo en materia prima. */}
+          <div className={showStock && tipoGastro !== "reventa" ? "" : "hidden"}>
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
               <input
                 type="checkbox"
