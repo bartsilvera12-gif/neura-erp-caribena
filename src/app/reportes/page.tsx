@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Landmark, Receipt, ShoppingBag } from "lucide-react";
+import { BarChart3, Landmark, Receipt, ShoppingBag, TrendingUp } from "lucide-react";
 import { card } from "@/lib/ui/estilos";
 
 function ReportCard({
@@ -33,10 +33,17 @@ export default function ReportesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
-        <p className="mt-1 text-sm text-slate-500">Caja, compras y control bancario.</p>
+        <p className="mt-1 text-sm text-slate-500">Ventas, caja, compras y control bancario.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ReportCard
+          href="/reportes/ventas"
+          titulo="Ventas"
+          descripcion="Cuánto se vendió y por dónde salió cada pedido: salón, delivery o retiro, con los más vendidos y cómo pagaron."
+          boton="Ver ventas"
+          icon={TrendingUp}
+        />
         <ReportCard
           href="/reportes/compras"
           titulo="Compras"
