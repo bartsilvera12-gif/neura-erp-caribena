@@ -47,4 +47,7 @@ export interface Venta {
   metodo_pago?: MetodoPago;  // Caribeña: efectivo/tarjeta/transferencia
 
   fecha: string;             // ISO string, generado automáticamente
+
+  /** Factura del ERP, si el cliente pidió factura. null = se cobró sin factura. */
+  factura_id?: string | null;
 }

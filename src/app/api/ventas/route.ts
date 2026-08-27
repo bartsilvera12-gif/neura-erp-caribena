@@ -8,6 +8,7 @@ interface VentaRow {
   id: string;
   empresa_id: string;
   numero_control: string;
+  factura_id?: string | null;
   moneda: string;
   tipo_cambio: number | string;
   subtotal: number | string;
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
       const ventasQ = await ctx.supabase
         .from("ventas")
         .select(
-          "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha"
+          "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha, factura_id"
         )
         .eq("empresa_id", empresaId)
         .order("fecha", { ascending: false })
@@ -108,6 +109,7 @@ export async function GET(request: NextRequest) {
       return {
         id: r.id,
         numero_control: r.numero_control,
+        factura_id: r.factura_id ?? null,
         items: mapItems(lineRows),
         moneda: r.moneda === "USD" ? "USD" : "GS",
         tipo_cambio: num(r.tipo_cambio),

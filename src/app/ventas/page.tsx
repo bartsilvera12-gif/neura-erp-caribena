@@ -10,6 +10,8 @@ import MesasPorCobrarCajaCard from "@/components/mesas/MesasPorCobrarCajaCard";
 import { getVentas } from "@/lib/ventas/storage";
 import type { Venta, TipoVenta, TipoIvaVenta } from "@/lib/ventas/types";
 import { sectoresParaTicket, sectoresCocinaParaComanda } from "@/lib/ventas/sector-tickets";
+import FacturarVentaModal from "@/components/ventas/FacturarVentaModal";
+import { FileText } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -206,6 +208,8 @@ export default function VentasPage() {
   const [pagina,    setPagina]    = useState<number>(1);
   // Caja por turno: sin caja abierta no se puede vender (badge + bloqueo del botón).
   const [cajaAbierta, setCajaAbierta] = useState(false);
+  /** Venta que el cliente pidió facturar. null = nadie pidió factura. */
+  const [facturando, setFacturando] = useState<Venta | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -425,13 +429,14 @@ export default function VentasPage() {
                 <th className="hidden py-3 pr-4 font-medium lg:table-cell">Tipo</th>
                 <th className="hidden py-3 pr-4 font-medium lg:table-cell">Pago</th>
                 <th className="py-3 pr-4 font-medium">Fecha</th>
+                <th className="py-3 pr-4 font-medium text-center">Factura</th>
                 <th className="py-3 font-medium text-center">Ticket</th>
               </tr>
             </thead>
             <tbody>
               {filtradas.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-400">
+                  <td colSpan={11} className="py-12 text-center text-gray-400">
                     {todas.length === 0
                       ? "No hay ventas registradas"
                       : "Ninguna venta coincide con los filtros"}
@@ -479,6 +484,28 @@ export default function VentasPage() {
                       </td>
                       <td className="py-4 pr-4 text-gray-500 text-xs tabular-nums align-middle">
                         {formatFecha(v.fecha)}
+                      </td>
+                      <td className="py-4 pr-4 text-center align-middle">
+                        {v.factura_id ? (
+                          <Link
+                            href={`/facturas/${v.factura_id}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-[#4FAEB2]/30 bg-[#4FAEB2]/10 px-3 py-1.5 text-xs font-semibold text-[#2F6E71] transition-colors hover:bg-[#4FAEB2]/20"
+                            title="Ver la factura de esta venta"
+                          >
+                            <FileText className="h-3.5 w-3.5" aria-hidden />
+                            Ver
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setFacturando(v)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-[#4FAEB2]/50 hover:bg-[#4FAEB2]/5 hover:text-[#2F6E71]"
+                            title="Emitir factura para esta venta"
+                          >
+                            <FileText className="h-3.5 w-3.5" aria-hidden />
+                            Facturar
+                          </button>
+                        )}
                       </td>
                       <td className="py-4 text-center align-middle">
                         <div className="inline-flex items-center gap-2">
@@ -543,6 +570,20 @@ export default function VentasPage() {
 
       {/* FAB mobile: acceso 1-tap a "+ Nueva venta" — solo con caja abierta. */}
       {cajaAbierta && <MobileFab href="/ventas/nueva" label="Nueva venta" />}
+
+      {facturando && (
+        <FacturarVentaModal
+          ventaId={facturando.id}
+          numeroControl={facturando.numero_control}
+          total={facturando.total}
+          onClose={() => setFacturando(null)}
+          onEmitida={(facturaId) => {
+            setFacturando(null);
+            // Al detalle, que es donde se firma y se manda al SET.
+            window.location.href = `/facturas/${facturaId}`;
+          }}
+        />
+      )}
     </div>
   );
 }
