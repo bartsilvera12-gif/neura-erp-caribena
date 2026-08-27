@@ -28,7 +28,35 @@ export type BuildKudePdfInput = {
   qrUrl: string;
   /** Branding opcional. Si no viene o es inválido, se usa el diseño Neura. */
   branding?: KudeBranding | null;
+  /** Mapeo posicional item → código de barras (mismo orden que parsed.items).
+   *  Se muestra debajo del código/descripción en la columna izquierda. Si un
+   *  item no tiene código de barras, se omite. */
+  codigosBarrasPorItem?: (string | null)[];
+  /** Contacto del emisor en vivo (desde empresa_sifen_config). Se muestra en el
+   *  encabezado del KUDE con prioridad sobre parsed.emisor.dTelEmi / dEmailE
+   *  (que en facturas viejas puede tener valores hardcodeados históricos).
+   *  El XML firmado NO se modifica; solo cambia lo visible en el PDF. */
+  emisorTelefonoOverride?: string | null;
+  emisorEmailOverride?: string | null;
 };
+
+/** Etiqueta legible del tipo de DE segun gTimb.iTiDE del rDE. */
+function tipoDocDesdeITiDE(iTiDE: string): string {
+  switch (String(iTiDE ?? "").trim()) {
+    case "1":
+      return "Factura electrónica";
+    case "4":
+      return "Autofactura electrónica";
+    case "5":
+      return "Nota de crédito electrónica";
+    case "6":
+      return "Nota de débito electrónica";
+    case "7":
+      return "Nota de remisión electrónica";
+    default:
+      return "Documento electrónico";
+  }
+}
 
 const A4_W = 595.28;
 const A4_H = 841.89;
@@ -191,6 +219,7 @@ function kudeTableMoneyXs(margin: number) {
 function drawTableChunk(
   page: PDFPage,
   items: KudeItemRow[],
+  codigosBarras: (string | null)[],
   parsed: KudeParsedFromXml,
   margin: number,
   innerW: number,
@@ -209,9 +238,15 @@ function drawTableChunk(
   drawRectFromTop(page, margin, fromTop, innerW, totalH, { fill: rgb(1, 1, 1), border: primary });
   drawRectFromTop(page, margin, fromTop, innerW, headH, { fill: primaryFill, border: primary });
 
+  // Ancho de columnas ajustado en dos iteraciones:
+  //  1) "Código" pasó de 32pt a 66pt para EAN-13 (13 dígitos ≈ 45pt a fsz=6.5).
+  //  2) "Descripción" pasó a ~134pt y trunc a 28 chars — antes descripciones
+  //     de ~30 chars (ej. "YOGURT GRIEGO C/ MBURUCUYA 380G") pisaban la
+  //     columna "Unidad". "Unidad" queda con 24pt (alcanza para "UNI" y
+  //     el header "Unidad" bold).
   const xCod = margin + 4;
-  const xDesc = margin + 36;
-  const xUm = margin + 186;
+  const xDesc = margin + 70;
+  const xUm = margin + 204;
   const xPr = margin + 228;
   const xCan = margin + 282;
   const { xEx, x5, x10 } = kudeTableMoneyXs(margin);
@@ -236,10 +271,16 @@ function drawTableChunk(
   drawH("10%", x10, true);
 
   let rowBaseline = fromTop + headH + 9;
-  for (const row of items) {
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i]!;
     const yb = baselineFromTop(page, rowBaseline);
-    page.drawText(trunc(row.codigo, 10), { x: xCod, y: yb, size: fsz, font, color: BLACK });
-    page.drawText(trunc(row.descripcion, 40), { x: xDesc, y: yb, size: fsz, font, color: BLACK });
+    // Preferimos código de barras (más útil para el cliente) sobre dCodInt
+    // (código interno / SKU). Si no hay código de barras del producto, cae al
+    // código del XML (comportamiento previo). No afecta el XML ni SIFEN.
+    const codigoBarras = codigosBarras[i]?.trim() ?? "";
+    const codigoMostrar = codigoBarras || row.codigo;
+    page.drawText(trunc(codigoMostrar, 18), { x: xCod, y: yb, size: fsz, font, color: BLACK });
+    page.drawText(trunc(row.descripcion, 28), { x: xDesc, y: yb, size: fsz, font, color: BLACK });
     page.drawText(trunc(row.unidadMedida, 8), { x: xUm, y: yb, size: fsz, font, color: BLACK });
     page.drawText(formatMonto(row.precioUnit, parsed.monedaCodigo), { x: xPr, y: yb, size: fsz, font, color: BLACK });
     page.drawText(row.cantidad || "—", { x: xCan, y: yb, size: fsz, font, color: BLACK });
@@ -274,7 +315,7 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   });
 
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`KuDE — Factura ${numeroFactura}`);
+  pdfDoc.setTitle(`KuDE — ${tipoDocDesdeITiDE(parsed.iTiDE)} ${numeroFactura}`);
   pdfDoc.setAuthor("Neura ERP");
 
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -334,8 +375,14 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   const leftChunks: { lines: string[]; size: number; bold: boolean; col: RGB }[] = [
     { lines: wrapByChars(parsed.emisor.dNomEmi, leftMaxChars), size: 9, bold: true, col: BLACK },
     { lines: wrapByChars(parsed.emisor.dDirEmi, leftMaxChars), size: 7.5, bold: false, col: BLACK },
-    { lines: [`Tel.: ${NEURA_KUDE_TEL}`], size: 7.5, bold: false, col: BLACK },
-    { lines: [`Email: ${NEURA_KUDE_EMAIL}`], size: 7.5, bold: false, col: BLACK },
+    // Tel/Email del emisor: priorizamos el valor LIVE de empresa_sifen_config
+    // (input.emisorTelefonoOverride/EmailOverride) sobre lo que hay en el XML
+    // firmado. Esto arregla retroactivamente los KUDE de facturas viejas cuyo
+    // XML fue emitido con los valores hardcodeados históricos (021000000 /
+    // facturacion@configurar-empresa.com.py, o los defaults de Neura).
+    // Fallback: XML → constantes históricas. El XML no se modifica.
+    { lines: [`Tel.: ${input.emisorTelefonoOverride?.trim() || parsed.emisor.dTelEmi?.trim() || NEURA_KUDE_TEL}`], size: 7.5, bold: false, col: BLACK },
+    { lines: [`Email: ${input.emisorEmailOverride?.trim() || parsed.emisor.dEmailE?.trim() || NEURA_KUDE_EMAIL}`], size: 7.5, bold: false, col: BLACK },
   ];
 
   const rightLines = 6;
@@ -384,7 +431,8 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   rightBaseline += rightLineLead;
   drawTextRight(page, `Vigencia: ${parsed.timbrado.dFeIniT}`, rightEdge, rightBaseline, 8, font, BLACK);
   rightBaseline += rightLineLead;
-  drawTextRight(page, "Tipo de documento: Factura electrónica", rightEdge, rightBaseline, 8, font, BLACK);
+  const tipoDocLabel = tipoDocDesdeITiDE(parsed.iTiDE);
+  drawTextRight(page, `Tipo de documento: ${tipoDocLabel}`, rightEdge, rightBaseline, 8, font, BLACK);
   rightBaseline += rightLineLead;
   drawTextRight(page, `Nº: ${nroTimbrado}`, rightEdge, rightBaseline, 9, fontBold, BLACK);
   rightBaseline += rightLineLead;
@@ -440,6 +488,12 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   drawLabelValue(page, col1X, yOp, "Tipo de cambio: ", tipoCambio, fontBold, font, labSz, primary);
   yOp += 11;
   drawLabelValue(page, col1X, yOp, "Tipo de operación: ", parsed.operacion.tipoOperacion, fontBold, font, labSz, primary);
+  // Documento asociado: solo lo llevan las notas de crédito/débito. Muestra qué
+  // factura corrige (Decreto 312/18 Art.11) sin que el receptor descifre el CDC.
+  if (parsed.documentoAsociado) {
+    yOp += 11;
+    drawLabelValue(page, col1X, yOp, "Factura asociada: ", parsed.documentoAsociado, fontBold, font, labSz, primary);
+  }
 
   let yRec = cursorTop + 10;
   drawLabelValue(
@@ -491,6 +545,11 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   const headH = 16;
   let idx = 0;
   const items = parsed.items;
+  // Alineado posicionalmente con `items`. Si no vino el array, todos null.
+  const codigosBarras: (string | null)[] =
+    input.codigosBarrasPorItem && input.codigosBarrasPorItem.length === items.length
+      ? input.codigosBarrasPorItem
+      : items.map(() => null);
   while (idx < items.length) {
     let room = A4_H - cursorTop - footerReserve;
     if (room < headH + rowH + 20) {
@@ -505,7 +564,8 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
       cursorTop = margin;
       continue;
     }
-    cursorTop = drawTableChunk(page, slice, parsed, margin, innerW, cursorTop, font, fontBold, primary, primaryFill);
+    const codigosSlice = codigosBarras.slice(idx, idx + slice.length);
+    cursorTop = drawTableChunk(page, slice, codigosSlice, parsed, margin, innerW, cursorTop, font, fontBold, primary, primaryFill);
     idx += slice.length;
     if (idx < items.length) {
       page = pdfDoc.addPage([A4_W, A4_H]);

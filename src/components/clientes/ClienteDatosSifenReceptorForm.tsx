@@ -1,6 +1,5 @@
 "use client";
 
-import SelectField from "@/components/ui/SelectField";
 import type { Cliente } from "@/lib/clientes/types";
 
 const inputClass =
@@ -90,7 +89,7 @@ export function ClienteDatosSifenReceptorForm({ value, onChange }: Props) {
           <div className="space-y-4">
             <div>
               <label className={labelClass}>Naturaleza del receptor (SIFEN)</label>
-              <SelectField
+              <select
                 className={inputClass}
                 value={value.sifen_receptor_naturaleza ?? ""}
                 onChange={(e) =>
@@ -108,11 +107,11 @@ export function ClienteDatosSifenReceptorForm({ value, onChange }: Props) {
                     {o.label}
                   </option>
                 ))}
-              </SelectField>
+              </select>
             </div>
             <div>
               <label className={labelClass}>Tipo de operación (iTiOpe)</label>
-              <SelectField
+              <select
                 className={inputClass}
                 value={value.sifen_ti_ope != null ? String(value.sifen_ti_ope) : ""}
                 onChange={(e) => {
@@ -126,11 +125,11 @@ export function ClienteDatosSifenReceptorForm({ value, onChange }: Props) {
                     {o.label}
                   </option>
                 ))}
-              </SelectField>
+              </select>
             </div>
             <div>
               <label className={labelClass}>Tipo de documento del receptor (iTipIDRec)</label>
-              <SelectField
+              <select
                 className={inputClass}
                 value={tipoDoc}
                 onChange={(e) => {
@@ -144,7 +143,7 @@ export function ClienteDatosSifenReceptorForm({ value, onChange }: Props) {
                     {o.label}
                   </option>
                 ))}
-              </SelectField>
+              </select>
             </div>
             {showDescTipo9 ? (
               <div>

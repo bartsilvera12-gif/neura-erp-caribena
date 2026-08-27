@@ -209,6 +209,8 @@ export async function loadValidatedNotaCreditoSifenPayload(
       establecimiento: fx.establecimiento,
       punto_expedicion: fx.punto_expedicion,
       csc: cfg.csc == null ? null : String(cfg.csc).trim(),
+      telefono: cfg.emisor_telefono == null ? null : String(cfg.emisor_telefono).trim(),
+      email: cfg.emisor_email == null ? null : String(cfg.emisor_email).trim(),
     },
     receptor: {
       cliente_id: String(cli.id),
@@ -221,6 +223,7 @@ export async function loadValidatedNotaCreditoSifenPayload(
     },
     notaCredito: {
       id: String((nc as { id: string }).id),
+      numero: (nc as { numero?: number | null }).numero ?? null,
       monto: Number((nc as { monto: unknown }).monto),
       motivo: String((nc as { motivo: string }).motivo ?? "").trim(),
       fecha_emision: String((factura as { fecha: string }).fecha).trim(),

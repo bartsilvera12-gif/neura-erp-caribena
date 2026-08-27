@@ -26,6 +26,10 @@ export interface EmpresaSifenConfigDTO {
   establecimiento: string;
   punto_expedicion: string;
   csc: string | null;
+  /** Teléfono del emisor mostrado en KUDE + usado en gEmis.dTelEmi. Solo dígitos (8–15). */
+  emisor_telefono: string | null;
+  /** Email del emisor mostrado en KUDE + usado en gEmis.dEmailE. */
+  emisor_email: string | null;
   certificado_path: string | null;
   certificado_vencimiento: string | null;
   activo: boolean;
@@ -62,6 +66,8 @@ export interface EmpresaSifenConfigCreateBody {
   punto_expedicion: string;
   ambiente: AmbienteSifen;
   csc?: string | null;
+  emisor_telefono?: string | null;
+  emisor_email?: string | null;
   certificado_path?: string | null;
   certificado_password?: string | null;
   certificado_vencimiento?: string | null;
@@ -85,6 +91,8 @@ export interface EmpresaSifenConfigPatchBody {
   punto_expedicion?: string;
   ambiente?: AmbienteSifen;
   csc?: string | null;
+  emisor_telefono?: string | null;
+  emisor_email?: string | null;
   certificado_path?: string | null;
   certificado_password?: string | null;
   certificado_vencimiento?: string | null;
@@ -216,6 +224,12 @@ export interface SifenPayloadEmisor {
   punto_expedicion: string;
   /** Código de seguridad del timbrado (SET); obligatorio para generar el DE oficial. */
   csc: string | null;
+  /** Teléfono del emisor mostrado en el KUDE y usado en el XML como dTelEmi.
+   *  Solo dígitos (8–15). null si no fue configurado (usa fallback histórico). */
+  telefono: string | null;
+  /** Email del emisor mostrado en el KUDE y usado en el XML como dEmailE.
+   *  null si no fue configurado (usa fallback histórico). */
+  email: string | null;
 }
 
 export interface SifenPayloadDocumento {
@@ -233,6 +247,15 @@ export interface SifenPayloadReceptor {
   nombre: string;
   documento: string | null;
   ruc: string | null;
+  /**
+   * Persona física inscripta como contribuyente en Marangatu. Solo con
+   * true (y RUC PY válido o documento en formato XXXXXXX-Y) el DE sale como
+   * B2B (iTiOpe=1, iNatRec=1). Con false, se fuerza B2C (iTiOpe=2, iNatRec=2)
+   * aunque el documento tenga formato de RUC — evita el rechazo SET 0301 [1264]
+   * cuando el operador cargó la CI con DV sin intención de emitir B2B.
+   * null/undefined equivale a false (default seguro).
+   */
+  es_contribuyente_py?: boolean | null;
   direccion: string | null;
   telefono: string | null;
   email: string | null;
@@ -305,10 +328,24 @@ export interface SifenNotaCreditoPayload {
   receptor: SifenPayloadReceptor;
   notaCredito: {
     id: string;
+    /** Correlativo por empresa (`nota_credito.numero`). Es el dNumDoc del CDC.
+     *  NULL solo en notas de legado, emitidas cuando el número se derivaba de un
+     *  hash del UUID; el XML aborta antes que inventar un número. */
+    numero: number | null;
     monto: number;
     motivo: string;
     /** Fecha calendario YYYY-MM-DD alineada al CDC (emisión NC = misma lógica que FE). */
     fecha_emision: string;
+    /** Líneas de una NC parcial. Si es null/undefined, el XML emite un solo
+     *  ítem genérico con el total. Cada línea es IVA-incluido en Gs./USD. */
+    items?: {
+      producto_nombre: string;
+      sku?: string | null;
+      cantidad: number;
+      precio_unitario: number;
+      tipo_iva: "EXENTA" | "5%" | "10%";
+      total_linea: number;
+    }[] | null;
   };
   facturaOrigen: {
     numero_factura: string;
@@ -504,3 +541,98 @@ export interface SifenConsultaLoteTestResponseData {
   /** Solo con ?debug=1 */
   cuerpo_soap?: string;
 }
+
+// =============================================================================
+// SIFEN Jobs — cola persistente (Fase 2)
+// =============================================================================
+
+export type SifenJobEstado =
+  | "pendiente"
+  | "procesando"
+  | "aprobado"
+  | "rechazado"
+  | "error";
+
+export type SifenJobEtapa = "xml" | "firmar" | "enviar" | "consulta_lote";
+
+/** Origen operativo del Job para métricas / auditoría. */
+export type SifenJobOrigen = "auto_venta" | "reintento_manual" | "manual_admin";
+
+/**
+ * Clasificación técnica del error del último intento. Determina si el worker
+ * (Fase 3) puede reintentar automáticamente. Sólo `red`, `http_5xx`, `storage`
+ * e `inesperado` son reintentables; el resto pasa directo a `rechazado` o `error`.
+ */
+export type SifenJobTipoError =
+  | "set_rechazo"
+  | "fiscal"
+  | "firma"
+  | "config"
+  | "red"
+  | "http_5xx"
+  | "storage"
+  | "inesperado"
+  /** SET nunca dejó de responder "en proceso" tras N re-encolados de consulta-lote. */
+  | "set_timeout";
+
+/** Cada línea de `intentos_log` — auditoría cronológica. */
+export interface SifenJobIntento {
+  intento: number;
+  at: string;
+  etapa: SifenJobEtapa;
+  tipo_error: SifenJobTipoError | null;
+  mensaje: string | null;
+  tiempo_ms: number | null;
+}
+
+export interface SifenJobDTO {
+  id: string;
+  empresa_id: string;
+  data_schema: string;
+  factura_id: string;
+  factura_electronica_id: string;
+
+  estado: SifenJobEstado;
+  etapa: SifenJobEtapa | null;
+
+  intentos: number;
+  max_intentos_auto: number;
+  intentos_log: SifenJobIntento[];
+
+  codigo_error_set: string | null;
+  codigo_sub_error_set: string | null;
+  mensaje_set: string | null;
+  ultimo_error: string | null;
+  tipo_error: SifenJobTipoError | null;
+
+  respuesta_recibe_lote: Record<string, unknown> | null;
+  respuesta_consulta_lote: Record<string, unknown> | null;
+
+  cdc: string | null;
+  protocolo_lote: string | null;
+
+  tiempo_xml_ms: number | null;
+  tiempo_firmar_ms: number | null;
+  tiempo_enviar_ms: number | null;
+  tiempo_consulta_ms: number | null;
+  tiempo_total_ms: number | null;
+
+  origen: SifenJobOrigen;
+
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  procesando_desde: string | null;
+  lock_owner: string | null;
+  proximo_reintento_at: string | null;
+
+  /**
+   * Cantidad de veces que el orquestador re-encoló el Job porque SET seguía
+   * respondiendo "en proceso" al consultar-lote. No cuenta como intento
+   * fallido (SET no rechazó nada). Si supera el límite, el Job se cierra en
+   * 'error' con `tipo_error='set_timeout'` — el operador puede consultar
+   * manualmente después.
+   */
+  veces_re_encolado_consulta: number;
+}
+

@@ -4,6 +4,8 @@ import { errorResponse } from "@/lib/api/response";
 import { API_ERRORS } from "@/lib/api/errors";
 import { downloadSifenObject } from "@/lib/sifen/sifen-storage";
 import { buildKudePdfBuffer, type KudeBranding } from "@/lib/sifen/kude-pdf";
+import { buildKudeTicketHtml } from "@/lib/sifen/kude-ticket-html";
+import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
 import {
   kudeFallbackQrUrl,
   parseKudeFromSignedRdeXml,
@@ -211,7 +213,164 @@ export async function GET(
       return null;
     });
 
+    // Códigos de barras por item, alineados posicionalmente con parsed.items.
+    // El XML no lleva SKU (dCodInt hardcodeado como "L1","L2"...), así que
+    // no se puede matchear por SKU. Path: factura → origen_venta_id →
+    // ventas_items (ordered) → productos → codigo_barras. Match por posición
+    // con parsed.items (el XML preserva el mismo orden que factura_items /
+    // ventas_items al momento de emitir).
+    let codigosBarrasPorItem: (string | null)[] | undefined;
+    try {
+      const { data: facMeta } = await supabase
+        .from("facturas")
+        .select("origen_venta_id")
+        .eq("id", fid)
+        .eq("empresa_id", auth.empresa_id)
+        .maybeSingle();
+      const origenVentaId = (facMeta as { origen_venta_id?: string | null } | null)?.origen_venta_id ?? null;
+      if (origenVentaId) {
+        const { data: viRows, error: errVi } = await supabase
+          .from("ventas_items")
+          .select("producto_id, sku, created_at")
+          .eq("empresa_id", auth.empresa_id)
+          .eq("venta_id", origenVentaId)
+          .order("created_at", { ascending: true });
+        if (errVi) {
+          console.warn("[kude] no se pudieron cargar ventas_items para codigos_barras", {
+            message: errVi.message,
+          });
+        } else {
+          const items = (viRows ?? []) as Array<{ producto_id: string | null; sku: string | null }>;
+          const productoIds = Array.from(
+            new Set(items.map((it) => it.producto_id).filter((v): v is string => !!v))
+          );
+          // Match por NOMBRE del producto (= descripción del ítem en el XML), NO
+          // por posición. El match posicional se desalineaba cuando ventas_items
+          // se insertaba en batch (todos con el mismo created_at → `ORDER BY
+          // created_at` no determinístico ≠ orden del XML), y el código de barras
+          // terminaba pegado al producto de al lado.
+          const norm = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
+          const codigoByNombre = new Map<string, string | null>();
+          if (productoIds.length > 0) {
+            const { data: prods, error: errProds } = await supabase
+              .from("productos")
+              .select("id, nombre, codigo_barras")
+              .eq("empresa_id", auth.empresa_id)
+              .in("id", productoIds);
+            if (errProds) {
+              console.warn("[kude] no se pudo cargar codigo_barras de productos", {
+                message: errProds.message,
+              });
+            } else {
+              for (const p of (prods ?? []) as Array<{ id: string; nombre?: string | null; codigo_barras?: string | null }>) {
+                const nombre = norm(String(p.nombre ?? ""));
+                if (!nombre) continue;
+                const cb = (p.codigo_barras ?? "").trim() || null;
+                // Nombre ambiguo (dos productos, códigos distintos): no arriesgar
+                // un código equivocado → se deja null (no se muestra código).
+                if (codigoByNombre.has(nombre) && codigoByNombre.get(nombre) !== cb) {
+                  codigoByNombre.set(nombre, null);
+                } else {
+                  codigoByNombre.set(nombre, cb);
+                }
+              }
+            }
+          }
+          // La descripción del ítem del XML (dDesProSer) es el nombre del producto.
+          codigosBarrasPorItem = parsed.items.map((it) => codigoByNombre.get(norm(String(it.descripcion ?? ""))) ?? null);
+        }
+      }
+    } catch (e) {
+      console.warn("[kude] excepción cargando codigos_barras (se omite)", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    // Cargar contacto emisor actual de empresa_sifen_config para overrides
+    // retroactivos del KUDE (fix visual de facturas viejas que llevan valores
+    // hardcodeados en el XML firmado). No modifica el XML.
+    let emisorTelefonoOverride: string | null = null;
+    let emisorEmailOverride: string | null = null;
+    try {
+      const { data: cfgRow } = await supabase
+        .from("empresa_sifen_config")
+        .select("emisor_telefono, emisor_email")
+        .eq("empresa_id", auth.empresa_id)
+        .maybeSingle();
+      const row = cfgRow as { emisor_telefono?: string | null; emisor_email?: string | null } | null;
+      const tel = (row?.emisor_telefono ?? "").trim();
+      const em = (row?.emisor_email ?? "").trim();
+      if (tel) emisorTelefonoOverride = tel;
+      if (em) emisorEmailOverride = em;
+    } catch (e) {
+      console.warn("[kude] no se pudo cargar contacto emisor override", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
     const numeroFactura = fac.numero_factura == null ? "" : String(fac.numero_factura);
+
+    // Formato de impresión (representación gráfica). Orden de prioridad:
+    //   1) query param (?formato=ticket|a4, ?w=58|80) — override manual;
+    //   2) formato de la SUCURSAL de la factura (sucursales.kude_formato) —
+    //      p. ej. Reserva Market en ticket, Casa Matriz en A4;
+    //   3) config de la empresa (empresa_facturacion_modo.impresion_tipo_default);
+    //   4) default A4.
+    const formatoParam = request.nextUrl.searchParams.get("formato");
+    const wParam = request.nextUrl.searchParams.get("w");
+
+    let formatoBase = "";
+    const sucId = (fac as { sucursal_id?: string | null }).sucursal_id ?? null;
+    if (sucId) {
+      try {
+        const { data: sucRow } = await supabase
+          .from("sucursales")
+          .select("kude_formato")
+          .eq("id", String(sucId))
+          .eq("empresa_id", auth.empresa_id)
+          .maybeSingle();
+        const kf = String((sucRow as { kude_formato?: string | null } | null)?.kude_formato ?? "").trim();
+        if (kf) formatoBase = kf;
+      } catch { /* sigue con config de empresa */ }
+    }
+    if (!formatoBase) {
+      try {
+        const { data: modoRow } = await supabase
+          .from("empresa_facturacion_modo")
+          .select("impresion_tipo_default")
+          .eq("empresa_id", auth.empresa_id)
+          .maybeSingle();
+        formatoBase = String((modoRow as { impresion_tipo_default?: string } | null)?.impresion_tipo_default ?? "").trim();
+      } catch { /* cae a A4 */ }
+    }
+
+    let esTicket = formatoBase === "ticket_58mm" || formatoBase === "ticket_80mm";
+    let widthMm: 58 | 80 = formatoBase === "ticket_58mm" ? 58 : 80;
+    if (formatoParam === "ticket") esTicket = true;
+    else if (formatoParam === "a4") esTicket = false;
+    if (wParam === "58") widthMm = 58;
+    else if (wParam === "80") widthMm = 80;
+
+    if (esTicket) {
+      // El encabezado sale del XML firmado (nombre, RUC, dirección) más el
+      // teléfono y el email de la config: no hay branding por sucursal porque
+      // Caribeña es un solo local.
+      const html = await buildKudeTicketHtml({
+        parsed,
+        numeroFactura,
+        dProtAut,
+        qrUrl,
+        widthMm,
+        emisorTelefonoOverride,
+        emisorEmailOverride,
+        auto: request.nextUrl.searchParams.get("auto") !== "0",
+      });
+      return new NextResponse(html, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
+      });
+    }
+
     let pdf: Buffer;
     try {
       pdf = await buildKudePdfBuffer({
@@ -220,6 +379,9 @@ export async function GET(
         dProtAut,
         qrUrl,
         branding,
+        codigosBarrasPorItem,
+        emisorTelefonoOverride,
+        emisorEmailOverride,
       });
     } catch (e) {
       const m = e instanceof Error ? e.message : "Error al generar PDF";

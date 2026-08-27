@@ -58,8 +58,22 @@ export interface SifenBuildClienteRow {
   empresa: string | null;
   nombre_contacto: string | null;
   nombre: string | null;
+  /** Nombre para facturar cuando difiere de la Razón Social (p. ej. cooperativa,
+   *  cónyuge/hijo, etc.). Si está seteado, sobrescribe todos los demás nombres
+   *  al construir el receptor SIFEN. */
+  nombre_facturacion?: string | null;
   ruc: string | null;
   documento: string | null;
+  /** 'persona' (persona física) | 'empresa' (persona jurídica). Impacta cómo se
+   *  resuelve dNomRec (personas físicas → nombre real, empresas → nombre_facturacion). */
+  tipo_cliente?: string | null;
+  /** Persona física inscripta como contribuyente en Marangatu. Solo si es true
+   *  (y hay documento con formato RUC PY), el DE sale como B2B (iTiOpe=1).
+   *  Si es false, la persona se trata como consumidor final (B2C, iTiOpe=2)
+   *  aunque el documento tenga formato `XXXXXXX-Y` que en Paraguay coincide
+   *  con la CI cuando se escribe con DV. Evita el rechazo 0301 [1264] cuando
+   *  el operador cargó la CI con formato de RUC sin intención de emitir B2B. */
+  es_contribuyente?: boolean | null;
   direccion: string | null;
   telefono: string | null;
   email: string | null;
@@ -89,6 +103,8 @@ export interface SifenBuildConfigRow {
   punto_expedicion: string;
   csc: string | null;
   activo: boolean;
+  emisor_telefono?: string | null;
+  emisor_email?: string | null;
 }
 
 export interface SifenBuildElectronicaRow {
@@ -110,7 +126,34 @@ export type BuildSifenPayloadResult =
   | { ok: false; error: string };
 
 function nombreReceptor(c: SifenBuildClienteRow): string {
-  return trimStr(c.empresa) || trimStr(c.nombre_contacto) || trimStr(c.nombre);
+  // Empresas (persona jurídica): `nombre_facturacion` prioritario, cubre casos
+  // donde la razón social fiscal difiere del nombre comercial (ej. SUPERMERCADO
+  // FERNHEIM cuya razón social real es COOPERATIVA COLONIZADORA MULTIACTIVA
+  // FERNHEIM LIMITADA).
+  //
+  // Personas físicas contribuyentes: NO usar nombre_facturacion como primera
+  // opción. En Paraguay las personas físicas suelen tener un nombre comercial
+  // (ej. "COMERCIAL CELI", "KIOSCO JUAN") DISTINTO del nombre real de la CI
+  // (ej. "CRISTALDO CELIA ESTHER"). El nombre registrado en Marangatu para su
+  // RUC es el de la CI, no el comercial. Enviar el nombre comercial como
+  // dNomRec provocaba rechazo SET 0301 [1264] porque SET compara contra el
+  // padrón. Para personas físicas usamos el nombre real y dejamos
+  // nombre_facturacion sólo como último fallback cuando no hay nada más.
+  const esPersonaFisica = trimStr(c.tipo_cliente ?? "").toLowerCase() === "persona";
+  if (esPersonaFisica) {
+    return (
+      trimStr(c.nombre) ||
+      trimStr(c.nombre_contacto) ||
+      trimStr(c.empresa) ||
+      trimStr(c.nombre_facturacion ?? "")
+    );
+  }
+  return (
+    trimStr(c.nombre_facturacion ?? "") ||
+    trimStr(c.empresa) ||
+    trimStr(c.nombre_contacto) ||
+    trimStr(c.nombre)
+  );
 }
 
 function validateEmisor(config: SifenBuildConfigRow | null): { ok: true; emisor: SifenPayloadEmisor } | { ok: false; error: string } {
@@ -185,6 +228,15 @@ function validateEmisor(config: SifenBuildConfigRow | null): { ok: true; emisor:
       establecimiento,
       punto_expedicion,
       csc: cscRaw === "" ? null : cscRaw,
+      telefono: (() => {
+        const t = trimStr(config.emisor_telefono ?? "");
+        const digits = t.replace(/\D/g, "");
+        return digits.length >= 8 && digits.length <= 15 ? digits : null;
+      })(),
+      email: (() => {
+        const e = trimStr(config.emisor_email ?? "");
+        return e.length > 0 ? e : null;
+      })(),
     },
   };
 }
@@ -232,6 +284,7 @@ function validateReceptor(
   let direccion: string | null = dirRaw || null;
   if (direccion) {
     const hints = [
+      trimStr(cliente.nombre_facturacion ?? ""),
       trimStr(cliente.empresa),
       trimStr(cliente.nombre_contacto),
       trimStr(cliente.nombre),
@@ -285,6 +338,7 @@ function validateReceptor(
       nombre,
       documento,
       ruc,
+      es_contribuyente_py: false, // Extranjeros nunca son contribuyentes PY.
       direccion,
       telefono: trimStr(cliente.telefono) || null,
       email: trimStr(cliente.email) || null,
@@ -331,11 +385,46 @@ function validateReceptor(
     }
   }
 
+  // Solo tratamos al receptor como contribuyente cuando:
+  //   (a) el operador marcó explícitamente el checkbox `es_contribuyente`, o
+  //   (b) el cliente es una empresa (persona jurídica — siempre contribuyente).
+  const esContribuyentePy =
+    cliente.es_contribuyente === true ||
+    trimStr(cliente.tipo_cliente ?? "").toLowerCase() === "empresa";
+
+  // Gates de coherencia contribuyente↔RUC. SET rechaza el lote con 0301 [1264]
+  // ("RUC del receptor no habilitado para esta operación") cuando el ERP envía
+  // como B2B (iNatRec=1) un RUC que no está habilitado en el padrón: típicamente
+  // porque `clientes.ruc` quedó cargado tras destildar `es_contribuyente`, o
+  // porque una empresa (persona jurídica) no tiene RUC. Bloqueamos acá antes de
+  // gastar un envío a SET y le pedimos al operador corregir el cliente.
+  if (!esContribuyentePy && ruc) {
+    return {
+      ok: false,
+      error:
+        "El cliente tiene RUC cargado pero no está marcado como contribuyente. SIFEN rechazaría el DE con 0301 [1264] («RUC del receptor no habilitado»). Corregí el cliente: si es contribuyente, tildá «es contribuyente»; si no, borrá el RUC del cliente y volvé a intentar.",
+    };
+  }
+  if (
+    trimStr(cliente.tipo_cliente ?? "").toLowerCase() === "empresa" &&
+    !ruc
+  ) {
+    return {
+      ok: false,
+      error:
+        "El cliente está marcado como empresa (persona jurídica) pero no tiene RUC. SIFEN exige RUC + DV para operación B2B. Cargá el RUC en el cliente y volvé a intentar.",
+    };
+  }
+
   const receptor: SifenPayloadReceptor = {
     cliente_id: cliente.id,
     nombre,
     documento,
     ruc,
+    // Personas físicas con checkbox destildado NO son contribuyentes aunque su
+    // documento tenga formato de RUC (CI + DV). Ese era el bug histórico:
+    // el sistema inferíа B2B solo por el guión del documento e ignoraba el flag.
+    es_contribuyente_py: esContribuyentePy,
     direccion,
     telefono: trimStr(cliente.telefono) || null,
     email: trimStr(cliente.email) || null,

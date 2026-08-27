@@ -5,7 +5,11 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { FacturaElectronicaPanel } from "@/components/sifen/FacturaElectronicaPanel";
-import type { FacturaElectronicaDTO, SifenCancelacionPreviewDTO } from "@/lib/sifen/types";
+import type {
+  FacturaElectronicaDTO,
+  SifenCancelacionPreviewDTO,
+  SifenJobDTO,
+} from "@/lib/sifen/types";
 
 type FacturaApiRow = {
   id: string;
@@ -17,8 +21,10 @@ type FacturaApiRow = {
   estado: string;
   tipo: string;
   moneda: string;
-  cliente_id: string;
+  cliente_id: string | null;
   cliente_display?: string;
+  /** Si la factura fue creada por el puente venta→factura, tiene el uuid de la venta origen. */
+  origen_venta_id?: string | null;
 };
 
 type SifenResumen = {
@@ -28,6 +34,8 @@ type SifenResumen = {
   sifen_plazo_cancelacion_horas: number;
   factura_electronica: FacturaElectronicaDTO | null;
   cancelacion: SifenCancelacionPreviewDTO | null;
+  sifen_job: SifenJobDTO | null;
+  cancelacion_confirmada_set?: boolean;
 };
 
 function formatFecha(str: string) {
@@ -47,6 +55,12 @@ function FacturaDetalleInner() {
   const [resumen, setResumen] = useState<SifenResumen | null>(null);
   const [loadingF, setLoadingF] = useState(true);
   const [loadingS, setLoadingS] = useState(true);
+  const [ncResumen, setNcResumen] = useState<{
+    monto_acreditado: number;
+    monto_pendiente_aprobacion: number;
+    cantidad_ncs: number;
+    cantidad_aprobadas: number;
+  } | null>(null);
 
   const onResumenLoaded = useCallback((r: SifenResumen) => {
     setResumen(r);
@@ -118,6 +132,31 @@ function FacturaDetalleInner() {
     };
   }, [id]);
 
+  // Agregados de notas de crédito de esta factura (monto acreditado / pendiente).
+  // No bloqueante: si falla, la ficha se muestra igual sin la sección extra.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchWithSupabaseSession(`/api/facturas/${id}/notas-credito`, { cache: "no-store" });
+        const j = (await res.json()) as {
+          success?: boolean;
+          data?: { resumen?: typeof ncResumen };
+        };
+        if (cancelled) return;
+        if (res.ok && j.success && j.data?.resumen) {
+          setNcResumen(j.data.resumen);
+        }
+      } catch {
+        /* silencioso */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   useEffect(() => {
     if (searchParams?.get("print") === "1" && factura && !loadingF) {
       const t = setTimeout(() => window.print(), 400);
@@ -163,28 +202,41 @@ function FacturaDetalleInner() {
     <div className="max-w-6xl mx-auto space-y-6 py-6 px-4 sm:px-6 print:px-0 w-full">
       <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
-          <Link
-            href={`/gestion-clientes?cliente=${encodeURIComponent(factura.cliente_id)}`}
-            className="text-xs font-medium text-[#0EA5E9] hover:underline"
-          >
-            ← Gestión de clientes
-          </Link>
+          {/* Back link: si la factura viene del puente venta→factura, volvemos a Ventas.
+              Si no (suscripción / plan), mantenemos el back histórico a Gestión de clientes. */}
+          {factura.origen_venta_id ? (
+            <Link
+              href="/ventas"
+              className="text-xs font-medium text-[#0EA5E9] hover:underline"
+            >
+              ← Ventas
+            </Link>
+          ) : factura.cliente_id ? (
+            <Link
+              href={`/gestion-clientes?cliente=${encodeURIComponent(factura.cliente_id)}`}
+              className="text-xs font-medium text-[#0EA5E9] hover:underline"
+            >
+              ← Gestión de clientes
+            </Link>
+          ) : (
+            <Link
+              href="/gestion-clientes"
+              className="text-xs font-medium text-[#0EA5E9] hover:underline"
+            >
+              ← Gestión de clientes
+            </Link>
+          )}
           <h1 className="text-2xl font-bold text-slate-900 mt-1">Factura {factura.numero_factura}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Cliente:{" "}
-            <Link href={`/clientes/${factura.cliente_id}`} className="text-[#0EA5E9] font-medium hover:underline">
-              {factura.cliente_display ?? "Ver cliente"}
-            </Link>
+            {factura.cliente_id ? (
+              <Link href={`/clientes/${factura.cliente_id}`} className="text-[#0EA5E9] font-medium hover:underline">
+                {factura.cliente_display ?? "Ver cliente"}
+              </Link>
+            ) : (
+              <span className="text-slate-700 font-medium">{factura.cliente_display ?? "Consumidor final"}</span>
+            )}
           </p>
-        </div>
-        <div className="flex gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="text-xs font-semibold px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
-          >
-            Imprimir
-          </button>
         </div>
       </div>
 
@@ -222,11 +274,52 @@ function FacturaDetalleInner() {
             <dd className="font-medium text-slate-800">{factura.estado}</dd>
           </div>
         </dl>
+
+        {ncResumen && ncResumen.cantidad_ncs > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Notas de crédito</p>
+                <p className="font-semibold text-slate-800">
+                  {ncResumen.cantidad_ncs}{" "}
+                  <span className="text-[11px] font-normal text-slate-500">
+                    ({ncResumen.cantidad_aprobadas} aprob.)
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Acreditado</p>
+                <p className="font-semibold text-emerald-800 tabular-nums">
+                  {monedaLabel}{" "}
+                  {ncResumen.monto_acreditado.toLocaleString(factura.moneda === "USD" ? "en-US" : "es-PY")}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Pendiente NC</p>
+                <p className="font-semibold text-amber-900 tabular-nums">
+                  {monedaLabel}{" "}
+                  {ncResumen.monto_pendiente_aprobacion.toLocaleString(factura.moneda === "USD" ? "en-US" : "es-PY")}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Saldo restante</p>
+                <p className="font-bold text-slate-900 tabular-nums">
+                  {monedaLabel}{" "}
+                  {factura.saldo.toLocaleString(factura.moneda === "USD" ? "en-US" : "es-PY")}
+                </p>
+              </div>
+            </div>
+            <p className="mt-1.5 text-[10px] text-slate-500">
+              &quot;Acreditado&quot; suma NC ya aprobadas por SIFEN (ya restadas del saldo). &quot;Pendiente&quot;
+              son NC en borrador o esperando SET (no impactan saldo aún).
+            </p>
+          </div>
+        )}
       </div>
 
       <FacturaElectronicaPanel
         facturaId={id}
-        clienteId={factura.cliente_id}
+        clienteId={factura.cliente_id ?? ""}
         facturaComercial={{
           monto: factura.monto,
           saldo: factura.saldo,

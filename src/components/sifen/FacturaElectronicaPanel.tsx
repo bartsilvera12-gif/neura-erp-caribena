@@ -1,16 +1,19 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import type {
   FacturaElectronicaDTO,
   SifenCancelacionPreviewDTO,
   SifenConsultaLoteUltimaPersistida,
+  SifenJobDTO,
 } from "@/lib/sifen/types";
 import { decodeXmlNumericEntities } from "@/lib/sifen/decode-xml-entities";
+import { friendlyErrorMsg } from "@/lib/sifen/friendly-error-msg";
 import { SifenEstadoBadge } from "./SifenEstadoBadge";
 import { FacturaCorreccionFiscalNC } from "@/components/facturas/FacturaCorreccionFiscalNC";
+import { useIsAdmin } from "@/lib/auth/use-is-admin";
 
 type Resumen = {
   sifen_config_exists: boolean;
@@ -19,7 +22,42 @@ type Resumen = {
   sifen_plazo_cancelacion_horas: number;
   factura_electronica: FacturaElectronicaDTO | null;
   cancelacion: SifenCancelacionPreviewDTO | null;
+  /** Fase 2: último Job de la cola async para este DE. */
+  sifen_job: SifenJobDTO | null;
+  /** La SET confirmó la cancelación (evento 0600, o 4003 "ya tenía el evento"). */
+  cancelacion_confirmada_set?: boolean;
 };
+
+/**
+ * Etiqueta para el badge de progreso cuando hay un Job async corriendo en el
+ * server. Prefiere `sifen_job.etapa` (worker) sobre `estado_sifen` porque la
+ * etapa del Job es más precisa (sabemos qué está haciendo el worker en este
+ * momento, no solo el estado persistido tras cada etapa).
+ */
+function etiquetaProgresoJob(job: SifenJobDTO | null, estadoSifen: string | null): string | null {
+  if (job) {
+    if (job.estado === "pendiente") return "En cola…";
+    if (job.estado === "procesando") {
+      switch (job.etapa) {
+        case "xml":
+          return "Generando XML…";
+        case "firmar":
+          return "Firmando…";
+        case "enviar":
+          return "Enviando a SET…";
+        case "consulta_lote":
+          return "Esperando respuesta SET…";
+        default:
+          return "Procesando…";
+      }
+    }
+    return null;
+  }
+  // Sin job (flujo sincrónico manual) — mantiene el comportamiento anterior.
+  const st = String(estadoSifen ?? "");
+  if (st === "enviado" || st === "en_proceso") return "En proceso en SET";
+  return null;
+}
 
 /** Una línea operativa; en producción evita jerga de pipeline/XML. */
 function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
@@ -69,9 +107,7 @@ function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
       return "El documento fue rechazado. Podés regenerar el XML y luego firmar y enviar de nuevo.";
     case "error_envio":
       return fe.error?.trim()
-        ? fe.error.trim().length > 140
-          ? `${fe.error.trim().slice(0, 140)}…`
-          : fe.error.trim()
+        ? friendlyErrorMsg({ raw: fe.error.trim(), estadoSifen: String(fe.estado_sifen) }).titulo
         : "Falló el envío. Podés reintentar.";
     case "cancelado":
       return "Documento anulado en el sistema.";
@@ -83,9 +119,17 @@ function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
 function ResumenSifenCompacto({ resumen, debugUi }: { resumen: Resumen; debugUi: boolean }) {
   const fe = resumen.factura_electronica;
   const st = fe?.estado_sifen ?? null;
+  const job = resumen.sifen_job;
+  const progreso = etiquetaProgresoJob(job, st);
   return (
     <div className="flex flex-wrap items-center gap-3 min-w-0">
       <SifenEstadoBadge estadoSifen={st} mostrarPistaEnvioSet={false} className="shrink-0" />
+      {progreso ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" aria-hidden />
+          {progreso}
+        </span>
+      ) : null}
       <div className="min-w-0 flex-1">
         <p className="text-sm text-slate-600 leading-snug">{subtituloSifenEjecutivo(resumen, debugUi)}</p>
         {!resumen.sifen_config_activa ? (
@@ -184,9 +228,16 @@ export function FacturaElectronicaPanel({
     | "consulta-lote"
     | "cancelar-de"
     | "pipeline"
+    | "reintentar-job"
     | null
   >(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const { isAdmin: esAdmin } = useIsAdmin();
+  /** Herramienta admin: reimportar el XML aprobado descargado de Marangatú. */
+  const [reimportando, setReimportando] = useState(false);
+  const reimportFileRef = useRef<HTMLInputElement | null>(null);
+  /** true cuando el polling se cortó por timeout (90s sin cambios). Fase 3.1. */
+  const [pollingCortadoPorTimeout, setPollingCortadoPorTimeout] = useState(false);
   const [cancelModal, setCancelModal] = useState<"cancelar" | "reemitir" | null>(null);
   const [motivoCancel, setMotivoCancel] = useState("");
 
@@ -241,6 +292,78 @@ export function FacturaElectronicaPanel({
     }
   };
 
+  /**
+   * Conciliación con SET: reenvía el evento de cancelación para facturas que
+   * quedaron marcadas «canceladas» en el ERP pero NUNCA se cancelaron en la SET
+   * (bug histórico: la cancelación era solo local). No cambia el estado local
+   * (ya está cancelada); solo hace que la SET coincida. Si SET rechaza (fuera de
+   * las 48h), hay que ir por Nota de Crédito.
+   */
+  const ejecutarReintentoSet = async () => {
+    setFlash(null);
+    const motivo = fe?.sifen_cancelacion_motivo?.trim() || "Cancelación de documento electrónico";
+    setAction("cancelar-de");
+    try {
+      const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/cancelar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo, reintentar_set: true }),
+      });
+      const j = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || !j.success) {
+        setFlash({
+          kind: "err",
+          text:
+            (j.error ?? `Error ${res.status}`) +
+            " — Si la SET la rechaza por plazo, hay que anular con Nota de Crédito.",
+        });
+        return;
+      }
+      setFlash({ kind: "ok", text: "Cancelación registrada en la SET. La factura quedó anulada también en Marangatú." });
+      await refresh();
+      await onComercialUpdated?.();
+    } catch (e) {
+      setFlash({ kind: "err", text: e instanceof Error ? e.message : "Error de red" });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  /**
+   * Reimporta el XML firmado APROBADO (descargado de Marangatú) para una factura
+   * que quedó con un CDC rechazado en el ERP. Corrige el CDC y repone el XML, así
+   * la Nota de Crédito referencia el documento correcto y deja de fallar con "CDC
+   * inexistente". No re-firma ni reenvía nada.
+   */
+  const reimportarFirmado = async (file: File) => {
+    setFlash(null);
+    setReimportando(true);
+    try {
+      const xml = await file.text();
+      const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/reimportar-firmado`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ xml }),
+      });
+      const j = (await res.json()) as { success?: boolean; error?: string; data?: { cdc?: string } };
+      if (!res.ok || !j.success) {
+        setFlash({ kind: "err", text: j.error ?? `Error ${res.status}` });
+        return;
+      }
+      setFlash({
+        kind: "ok",
+        text: `Documento aprobado reimportado. CDC corregido (${j.data?.cdc ?? ""}). Ya podés emitir la Nota de Crédito.`,
+      });
+      await refresh();
+      await onComercialUpdated?.();
+    } catch (e) {
+      setFlash({ kind: "err", text: e instanceof Error ? e.message : "Error de red" });
+    } finally {
+      setReimportando(false);
+      if (reimportFileRef.current) reimportFileRef.current.value = "";
+    }
+  };
+
   const run = async (kind: "borrador" | "xml" | "firmar") => {
     setFlash(null);
     setAction(kind);
@@ -286,7 +409,7 @@ export function FacturaElectronicaPanel({
       setFlash({
         kind: "ok",
         text:
-          "XML regenerado en el servidor. Si el documento estaba rechazado, puede haberse asignado un nuevo CDC: revisá el resumen y continuá con firmar y enviar cuando corresponda. Este paso no envía datos al SET.",
+          "XML regenerado desde los datos actuales del cliente (RUC/DV/tipo de contribuyente/dirección). Si el DE estaba rechazado, se asignó un nuevo CDC. Continuá con firmar y enviar. Este paso no envía datos al SET.",
       });
       await refresh();
     } catch (e) {
@@ -302,6 +425,24 @@ export function FacturaElectronicaPanel({
   const runEnviar = async (opts?: { accionUi?: "enviar" | "none" }) => {
     const accionUi = opts?.accionUi ?? "enviar";
     setFlash(null);
+    // Guard defensivo: NUNCA reintentar /enviar si el DE ya salió de 'firmado'.
+    // Estados post-envío (enviado, en_proceso, aprobado, rechazado, cancelado)
+    // hacen que el backend responda 409 y dejaba pegado el flash
+    //   "Solo se puede enviar a SET con estado 'firmado'. Estado actual: 'enviado'"
+    // aun cuando el flujo correcto era esperar /consulta-lote. Este chequeo cubre
+    // races típicas: worker Phase 3 enviando en paralelo, doble click humano,
+    // ejecutarGenerarYEnviar con state stale entre refresh() y runEnviar().
+    const stActual = String(fe?.estado_sifen ?? "");
+    if (
+      stActual === "enviado" ||
+      stActual === "en_proceso" ||
+      stActual === "aprobado" ||
+      stActual === "rechazado" ||
+      stActual === "cancelado"
+    ) {
+      await refresh();
+      return;
+    }
     if (accionUi === "enviar") setAction("enviar");
     try {
       const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/enviar`, { method: "POST" });
@@ -418,6 +559,32 @@ export function FacturaElectronicaPanel({
     }
   };
 
+  /**
+   * Reintentar la emisión encolando un nuevo Job SIFEN. Fase 2. Usa el endpoint
+   * dedicado /sifen/reintentar que valida que el DE no esté aprobado y agrega
+   * origen='reintento_manual' al histórico.
+   */
+  const reintentarJob = async () => {
+    setFlash(null);
+    setAction("reintentar-job");
+    try {
+      const res = await fetchWithSupabaseSession(
+        `/api/facturas/${facturaId}/sifen/reintentar`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        setFlash({ kind: "err", text: await readApiError(res) });
+        return;
+      }
+      setFlash({ kind: "ok", text: "Reintento encolado. Procesando en background…" });
+      await refresh();
+    } catch (e) {
+      setFlash({ kind: "err", text: e instanceof Error ? e.message : "Error de red" });
+    } finally {
+      setAction(null);
+    }
+  };
+
   /** Borrador → XML → firma → envío en una sola acción (mismos endpoints). */
   const ejecutarGenerarYEnviar = async () => {
     setFlash(null);
@@ -511,6 +678,145 @@ export function FacturaElectronicaPanel({
   const fe = resumen?.factura_electronica ?? null;
   const estado = fe?.estado_sifen ?? null;
 
+  // Fase 2 async: llegamos con ?auto=1 (redirect desde /ventas/nueva).
+  // En vez de correr el pipeline client-side (30-35s bloqueando la caja),
+  // encolamos un Job SIFEN server-side y respondemos inmediatamente.
+  // El worker (Fase 3) toma el Job y ejecuta xml → firmar → enviar → consulta.
+  // El polling de más abajo refresca /resumen cada 5s para reflejar el progreso.
+  const autoDisparadoRef = useRef(false);
+  const autoFlag = searchParams?.get("auto") === "1";
+  useEffect(() => {
+    if (!autoFlag) return;
+    if (autoDisparadoRef.current) return;
+    if (loadingResumen) return;
+    if (!resumen?.sifen_config_activa) return;
+    const estActual = String(estado ?? "");
+    // Si el DE ya está en estado terminal, no reencolamos.
+    // `error_envio` y `rechazado` también los tratamos como "no auto-encolar":
+    // la respuesta anterior de SET debe quedar visible para el operador. Si
+    // querés reintentar tras un rechazo, usá el botón "Reintentar" (pasa por
+    // el mismo endpoint /encolar pero de forma explícita). Antes reencolaba
+    // solo con montar el panel y el mensaje SET desaparecía sin que se viera.
+    if (
+      estActual === "aprobado" ||
+      estActual === "cancelado" ||
+      estActual === "rechazado" ||
+      estActual === "error_envio"
+    ) {
+      return;
+    }
+    // Si ya hay un Job vivo (pendiente/procesando), no encolamos otro.
+    // El polling se encarga de mostrar el progreso.
+    const jobActivo =
+      resumen.sifen_job &&
+      (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
+    if (jobActivo) {
+      autoDisparadoRef.current = true;
+      return;
+    }
+    autoDisparadoRef.current = true;
+    // Fire-and-forget: no await → la UI no se bloquea. El server encola el Job
+    // y responde 202 al toque. Si falla el kickoff, el operador tiene el botón
+    // "Reintentar" en el panel.
+    void fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/encolar`, {
+      method: "POST",
+    })
+      .then(async () => {
+        // Refresh inmediato para que la UI capte el Job recién creado y arranque
+        // el badge "En cola…" sin esperar el primer tick de polling.
+        await refresh();
+      })
+      .catch(() => {
+        /* silencioso: el botón manual sigue disponible */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFlag, loadingResumen, estado, resumen?.sifen_job?.id]);
+
+  // Polling cada 5s mientras haya un Job vivo o el DE esté en estado no terminal.
+  // Corta cuando:
+  //   - DE terminal: aprobado | cancelado | rechazado.
+  //   - Job terminal (rechazado/error) → deja el estado del DE quieto y muestra
+  //     el error persistido; el operador decide si reintenta.
+  //   - 90s desde el arranque del polling sin cambios → deja de batir la API;
+  //     el operador puede refrescar la página o apretar "Consultar lote".
+  const pollingStartedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!resumen?.sifen_config_activa) return;
+    const st = String(estado ?? "");
+    const jobSt = resumen.sifen_job?.estado ?? null;
+    const deTerminal = st === "aprobado" || st === "cancelado" || st === "rechazado";
+    const jobTerminal =
+      jobSt === "aprobado" || jobSt === "rechazado" || jobSt === "error" || jobSt === null;
+    if (deTerminal) {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    // Sin Job activo y DE en estado no-terminal (ej. flujo manual) → sin polling.
+    if (jobSt == null && !autoFlag) {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    // Job terminal pero DE en estado intermedio (poco común: enviado/en_proceso
+    // con consulta pendiente). Dejamos de batir el server; el operador consulta.
+    if (jobTerminal && st !== "enviado" && st !== "en_proceso") {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    if (pollingStartedAtRef.current == null) {
+      pollingStartedAtRef.current = Date.now();
+      setPollingCortadoPorTimeout(false);
+    }
+    const start = pollingStartedAtRef.current;
+    if (Date.now() - start > 90_000) {
+      setPollingCortadoPorTimeout(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void refresh();
+    }, 5_000);
+    return () => clearTimeout(timer);
+  }, [autoFlag, estado, resumen, refresh]);
+
+  // Al cruzar de 'firmado' a 'enviado' (o posterior) limpiamos el flash: si había
+  // un error residual del tipo "Solo se puede enviar a SET con estado 'firmado'.
+  // Estado actual: 'enviado'" (409 por race/reintento redundante), ya no aplica.
+  // Cubre el screenshot del bug: badge "Enviado" + banner rojo pegado al mismo
+  // tiempo. Solo UI — no toca ninguna lógica fiscal / envío / consulta.
+  useEffect(() => {
+    // Cast a string: 'en_proceso' aparece en runtime (consulta-lote SET) pero
+    // no está en el union EstadoSifen; TS strict falla el compare sin el cast.
+    const st = String(estado ?? "");
+    if (
+      st === "enviado" ||
+      st === "en_proceso" ||
+      st === "aprobado" ||
+      st === "cancelado"
+    ) {
+      setFlash(null);
+    }
+  }, [estado]);
+
+  // Cuando SIFEN aprueba el DE:
+  //  1) El flash ya se limpió en el efecto de arriba al pasar a 'enviado'/aprobado.
+  //  2) Intentamos abrir el KUDE en pestaña nueva. Un solo intento por montaje.
+  //     Si el navegador bloquea el popup (Chrome lo hace cuando el open no
+  //     viene de un user gesture), el operador tiene el botón "Imprimir KUDE"
+  //     visible justo abajo del badge Aprobado.
+  const kudeAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (estado !== "aprobado") return;
+    if (kudeAutoOpenedRef.current) return;
+    kudeAutoOpenedRef.current = true;
+    try {
+      window.open(`/api/facturas/${facturaId}/sifen/kude`, "_blank", "noopener");
+    } catch {
+      /* popup bloqueado — el botón "Imprimir KUDE" cubre este caso */
+    }
+  }, [estado, facturaId]);
+
   const puedeBorrador = Boolean(resumen?.sifen_config_activa) && !fe;
   const puedeGenerarXml =
     Boolean(resumen?.sifen_config_activa) && fe != null && !XML_BLOQUEADOS.has(String(estado));
@@ -541,7 +847,17 @@ export function FacturaElectronicaPanel({
     Boolean(resumen?.sifen_config_activa) &&
     !primaryConsultarLote &&
     (!fe || ["borrador", "generado", "firmado", "error_envio"].includes(stStr));
-  const busy = action !== null;
+  // El worker en background puede estar procesando esta misma factura
+  // (etapa xml/firmar/enviar) al mismo tiempo que el operador aprieta un botón
+  // manual — sin esto, ambos pueden disparar el mismo POST /sifen/enviar casi
+  // simultáneo (el handler no tiene compare-and-swap por estado en el UPDATE
+  // final), dos envíos reales a SET, y el que escribe último en la BD pisa el
+  // resultado del otro aunque haya sido aceptado. Bloqueamos los botones
+  // mientras el job async está activo; el panel igual se refresca solo.
+  const jobActivo =
+    resumen?.sifen_job != null &&
+    (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
+  const busy = action !== null || jobActivo;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 sm:p-6 w-full min-w-0">
@@ -573,16 +889,60 @@ export function FacturaElectronicaPanel({
                   {decodeXmlNumericEntities(flash.text)}
                 </div>
               )}
+              {pollingCortadoPorTimeout &&
+              resumen.sifen_job &&
+              (resumen.sifen_job.estado === "pendiente" ||
+                resumen.sifen_job.estado === "procesando") ? (
+                <div className="rounded-lg text-sm px-3 py-2 bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+                  <p className="font-semibold">
+                    El sistema sigue procesando en background.
+                  </p>
+                  <p className="text-xs">
+                    Podés actualizar la página para ver el estado actualizado, o
+                    usar los pasos manuales de abajo si preferís emitir ahora.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    className="text-xs font-semibold underline underline-offset-2 hover:no-underline"
+                  >
+                    Actualizar estado ahora
+                  </button>
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-3">
-                {stStr === "rechazado" && puedeGenerarXml ? (
+                {/* "Regenerar documento" también debe estar disponible en
+                    estado 'error_envio' (rechazo local / falla al enviar):
+                    el backend POST /sifen/xml lo permite (solo bloquea en
+                    aprobado / cancelado), y en la práctica hace falta cuando
+                    los datos del receptor cambiaron (p.ej. FELIX pasa de sin
+                    RUC a contribuyente con RUC → nuevo XML B2B). */}
+                {(stStr === "rechazado" || stStr === "error_envio") && puedeGenerarXml ? (
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => void regenerarDocumentoRechazado()}
+                    title="Vuelve a leer los datos actuales del cliente (RUC, DV, tipo de contribuyente, dirección) y arma un XML nuevo con CDC nuevo. Úsalo tras corregir datos del cliente para que el reenvío no repita el mismo XML rechazado."
                     className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm font-semibold shadow-sm disabled:opacity-45 disabled:cursor-not-allowed hover:bg-slate-50"
                   >
-                    {action === "xml" ? "Regenerando…" : "Regenerar documento"}
+                    {action === "xml" ? "Regenerando…" : "Regenerar XML desde datos actuales del cliente"}
+                  </button>
+                ) : null}
+                {resumen.sifen_job &&
+                (resumen.sifen_job.estado === "rechazado" ||
+                  resumen.sifen_job.estado === "error") &&
+                stStr !== "aprobado" &&
+                stStr !== "cancelado" &&
+                stStr !== "enviado" &&
+                stStr !== "en_proceso" ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void reintentarJob()}
+                    className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-semibold shadow-sm disabled:opacity-45 disabled:cursor-not-allowed hover:bg-slate-800"
+                  >
+                    {action === "reintentar-job" ? "Reintentando…" : "Reintentar"}
                   </button>
                 ) : null}
                 {primaryConsultarLote ? (
@@ -620,6 +980,41 @@ export function FacturaElectronicaPanel({
                   </button>
                 ) : null}
               </div>
+
+              {esAdmin && fe ? (
+                <details className="group rounded-lg border border-dashed border-slate-300 bg-slate-50/70">
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-600 select-none list-none flex items-center gap-2 [&::-webkit-details-marker]:hidden">
+                    <span className="text-slate-400 transition-transform group-open:rotate-90 inline-block">▸</span>
+                    Recuperar documento aprobado (SET)
+                  </summary>
+                  <div className="px-3 pb-3 pt-1 space-y-2 border-t border-slate-200/80">
+                    <p className="text-[11px] text-slate-600 leading-snug">
+                      Usá esto si la factura está <span className="font-semibold">aprobada en Marangatú</span> pero el
+                      sistema quedó con un CDC rechazado (la Nota de Crédito falla con &quot;CDC inexistente&quot;).
+                      Descargá el XML del comprobante desde Marangatú y subilo acá: se corrige el CDC y la NC vuelve a
+                      funcionar. No re-firma ni reenvía nada.
+                    </p>
+                    <input
+                      ref={reimportFileRef}
+                      type="file"
+                      accept=".xml,text/xml,application/xml"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void reimportarFirmado(f);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={reimportando}
+                      onClick={() => reimportFileRef.current?.click()}
+                      className="px-3 py-1.5 text-[11px] font-semibold rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      {reimportando ? "Subiendo…" : "Subir XML aprobado de Marangatú"}
+                    </button>
+                  </div>
+                </details>
+              ) : null}
 
               {debugUi ? (
                 <details className="group rounded-lg border border-dashed border-amber-200 bg-amber-50/30">
@@ -691,17 +1086,75 @@ export function FacturaElectronicaPanel({
                 )}
               </div>
             )}
-            {fe && estado === "cancelado" && fe.sifen_cancelado_at && (
-              <p className="text-xs text-slate-600 pt-1">
-                <span className="font-semibold text-slate-700">Cancelado en ERP:</span>{" "}
-                {formatLimiteCancelacion(fe.sifen_cancelado_at)}
-                {fe.sifen_cancelacion_motivo?.trim() ? (
-                  <>
-                    {" "}
-                    — <span className="text-slate-500">Motivo:</span> {fe.sifen_cancelacion_motivo.trim()}
-                  </>
-                ) : null}
-              </p>
+            {fe && estado === "cancelado" && (
+              <div className="pt-1 space-y-2">
+                {fe.sifen_cancelado_at && (
+                  <p className="text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">Cancelado en ERP:</span>{" "}
+                    {formatLimiteCancelacion(fe.sifen_cancelado_at)}
+                    {fe.sifen_cancelacion_motivo?.trim() ? (
+                      <>
+                        {" "}
+                        — <span className="text-slate-500">Motivo:</span> {fe.sifen_cancelacion_motivo.trim()}
+                      </>
+                    ) : null}
+                  </p>
+                )}
+                {/* Si la SET ya confirmó la cancelación (0600 / 4003) no hay nada
+                    que reintentar: se muestra la confirmación en vez del aviso. */}
+                {resumen.cancelacion_confirmada_set ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-emerald-900">
+                      Cancelación confirmada por la SET
+                    </p>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      El documento figura anulado también en Marangatú. No hace falta ninguna acción adicional.
+                    </p>
+                  </div>
+                ) : (
+                  /* Reconciliación con SET: para facturas canceladas en el ERP pero
+                     aún ACTIVAS en Marangatú (la cancelación era solo local). */
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="text-[11px] text-amber-900">
+                      ¿Sigue <span className="font-semibold">activa en Marangatú</span>? Reenviá la cancelación a la SET.
+                      Solo funciona dentro de las 48&nbsp;h de la aprobación; pasado ese plazo hay que anular con Nota de
+                      Crédito.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={action !== null}
+                      onClick={() => void ejecutarReintentoSet()}
+                      className="mt-2 px-3 py-1.5 text-[11px] font-semibold rounded-md bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-40"
+                    >
+                      {action === "cancelar-de" ? "Enviando a la SET…" : "Reintentar cancelación en SET"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {fe && estado === "aprobado" && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {/* Botón siempre visible cuando el DE aprueba — el auto-open
+                    window.open() a veces lo bloquea el navegador (no viene
+                    de un user gesture). Este botón sí viene de un click. */}
+                <a
+                  href={`/api/facturas/${facturaId}/sifen/kude`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 inline-flex items-center"
+                >
+                  Imprimir KUDE
+                </a>
+                <a
+                  href={`/api/facturas/${facturaId}/sifen/documento`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center"
+                  title="Descarga el XML firmado tal como se envió a la DNIT"
+                >
+                  Descargar XML
+                </a>
+              </div>
             )}
             {fe && estado === "aprobado" && resumen.cancelacion && (
               <div className="flex flex-wrap gap-2 pt-2">
@@ -841,10 +1294,88 @@ export function FacturaElectronicaPanel({
                     ) : null}
                   </>
                 ) : null}
-                {mostrarErrorPersistido && (
-                  <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm px-3 py-2 whitespace-pre-wrap break-words">
-                    <span className="font-semibold">Error: </span>
-                    {decodeXmlNumericEntities(fe.error ?? "")}
+                {mostrarErrorPersistido && (() => {
+                  const decoded = decodeXmlNumericEntities(fe.error ?? "").trim();
+                  const friendly = friendlyErrorMsg({ raw: decoded, estadoSifen: String(fe.estado_sifen) });
+                  return (
+                    <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm px-3 py-2 space-y-2 whitespace-pre-wrap break-words">
+                      <p className="font-semibold">
+                        {friendly.reconocido ? friendly.titulo : `Error: ${decoded}`}
+                      </p>
+                      {friendly.reconocido && (
+                        <>
+                          <p className="text-xs text-red-700">{friendly.detalle}</p>
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-red-700/80 hover:text-red-900">
+                              Ver mensaje original de SET{friendly.codigo ? ` (${friendly.codigo})` : ""}
+                            </summary>
+                            <p className="mt-1 font-mono text-[11px] text-red-800">{decoded}</p>
+                          </details>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+                {resumen.sifen_job &&
+                (resumen.sifen_job.estado === "rechazado" ||
+                  resumen.sifen_job.estado === "error") && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 text-red-900 text-xs px-3 py-2 space-y-1">
+                    <p className="font-semibold text-sm">
+                      {resumen.sifen_job.estado === "rechazado"
+                        ? "Rechazado por SET"
+                        : "Error técnico"}
+                      {resumen.sifen_job.etapa
+                        ? ` — etapa ${resumen.sifen_job.etapa}`
+                        : ""}
+                    </p>
+                    {resumen.sifen_job.codigo_error_set ||
+                    resumen.sifen_job.codigo_sub_error_set ? (
+                      <p className="font-mono text-[11px] text-red-800">
+                        Código SET:{" "}
+                        {resumen.sifen_job.codigo_error_set ?? "—"}
+                        {resumen.sifen_job.codigo_sub_error_set
+                          ? ` [${resumen.sifen_job.codigo_sub_error_set}]`
+                          : ""}
+                      </p>
+                    ) : null}
+                    {resumen.sifen_job.mensaje_set?.trim() ? (() => {
+                      const decoded = decodeXmlNumericEntities(resumen.sifen_job.mensaje_set).trim();
+                      const friendly = friendlyErrorMsg({
+                        raw: decoded,
+                        estadoSifen: fe ? String(fe.estado_sifen) : null,
+                      });
+                      if (!friendly.reconocido) {
+                        return (
+                          <p className="whitespace-pre-wrap break-words">{decoded}</p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5">
+                          <p className="font-semibold whitespace-pre-wrap break-words">
+                            {friendly.titulo}
+                          </p>
+                          <p className="whitespace-pre-wrap break-words text-[11px] leading-snug">
+                            {friendly.detalle}
+                          </p>
+                          <details className="text-[11px]">
+                            <summary className="cursor-pointer text-red-800/70 hover:text-red-900">
+                              Ver mensaje original de SET{friendly.codigo ? ` (${friendly.codigo})` : ""}
+                            </summary>
+                            <p className="mt-1 font-mono text-[10px] text-red-800">{decoded}</p>
+                          </details>
+                        </div>
+                      );
+                    })() : null}
+                    {resumen.sifen_job.estado === "error" &&
+                    resumen.sifen_job.ultimo_error?.trim() ? (
+                      <p className="whitespace-pre-wrap break-words">
+                        {resumen.sifen_job.ultimo_error}
+                      </p>
+                    ) : null}
+                    <p className="text-[11px] text-red-700">
+                      Intentos automáticos: {resumen.sifen_job.intentos} /{" "}
+                      {resumen.sifen_job.max_intentos_auto}
+                    </p>
                   </div>
                 )}
               </>

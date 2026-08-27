@@ -510,8 +510,20 @@ export function buildOfficialRdeFacturaElectronicaXml(
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));
     }
     if (receptor.email?.trim()) recParts.push(textEl("dEmailRec", receptor.email.trim()));
-  } else if (receptor.ruc?.trim()) {
-    const { cuerpo: dRucRec, dDV: dDVRec } = splitRucParaXml(receptor.ruc.trim());
+  } else if (
+    // B2B (contribuyente PY): dos vías de entrada.
+    receptor.ruc?.trim() ||
+    // Fallback heurístico: documento con formato XXXXXXX-Y (CI PY con DV) SÓLO
+    // se trata como RUC contribuyente si el operador marcó explícitamente
+    // `es_contribuyente_py`. Antes se disparaba solo por el guión, ignorando
+    // el checkbox — causaba rechazo SET 0301 [1264] cuando la persona no
+    // estaba realmente inscripta en Marangatu. Con este guard, si el operador
+    // no marcó el flag, cae a la rama B2C aunque el formato sea de RUC.
+    (receptor.es_contribuyente_py === true &&
+      /^\d+-\d$/.test((receptor.documento ?? "").replace(/\s/g, "").trim()))
+  ) {
+    const rucSrc = (receptor.ruc?.trim() || (receptor.documento ?? "").replace(/\s/g, "").trim());
+    const { cuerpo: dRucRec, dDV: dDVRec } = splitRucParaXml(rucSrc);
     const iTiContRec = iTipContCodigo(receptor.nombre);
     recParts.push(textEl("iNatRec", "1"));
     recParts.push(textEl("iTiOpe", "1"));
@@ -522,16 +534,29 @@ export function buildOfficialRdeFacturaElectronicaXml(
     recParts.push(textEl("dDVRec", dDVRec));
     recParts.push(textEl("dNomRec", receptor.nombre.trim()));
     if (receptor.direccion?.trim()) recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+    /** SIFEN 0362 [1330]: dNumCasRec obligatorio siempre que se emita dDirRec,
+     *  también para receptor con RUC (B2B). Mismo patrón que rama manual y
+     *  rama sin RUC. */
+    recParts.push(textEl("dNumCasRec", "0"));
     if (receptor.telefono?.trim()) {
       const tr = receptor.telefono.replace(/\D/g, "");
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));
     }
     if (receptor.email?.trim()) recParts.push(textEl("dEmailRec", receptor.email.trim()));
   } else {
-    const doc = (receptor.documento ?? "").replace(/\s/g, "").trim();
+    // dNumIDRec para iTipIDRec=1 (Cédula paraguaya) es estrictamente numérico.
+    // El resto de campos numéricos del archivo (RUC, teléfono, timbrado) se
+    // limpian con /\D/g; acá solo se sacaba el espacio, así que una CI cargada
+    // como "4192083-1" (con guión, como suele anotarse a mano) mandaba el
+    // guión literal al XML — no es un número de cédula válido.
+    const doc = (receptor.documento ?? "").replace(/\D/g, "").trim();
     if (!doc) throw new Error("Receptor sin RUC: se requiere documento (CI) en cliente.");
+    /** tiTiOpe (DE_Types v150): 2=B2C. Receptor no contribuyente (iNatRec=2) con
+     *  documento nacional exige B2C, no B2B (mismo criterio que la rama extranjero
+     *  arriba, que usa B2F). Antes se enviaba iTiOpe=1 → SET rechazaba con
+     *  "El tipo de operación no compatible con la naturaleza del receptor". */
     recParts.push(textEl("iNatRec", "2"));
-    recParts.push(textEl("iTiOpe", "1"));
+    recParts.push(textEl("iTiOpe", "2"));
     recParts.push(textEl("cPaisRec", "PRY"));
     recParts.push(textEl("dDesPaisRe", "Paraguay"));
     recParts.push(textEl("iTipIDRec", "1"));
@@ -539,6 +564,9 @@ export function buildOfficialRdeFacturaElectronicaXml(
     recParts.push(textEl("dNumIDRec", doc.slice(0, 20)));
     recParts.push(textEl("dNomRec", receptor.nombre.trim()));
     if (receptor.direccion?.trim()) recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+    /** SIFEN 0362 [1330]: para receptor sin RUC (B2C) es obligatorio dNumCasRec.
+     *  Mismo patrón que la rama manual (líneas ~461 y ~479) que ya lo emitía. */
+    recParts.push(textEl("dNumCasRec", "0"));
     if (receptor.telefono?.trim()) {
       const tr = receptor.telefono.replace(/\D/g, "");
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));

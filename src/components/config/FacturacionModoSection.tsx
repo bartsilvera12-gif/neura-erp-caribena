@@ -1,7 +1,5 @@
 "use client";
 
-import SelectField from "@/components/ui/SelectField";
-import { Check } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAutoClearFlag } from "@/hooks/useAutoClearFlag";
@@ -113,7 +111,7 @@ export default function FacturacionModoSection() {
       const j = await r.json();
       if (!r.ok || !j?.success) { setErrModo(j?.error ?? "No se pudo guardar"); return; }
       setModo(j.data.facturacion_modo as FacturacionModo);
-      setOkModo("Guardado");
+      setOkModo("Guardado ✓");
       // El reset a null lo hace useAutoClearFlag (1.5s, con cleanup en unmount).
     } catch (e) { setErrModo(e instanceof Error ? e.message : "Error de red"); }
     finally { setSavingModo(false); }
@@ -131,7 +129,7 @@ export default function FacturacionModoSection() {
       const j = await r.json();
       if (!r.ok || !j?.success) { setErrAuto(j?.error ?? "No se pudo guardar"); return; }
       setAuto(j.data.autoimpresor as Autoimpresor);
-      setOkAuto("Guardado");
+      setOkAuto("Guardado ✓");
       // Reset a null por useAutoClearFlag (1.5s, cleanup garantizado).
     } catch (e) { setErrAuto(e instanceof Error ? e.message : "Error de red"); }
     finally { setSavingAuto(false); }
@@ -149,7 +147,7 @@ export default function FacturacionModoSection() {
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-baseline justify-between mb-3">
           <h3 className="text-sm font-semibold text-slate-800">Modo de facturación</h3>
-          {okModo && <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3.5 w-3.5" aria-hidden />{okModo}</span>}
+          {okModo && <span className="text-xs text-emerald-600">{okModo}</span>}
         </div>
         {errModo && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 mb-3">{errModo}</p>}
 
@@ -202,7 +200,7 @@ export default function FacturacionModoSection() {
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Tipo de impresión por defecto</label>
-            <SelectField
+            <select
               value={modo.impresion_tipo_default}
               onChange={(e) => guardarModo({ impresion_tipo_default: e.target.value as Impresion })}
               disabled={savingModo}
@@ -211,7 +209,7 @@ export default function FacturacionModoSection() {
               {(Object.keys(impresionLabels) as Impresion[]).map((k) => (
                 <option key={k} value={k}>{impresionLabels[k]}</option>
               ))}
-            </SelectField>
+            </select>
             <p className="mt-1 text-[11px] text-slate-400">
               {esTicket
                 ? "Ticket térmico: formato optimizado para impresoras 58/80 mm. La impresión usa la ventana del navegador."
@@ -237,7 +235,7 @@ export default function FacturacionModoSection() {
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-800">Datos del autoimpresor / timbrado</h3>
-            {okAuto && <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3.5 w-3.5" aria-hidden />{okAuto}</span>}
+            {okAuto && <span className="text-xs text-emerald-600">{okAuto}</span>}
           </div>
           {errAuto && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 mb-3">{errAuto}</p>}
 
@@ -290,11 +288,11 @@ function AutoimpresorForm({
 
       <div className="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Formato de impresión">
-          <SelectField className={inputClass} value={f.formato_impresion_default} onChange={(e) => set("formato_impresion_default", e.target.value as Impresion)}>
+          <select className={inputClass} value={f.formato_impresion_default} onChange={(e) => set("formato_impresion_default", e.target.value as Impresion)}>
             {(Object.keys(impresionLabels) as Impresion[]).map((k) => (
               <option key={k} value={k}>{impresionLabels[k]}</option>
             ))}
-          </SelectField>
+          </select>
         </Field>
         {esTicket && (
           <Field label="Leyenda papel térmico (pie)">
