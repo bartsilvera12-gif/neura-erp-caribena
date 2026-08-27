@@ -2,6 +2,7 @@
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import SelectField from "@/components/ui/SelectField";
+import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -161,12 +162,17 @@ export default function EditarRecetaPage() {
     }
   }, [insumoSeleccionado, newUnidad]);
 
-  useEffect(() => {
-    if (insumosDisponibles.length > 0 && !newInsumoId) {
-      setNewInsumoId(insumosDisponibles[0].id);
-      setNewUnidad((insumosDisponibles[0].unidad_medida ?? "").trim().toUpperCase());
-    }
-  }, [insumosDisponibles, newInsumoId]);
+  /** Costo y stock van a la derecha: es lo que se mira al elegir un insumo. */
+  const opcionesInsumo: SmartOption[] = useMemo(
+    () =>
+      insumosDisponibles.map((p) => ({
+        id: p.id,
+        label: p.nombre,
+        sub: `${fmtGs(p.costo_promedio)}/${p.unidad_medida ?? ""}`,
+        trailing: `stock ${p.stock_actual}`,
+      })),
+    [insumosDisponibles]
+  );
 
   /**
    * Fabrica el producto: descuenta los insumos y suma el resultado al stock.
@@ -557,20 +563,17 @@ export default function EditarRecetaPage() {
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Insumo
                 </label>
-                <SelectField
+                <SmartSearchSelect
+                  options={opcionesInsumo}
                   value={newInsumoId}
-                  onChange={(e) => {
-                    setNewInsumoId(e.target.value);
-                    const p = insumosDisponibles.find((x) => x.id === e.target.value);
+                  onChange={(id) => {
+                    setNewInsumoId(id);
+                    const p = insumosDisponibles.find((x) => x.id === id);
                     if (p) setNewUnidad((p.unidad_medida ?? "").trim().toUpperCase());
                   }}
-                >
-                  {insumosDisponibles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre} — {fmtGs(p.costo_promedio)}/{p.unidad_medida ?? ""} (stock {p.stock_actual})
-                    </option>
-                  ))}
-                </SelectField>
+                  placeholder="Buscar insumo…"
+                  emptyText="Ningún insumo disponible coincide"
+                />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">

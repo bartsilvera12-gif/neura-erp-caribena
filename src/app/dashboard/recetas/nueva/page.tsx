@@ -1,7 +1,7 @@
 "use client";
 
-import SelectField from "@/components/ui/SelectField";
-import { useEffect, useState } from "react";
+import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -61,10 +61,12 @@ export default function NuevaRecetaPage() {
             }
           }
 
-          const elegido = pedido ?? list[0];
-          if (elegido) {
-            setProductoId(elegido.id);
-            setRendUnidad(elegido.unidad_medida ?? "");
+          // Sólo se preselecciona el producto si vino desde Inventario. Antes
+          // caía el primero de la lista, que con más de ochenta vendibles es un
+          // producto cualquiera: quedaba elegido algo que nadie pidió.
+          if (pedido) {
+            setProductoId(pedido.id);
+            setRendUnidad(pedido.unidad_medida ?? "");
           }
         } else {
           setError(body?.error ?? "Error al cargar productos");
@@ -77,6 +79,22 @@ export default function NuevaRecetaPage() {
       cancelled = true;
     };
   }, [productoParam, router]);
+
+  /**
+   * El SKU va como línea secundaria y el precio a la derecha, en vez de todo
+   * amontonado en una sola línea: la lista de vendibles pasó de una decena a
+   * más de ochenta y leerla de corrido dejó de ser viable.
+   */
+  const opciones: SmartOption[] = useMemo(
+    () =>
+      productos.map((p) => ({
+        id: p.id,
+        label: p.nombre,
+        sub: p.sku,
+        trailing: `Gs. ${Number(p.precio_venta).toLocaleString("es-PY")}`,
+      })),
+    [productos]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -142,22 +160,19 @@ export default function NuevaRecetaPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Producto vendible <span className="text-red-500">*</span>
             </label>
-            <SelectField
+            <SmartSearchSelect
+              options={opciones}
               value={productoId}
-              onChange={(e) => {
-                setProductoId(e.target.value);
-                const p = productos.find((x) => x.id === e.target.value);
+              onChange={(id) => {
+                setProductoId(id);
+                const p = productos.find((x) => x.id === id);
                 if (p) setRendUnidad(p.unidad_medida ?? "");
               }}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Buscar producto por nombre o SKU…"
+              emptyText="Ningún producto vendible sin receta coincide"
+              name="producto_id"
               required
-            >
-              {productos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} ({p.sku}) — Gs. {Number(p.precio_venta).toLocaleString("es-PY")}
-                </option>
-              ))}
-            </SelectField>
+            />
           </div>
 
           <div>
