@@ -167,6 +167,8 @@ export default function NuevaCompraPage() {
   });
   /** Productos ya cargados en esta factura. */
   const [lineas, setLineas] = useState<LineaCompra[]>([]);
+  /** Error de la línea que se está cargando, separado del error de la compra. */
+  const [errorLinea, setErrorLinea] = useState<string | null>(null);
   const [lineaSeq, setLineaSeq] = useState(0);
 
   const [errorSku, setErrorSku] = useState<string | null>(null);
@@ -232,8 +234,7 @@ export default function NuevaCompraPage() {
   const productoSeleccionado = productos.find((p) => p.id === form.producto_id);
 
   /** El borrador está completo y se puede sumar a la factura. */
-  const borradorListo =
-    !!form.producto_id && cantidadNum > 0 && costoUnitarioPYG > 0 && precioVentaNum > 0;
+  const borradorListo = !!form.producto_id && cantidadNum > 0 && costoUnitarioPYG > 0;
 
   const lineasCalculadas = useMemo(
     () => lineas.map((l) => ({ l, c: calcularLinea(l, tipoCambioNum) })),
@@ -268,6 +269,7 @@ export default function NuevaCompraPage() {
       precio_venta: "",
     }));
     setProductoCreado(null);
+    setErrorLinea(null);
   }
 
   /**
@@ -285,18 +287,19 @@ export default function NuevaCompraPage() {
       cantidad: cantidadNum,
       costo_unitario_original: costoInputNum,
       iva_tipo: form.iva_tipo,
+      // 0 = no tocar el precio de venta del producto.
       precio_venta: precioVentaNum,
     };
   }
 
   function agregarLinea() {
+    setErrorLinea(null);
     setErrorSubmit(null);
-    if (!form.producto_id) return setErrorSubmit("Elegí un producto antes de agregarlo.");
-    if (cantidadNum <= 0) return setErrorSubmit("La cantidad debe ser mayor a 0.");
-    if (costoUnitarioPYG <= 0) return setErrorSubmit("El costo unitario debe ser mayor a 0.");
-    if (precioVentaNum <= 0) return setErrorSubmit("El precio de venta debe ser mayor a 0.");
+    if (!form.producto_id) return setErrorLinea("Elegí un producto.");
+    if (cantidadNum <= 0) return setErrorLinea("La cantidad debe ser mayor a 0.");
+    if (costoUnitarioPYG <= 0) return setErrorLinea("El costo unitario debe ser mayor a 0.");
     if (lineas.some((l) => l.producto_id === form.producto_id)) {
-      return setErrorSubmit(
+      return setErrorLinea(
         "Ese producto ya está en la compra. Quitalo o cambiale la cantidad en la lista."
       );
     }
@@ -330,11 +333,12 @@ export default function NuevaCompraPage() {
   function handleProductoSelectChange(id: string) {
     const p = productos.find((x) => x.id === id);
     setProductoCreado(null);
+    setErrorLinea(null);
     setForm((prev) => ({
       ...prev,
       producto_id: id,
       costo_unitario_input: p ? String(p.costo_promedio) : "",
-      precio_venta: p ? String(p.precio_venta) : "",
+      precio_venta: p && p.precio_venta > 0 ? String(p.precio_venta) : "",
     }));
   }
 
@@ -630,33 +634,103 @@ export default function NuevaCompraPage() {
             </div>
           </section>
 
-          {/* ── 3. Producto ───────────────────────────────────────────────── */}
-          <section className="space-y-3">
-            <SectionTitle>Producto</SectionTitle>
+          {/* ── 4. Condiciones de pago ────────────────────────────────────── */}
+          <section className="space-y-4">
+            <SectionTitle>Condiciones de pago</SectionTitle>
 
             <div>
-              <label className={labelClass}>
-                Producto <span className="text-red-500">*</span>
-              </label>
-              <SmartSearchSelect
-                options={opcionesProducto}
-                value={form.producto_id}
-                onChange={handleProductoSelectChange}
-                placeholder="Buscar producto por nombre o SKU…"
-                emptyText="Ningún producto coincide"
+              <label className={labelClass}>Tipo de pago</label>
+              <SegmentedControl<TipoPago>
+                value={form.tipo_pago}
+                options={[
+                  { value: "contado", label: "Contado" },
+                  { value: "credito", label: "Crédito" },
+                ]}
+                onChange={(v) => setForm((prev) => ({ ...prev, tipo_pago: v }))}
               />
+            </div>
 
-              {productoSeleccionado && !productoCreado && (
-                <p className="mt-1.5 text-xs text-gray-400">
-                  Costo promedio actual: {formatGs(productoSeleccionado.costo_promedio)}
-                  &nbsp;·&nbsp;Precio de venta actual: {formatGs(productoSeleccionado.precio_venta)}
+            {form.tipo_pago === "credito" && (
+              <div>
+                <label className={labelClass}>Plazo (días)</label>
+                <input type="number" name="plazo_dias" value={form.plazo_dias}
+                  onChange={handleChange} placeholder="Ej: 30"
+                  className={inputClass} min={1} />
+              </div>
+            )}
+          </section>
+
+          {/* ── 4. Moneda ─────────────────────────────────────────────────── */}
+          <section className="space-y-4">
+            <SectionTitle>Moneda</SectionTitle>
+
+            <SegmentedControl<Moneda>
+              value={form.moneda}
+              options={[
+                { value: "PYG", label: "Guaraníes (₲)" },
+                { value: "USD", label: "Dólares (USD)" },
+              ]}
+              onChange={(v) => setForm((prev) => ({ ...prev, moneda: v, tipo_cambio: "" }))}
+            />
+
+            {form.moneda === "USD" && (
+              <div>
+                <label className={labelClass}>
+                  Tipo de cambio (USD → Gs.) <span className="text-red-500">*</span>
+                </label>
+                <MontoInput
+                  value={form.tipo_cambio}
+                  onChange={(n) => setForm((prev) => ({ ...prev, tipo_cambio: String(n) }))}
+                  placeholder="Ej: 7500"
+                  className={inputClass}
+                  decimals={false}
+                  required
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Se aplica a todos los productos de la factura. Si lo corregís, se recalculan
+                  los que ya cargaste.
                 </p>
-              )}
-              {productoCreado && (
-                <p className="mt-1.5 text-xs text-green-600">
-                  <Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Producto &quot;{productoCreado}&quot; creado y seleccionado.
-                </p>
-              )}
+              </div>
+            )}
+          </section>
+
+          {/* ── 5. Productos de la compra ─────────────────────────────────── */}
+          <section className="space-y-3">
+            <SectionTitle>
+              Productos de la compra{lineas.length > 0 ? ` (${lineas.length})` : ""}
+            </SectionTitle>
+
+            {/* Alta de una línea. Todo junto en una tarjeta: son los campos de
+                un mismo producto y antes estaban repartidos en cuatro secciones
+                separadas por los datos de la factura. */}
+            <div className="space-y-3 rounded-xl border-2 border-dashed border-slate-200 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Agregar producto
+              </p>
+
+              <div>
+                <label className={labelSmClass}>
+                  Producto <span className="text-red-500">*</span>
+                </label>
+                <SmartSearchSelect
+                  options={opcionesProducto}
+                  value={form.producto_id}
+                  onChange={handleProductoSelectChange}
+                  placeholder="Buscar producto por nombre o SKU…"
+                  emptyText="Ningún producto coincide"
+                />
+
+                {productoSeleccionado && !productoCreado && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Costo promedio actual: {formatGs(productoSeleccionado.costo_promedio)}
+                    &nbsp;·&nbsp;Precio de venta actual: {formatGs(productoSeleccionado.precio_venta)}
+                  </p>
+                )}
+                {productoCreado && (
+                  <p className="mt-1.5 text-xs text-green-600">
+                    <Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> Producto &quot;{productoCreado}&quot; creado y seleccionado.
+                  </p>
+                )}
 
               {!mostrarFormProducto ? (
                 <button
@@ -762,200 +836,96 @@ export default function NuevaCompraPage() {
                   </div>
                 </InlineFormBox>
               )}
-            </div>
-          </section>
-
-          {/* ── 4. Condiciones de pago ────────────────────────────────────── */}
-          <section className="space-y-4">
-            <SectionTitle>Condiciones de pago</SectionTitle>
-
-            <div>
-              <label className={labelClass}>Tipo de pago</label>
-              <SegmentedControl<TipoPago>
-                value={form.tipo_pago}
-                options={[
-                  { value: "contado", label: "Contado" },
-                  { value: "credito", label: "Crédito" },
-                ]}
-                onChange={(v) => setForm((prev) => ({ ...prev, tipo_pago: v }))}
-              />
-            </div>
-
-            {form.tipo_pago === "credito" && (
-              <div>
-                <label className={labelClass}>Plazo (días)</label>
-                <input type="number" name="plazo_dias" value={form.plazo_dias}
-                  onChange={handleChange} placeholder="Ej: 30"
-                  className={inputClass} min={1} />
               </div>
-            )}
-          </section>
 
-          {/* ── 5. Moneda y costos ────────────────────────────────────────── */}
-          <section className="space-y-4">
-            <SectionTitle>Moneda y costos</SectionTitle>
-
-            <div>
-              <label className={labelClass}>Moneda</label>
-              <SegmentedControl<Moneda>
-                value={form.moneda}
-                options={[
-                  { value: "PYG", label: "Guaraníes (₲)" },
-                  { value: "USD", label: "Dólares (USD)" },
-                ]}
-                onChange={(v) =>
-                  setForm((prev) => ({ ...prev, moneda: v, tipo_cambio: "" }))
-                }
-              />
-            </div>
-
-            {form.moneda === "USD" && (
-              <div>
-                <label className={labelClass}>
-                  Tipo de cambio (USD → Gs.) <span className="text-red-500">*</span>
-                </label>
-                <MontoInput
-                  value={form.tipo_cambio}
-                  onChange={(n) => setForm((prev) => ({ ...prev, tipo_cambio: String(n) }))}
-                  placeholder="Ej: 7500"
-                  className={inputClass}
-                  decimals={false}
-                  required={form.moneda === "USD"}
-                />
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label className={labelClass}>
-                  Cantidad <span className="text-red-500">*</span>
-                </label>
-                <input type="number" name="cantidad" value={form.cantidad}
-                  onChange={handleChange} placeholder="Ej: 50"
-                  className={inputClass} min={1} step={1} required />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  Costo unitario ({form.moneda === "USD" ? "USD" : "Gs."})
-                  <span className="text-red-500"> *</span>
-                </label>
-                <MontoInput
-                  value={form.costo_unitario_input}
-                  onChange={(n) => setForm((prev) => ({ ...prev, costo_unitario_input: String(n) }))}
-                  placeholder={form.moneda === "USD" ? "Ej: 12" : "Ej: 35000"}
-                  className={inputClass}
-                  decimals={form.moneda === "USD"}
-                  required
-                />
-                {form.moneda === "USD" && costoInputNum > 0 && tipoCambioNum > 0 && (
-                  <p className="mt-1 text-xs text-gray-400">
-                    ≈ {formatGs(costoUnitarioPYG)} por unidad
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* ── 6. IVA ───────────────────────────────────────────────────── */}
-          <section className="space-y-4">
-            <SectionTitle>IVA</SectionTitle>
-
-            <SegmentedControl<TipoIva>
-              value={form.iva_tipo}
-              options={[
-                { value: "exenta", label: "Exenta" },
-                { value: "5",      label: "IVA 5%" },
-                { value: "10",     label: "IVA 10%" },
-              ]}
-              onChange={(v) => setForm((prev) => ({ ...prev, iva_tipo: v }))}
-            />
-
-            {total > 0 && (
-              <>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
-                    <p className="mb-1 text-xs text-slate-500">Gravada</p>
-                    <p className="text-sm font-semibold tabular-nums text-slate-700">{formatGs(subtotal)}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
-                    <p className="mb-1 text-xs text-slate-500">IVA incluido</p>
-                    <p className="text-sm font-semibold tabular-nums text-slate-700">
-                      {form.iva_tipo === "exenta" ? "—" : formatGs(montoIva)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-[#4FAEB2] px-3 py-3 text-center text-white">
-                    <p className="mb-1 text-xs text-white/80">Total de esta línea</p>
-                    <p className="text-sm font-bold tabular-nums">{formatGs(total)}</p>
-                  </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div>
+                  <label className={labelSmClass}>
+                    Cantidad <span className="text-red-500">*</span>
+                  </label>
+                  <input type="number" name="cantidad" value={form.cantidad}
+                    onChange={handleChange} placeholder="Ej: 50"
+                    className={inputSmClass} min={0} step="any" />
                 </div>
-                <p className="text-xs text-slate-500">
-                  El IVA está incluido en el costo unitario, no se suma. Gravada e IVA son el
-                  desglose del total que se le paga al proveedor.
-                </p>
-              </>
-            )}
-          </section>
 
-          {/* ── 7. Precio de venta ────────────────────────────────────────── */}
-          <section className="space-y-4">
-            <SectionTitle>Precio de venta</SectionTitle>
-
-            <div>
-              <label className={labelClass}>
-                Precio de venta (Gs.) <span className="text-red-500">*</span>
-              </label>
-              <MontoInput
-                value={form.precio_venta}
-                onChange={(n) => setForm((prev) => ({ ...prev, precio_venta: String(n) }))}
-                placeholder="Ej: 75000"
-                className={inputClass}
-                decimals={false}
-                required
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Se actualizará en inventario al guardar la compra.
-              </p>
-            </div>
-
-            {margenVenta !== null && calculosListos && (
-              <div
-                className={`rounded-lg px-4 py-3 border flex justify-between items-center ${
-                  margenVenta < 0 ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
-                }`}
-              >
-                <span className="text-sm text-gray-600">Margen sobre venta</span>
-                <span className={`text-lg font-bold tabular-nums ${margenColor(margenVenta)}`}>
-                  {margenVenta < 0 && <AlertTriangle className="mr-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />}{margenVenta.toFixed(2)}%
-                  {margenVenta < 0 && (
-                    <span className="ml-2 text-xs font-normal text-red-500">pérdida</span>
+                <div>
+                  <label className={labelSmClass}>
+                    Costo unit. ({form.moneda === "USD" ? "USD" : "Gs."})
+                    <span className="text-red-500"> *</span>
+                  </label>
+                  <MontoInput
+                    value={form.costo_unitario_input}
+                    onChange={(n) => setForm((prev) => ({ ...prev, costo_unitario_input: String(n) }))}
+                    placeholder={form.moneda === "USD" ? "Ej: 12" : "Ej: 18000"}
+                    className={inputSmClass}
+                    decimals={form.moneda === "USD"}
+                  />
+                  {form.moneda === "USD" && costoInputNum > 0 && tipoCambioNum > 0 && (
+                    <p className="mt-1 text-xs text-gray-400">≈ {formatGs(costoUnitarioPYG)}</p>
                   )}
-                </span>
+                </div>
+
+                <div>
+                  <label className={labelSmClass}>IVA</label>
+                  <SegmentedControl<TipoIva>
+                    small
+                    value={form.iva_tipo}
+                    options={[
+                      { value: "exenta", label: "Ex." },
+                      { value: "5", label: "5%" },
+                      { value: "10", label: "10%" },
+                    ]}
+                    onChange={(v) => setForm((prev) => ({ ...prev, iva_tipo: v }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelSmClass}>
+                    Precio venta <span className="font-normal text-slate-400">(opcional)</span>
+                  </label>
+                  <MontoInput
+                    value={form.precio_venta}
+                    onChange={(n) => setForm((prev) => ({ ...prev, precio_venta: String(n) }))}
+                    placeholder="Opcional"
+                    className={inputSmClass}
+                    decimals={false}
+                  />
+                  {margenVenta !== null && (
+                    <p className={`mt-1 text-xs font-medium ${margenColor(margenVenta)}`}>
+                      {margenVenta < 0 && (
+                        <AlertTriangle className="mr-0.5 inline h-3 w-3 align-[-0.125em]" aria-hidden />
+                      )}
+                      Margen {margenVenta.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
               </div>
-            )}
+
+              <p className="text-xs text-slate-400">
+                El precio de venta viene del inventario. Cambialo si sube, o dejalo vacío
+                para que el producto conserve el que ya tiene.
+              </p>
+
+              {errorLinea && (
+                <p className="text-xs font-semibold text-amber-700">{errorLinea}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={agregarLinea}
+                disabled={!borradorListo}
+                className="w-full rounded-lg bg-[#4FAEB2] px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#3F8E91] active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+              >
+                <Plus className="mr-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />
+                Agregar producto a la compra
+                {total > 0 ? ` · ${formatGs(total)}` : ""}
+              </button>
+            </div>
           </section>
 
-          {/* ── Agregar la línea a la factura ─────────────────────────────── */}
-          <div>
-            <button
-              type="button"
-              onClick={agregarLinea}
-              disabled={!borradorListo}
-              className="w-full rounded-lg border-2 border-dashed border-[#0EA5E9]/50 bg-[#0EA5E9]/5 px-5 py-3 text-sm font-semibold text-[#0284C7] transition-colors hover:bg-[#0EA5E9]/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-            >
-              <Plus className="mr-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />
-              Agregar este producto a la compra
-            </button>
-            <p className="mt-1.5 text-xs text-slate-400">
-              Una misma factura puede tener varios productos. Cargá los datos de arriba y
-              agregalos uno por uno.
-            </p>
-          </div>
-
-          {/* ── Productos de la factura ───────────────────────────────────── */}
+          {/* ── Líneas ya cargadas ────────────────────────────────────────── */}
           {lineas.length > 0 && (
             <section className="space-y-3">
-              <SectionTitle>Productos de la compra ({lineas.length})</SectionTitle>
-
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50">

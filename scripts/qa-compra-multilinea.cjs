@@ -38,7 +38,8 @@ function calc(cantidad, costo, ivaTipo) {
   const lineas = [
     { p: prods[0], cantidad: 10, costo: 12000, iva: "10", precio: 20000 },
     { p: prods[1], cantidad: 2.5, costo: 40000, iva: "5", precio: 60000 },
-    { p: prods[2], cantidad: 7, costo: 5000, iva: "exenta", precio: 9000 },
+    // precio 0 = la linea no trae precio de venta: el producto conserva el suyo.
+    { p: prods[2], cantidad: 7, costo: 5000, iva: "exenta", precio: 0 },
   ];
 
   await c.query("BEGIN");
@@ -78,7 +79,8 @@ function calc(cantidad, costo, ivaTipo) {
       await c.query(
         `update ${S}.productos
             set stock_actual = stock_actual + $1, costo_promedio = $2,
-                precio_venta = $3, updated_at = now()
+                precio_venta = case when $3 > 0 then $3 else precio_venta end,
+                updated_at = now()
           where id = $4 and empresa_id = $5`,
         [l.cantidad, l.costo, l.precio, l.p.id, empresaId]
       );
@@ -122,8 +124,10 @@ function calc(cantidad, costo, ivaTipo) {
         fallar(`${l.p.nombre}: stock ${r.stock}, se esperaba ${esperado}`);
       if (Math.abs(r.costo - l.costo) > 1e-9)
         fallar(`${l.p.nombre}: costo ${r.costo}, se esperaba ${l.costo}`);
-      if (Math.abs(r.precio - l.precio) > 1e-9)
-        fallar(`${l.p.nombre}: precio ${r.precio}, se esperaba ${l.precio}`);
+      // Con precio 0 la linea no toca el precio de venta del producto.
+      const precioEsperado = l.precio > 0 ? l.precio : l.p.precio;
+      if (Math.abs(r.precio - precioEsperado) > 1e-9)
+        fallar(`${l.p.nombre}: precio ${r.precio}, se esperaba ${precioEsperado}`);
     }
 
     // El IVA va incluido: gravada + iva tiene que dar el total de cada línea.

@@ -257,12 +257,14 @@ export async function insertCompraMultilinea(
         });
       }
 
-      // Actualizar producto: stock + costo_promedio + precio_venta
+      // Actualizar producto: stock + costo_promedio + precio_venta.
+      // El precio sólo se pisa si la línea trae uno: comprar de nuevo algo no
+      // implica cambiarle el precio de venta, y en ese caso llega en 0.
       await client.query(
         `UPDATE ${tP}
             SET stock_actual = stock_actual + $1::numeric,
                 costo_promedio = $2::numeric,
-                precio_venta = $3::numeric,
+                precio_venta = CASE WHEN $3::numeric > 0 THEN $3::numeric ELSE precio_venta END,
                 updated_at = now()
           WHERE id = $4::uuid AND empresa_id = $5::uuid`,
         [l.cantidad, l.costo_unitario, l.precio_venta, l.producto_id, empresaId]

@@ -43,8 +43,9 @@ function leerLinea(raw: Record<string, unknown>, i: number, total: number):
     return { ok: false, error: `La cantidad debe ser mayor a 0${donde}.` };
   if (num(raw.costo_unitario) <= 0)
     return { ok: false, error: `El costo unitario debe ser mayor a 0${donde}.` };
-  if (num(raw.precio_venta) <= 0)
-    return { ok: false, error: `El precio de venta debe ser mayor a 0${donde}.` };
+  // El precio de venta es opcional: 0 significa "dejarle el que ya tiene".
+  if (num(raw.precio_venta) < 0)
+    return { ok: false, error: `El precio de venta no puede ser negativo${donde}.` };
 
   return {
     ok: true,
