@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
-import { crearParaLlevar, getParaLlevarActivas } from "@/lib/mesas/storage";
+import { cancelarPL, crearParaLlevar, getParaLlevarActivas } from "@/lib/mesas/storage";
 import type { ComandaCard } from "@/lib/comandas/types";
 import type { ParaLlevarConResumen } from "@/lib/mesas/types";
 import { SectorBadge } from "@/components/comandas/SectorBadge";
@@ -90,6 +91,42 @@ export default function PedidosParaLlevarPage() {
     router.push(`/mesas/pl/${r.sesion.id}`);
   }
 
+  /**
+   * Cancela un pedido para llevar desde el tablero.
+   *
+   * Antes sólo se podía entrando al pedido, así que un PL abierto por error
+   * —o uno que el cliente no pasó a retirar— se quedaba ocupando el tablero
+   * para siempre. No borra la sesión: la marca cancelada, que es lo que ya
+   * hacía la pantalla del pedido, y así queda el rastro de que existió.
+   */
+  async function onCancelar(pl: ParaLlevarConResumen) {
+    const nro = formatPL(pl.sesion.numero_pl);
+    const quien = pl.sesion.nombre_cliente ? ` de ${pl.sesion.nombre_cliente}` : "";
+    const conItems =
+      pl.items_count > 0
+        ? ` Se descartan sus ${pl.items_count} producto(s) por ${formatGs(pl.total)}, que no se van a cobrar.`
+        : " No tiene productos cargados.";
+    const enCocina =
+      pl.items_count > 0
+        ? " Si ya se envió comanda, lo que esté en cocina no se cancela solo: avisá al sector."
+        : "";
+
+    const ok = await confirmar(
+      `¿Cancelar el pedido ${nro}${quien}?${conItems}${enCocina} El pedido queda cancelado y sale del tablero; no se puede reabrir.`,
+      { confirmLabel: "Cancelar pedido", cancelLabel: "Volver" }
+    );
+    if (!ok) return;
+
+    setError(null);
+    setBusy(pl.sesion.id);
+    const r = await cancelarPL(pl.sesion.id);
+    setBusy(null);
+    if (!r.success) { setError(r.error); return; }
+    // Sale de la lista sin esperar al refresco de 15s.
+    setActivos((prev) => prev.filter((x) => x.sesion.id !== pl.sesion.id));
+    void load();
+  }
+
   async function onImprimir(c: ComandaCard) {
     setError(null); setBusy(c.id);
     const w = window.open("about:blank", "_blank");
@@ -133,29 +170,45 @@ export default function PedidosParaLlevarPage() {
               <p className="py-3 text-center text-sm text-slate-400">No hay pedidos abiertos.</p>
             ) : (
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {activos.map(({ sesion, total, items_count, mozo_nombre }) => (
-                  <li key={sesion.id}>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/mesas/pl/${sesion.id}`)}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:border-[#4FAEB2]/50 hover:shadow-md active:scale-[0.98]"
+                {activos.map((pl) => {
+                  const { sesion, total, items_count, mozo_nombre } = pl;
+                  return (
+                    <li
+                      key={sesion.id}
+                      className="flex items-stretch gap-1 rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-[#4FAEB2]/50 hover:shadow-md"
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-800">{formatPL(sesion.numero_pl)}</span>
-                          {sesion.estado === "por_cobrar" && (
-                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">Por cobrar</span>
-                          )}
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/mesas/pl/${sesion.id}`)}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-xl p-3 text-left active:scale-[0.98]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800">{formatPL(sesion.numero_pl)}</span>
+                            {sesion.estado === "por_cobrar" && (
+                              <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">Por cobrar</span>
+                            )}
+                          </div>
+                          {sesion.nombre_cliente && <p className="truncate text-xs text-slate-500">{sesion.nombre_cliente}</p>}
+                          <p className="text-[11px] text-slate-400">
+                            {items_count} ítem(s){mozo_nombre ? ` · ${mozo_nombre}` : ""}
+                          </p>
                         </div>
-                        {sesion.nombre_cliente && <p className="truncate text-xs text-slate-500">{sesion.nombre_cliente}</p>}
-                        <p className="text-[11px] text-slate-400">
-                          {items_count} ítem(s){mozo_nombre ? ` · ${mozo_nombre}` : ""}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-bold tabular-nums text-slate-800">{formatGs(total)}</span>
-                    </button>
-                  </li>
-                ))}
+                        <span className="shrink-0 text-sm font-bold tabular-nums text-slate-800">{formatGs(total)}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onCancelar(pl)}
+                        disabled={busy === sesion.id}
+                        title={`Cancelar ${formatPL(sesion.numero_pl)}`}
+                        aria-label={`Cancelar ${formatPL(sesion.numero_pl)}`}
+                        className="flex w-11 shrink-0 items-center justify-center rounded-r-xl border-l border-slate-100 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-40"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
