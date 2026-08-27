@@ -31,7 +31,7 @@ export async function loadValidatedSifenPayload(
 
   const { data: factura, error: errFactura } = await supabase
     .from("facturas")
-    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc")
+    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc, cliente_documento")
     .eq("id", fid)
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -109,18 +109,23 @@ export async function loadValidatedSifenPayload(
   } else {
     const razon = typeof factura.cliente_razon_social === "string" ? factura.cliente_razon_social.trim() : "";
     const rucSnap = typeof factura.cliente_ruc === "string" ? factura.cliente_ruc.trim() : "";
-    if (razon || rucSnap) {
+    const docSnap = typeof factura.cliente_documento === "string" ? factura.cliente_documento.trim() : "";
+    if (razon || rucSnap || docSnap) {
       clienteInput = {
         id: "",
-        empresa: razon || null,
+        empresa: rucSnap ? razon || null : null,
         nombre_contacto: null,
         nombre: razon || null,
         ruc: rucSnap || null,
-        documento: null,
+        documento: docSnap || null,
         direccion: null,
         telefono: null,
         email: null,
         pais: null,
+        // Con RUC el receptor va como contribuyente (B2B); con cédula, como
+        // consumidor final identificado (B2C). El armador rechaza un RUC que no
+        // venga marcado, para no gastar un envío que la SET devolvería.
+        es_contribuyente: rucSnap ? true : false,
       };
     } else {
       clienteInput = null;

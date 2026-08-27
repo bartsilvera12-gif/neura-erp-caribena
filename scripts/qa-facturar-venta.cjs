@@ -62,7 +62,7 @@ const S = "caribenaerp";
     }
 
     // ── Lo que hace facturarVentaPg ───────────────────────────────────────
-    async function facturar(razonSocial, ruc) {
+    async function facturar(razonSocial, ruc, documento = null) {
       const v = (
         await c.query(
           `select id, factura_id, estado, cliente_id, total::float8 total, tipo_venta, moneda,
@@ -95,11 +95,11 @@ const S = "caribenaerp";
         await c.query(
           `insert into ${S}.facturas (empresa_id, cliente_id, numero_factura, fecha, fecha_vencimiento,
              monto, saldo, estado, tipo, moneda, cliente_razon_social, cliente_ruc,
-             observaciones, origen_venta_id)
-           values ($1,$2,$3,$4::date,$4::date,$5,0,'Pagado','contado','GS',$6,$7,$8,$9)
+             cliente_documento, observaciones, origen_venta_id)
+           values ($1,$2,$3,$4::date,$4::date,$5,0,'Pagado','contado','GS',$6,$7,$8,$9,$10)
            returning id`,
           [empresaId, v.cliente_id, numero, v.fecha_dia, v.total,
-           razonSocial, ruc, v.observaciones, ventaId]
+           razonSocial, ruc, documento, v.observaciones, ventaId]
         )
       ).rows[0].id;
 
@@ -124,7 +124,7 @@ const S = "caribenaerp";
     const f = (
       await c.query(
         `select numero_factura, monto::float8 monto, cliente_razon_social, cliente_ruc,
-                origen_venta_id, observaciones, estado
+                cliente_documento, origen_venta_id, observaciones, estado
            from ${S}.facturas where id=$1`, [r1.facturaId])
     ).rows[0];
     console.table([f]);

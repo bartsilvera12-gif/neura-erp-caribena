@@ -7,6 +7,13 @@ import MontoInput from "@/components/ui/MontoInput";
 import ProductPickerModal, { type ProductoPickerItem, type AgregarVentaPayload } from "@/components/inventario/ProductPickerModal";
 import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
+import ReceptorFactura, {
+  RECEPTOR_VACIO,
+  receptorAPayload,
+  validarReceptor,
+  type DatosReceptor,
+} from "@/components/ventas/ReceptorFactura";
+import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { saveVenta } from "@/lib/ventas/storage";
 import { getCajaAbierta } from "@/lib/caja/storage";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
@@ -60,6 +67,8 @@ export default function NuevaVentaPage() {
   // Pedidos (gastronomía): modalidad obligatoria en instancia Caribeña
   type Modalidad = "local" | "delivery" | "carry_out";
   const [modalidad, setModalidad] = useState<Modalidad | "">("");
+  const [comprobante, setComprobante] = useState<"ticket" | "factura">("ticket");
+  const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
   const [pedidoMesa, setPedidoMesa] = useState("");
   const [pedidoClienteNombre, setPedidoClienteNombre] = useState("");
   const [pedidoClienteTelefono, setPedidoClienteTelefono] = useState("");
@@ -208,7 +217,13 @@ export default function NuevaVentaPage() {
   const totalGeneral  = items.reduce((s, i) => s + i.total_linea, 0);
   // Solo la modalidad es obligatoria; los datos de cada modalidad (mesa,
   // teléfono, dirección, etc.) son opcionales para no frenar el cobro en caja.
-  const pedidoValido = modalidad !== "";
+  /**
+   * Qué se le entrega al cliente. Ticket es el default porque en el mostrador
+   * la enorme mayoría de las ventas no lleva factura; la factura se emite sólo
+   * cuando la piden, con los datos del receptor que exige el SET.
+   */
+  const comprobanteValido = comprobante === "ticket" || validarReceptor(receptor) === null;
+  const pedidoValido = modalidad !== "" && comprobanteValido;
   const ventaValida   = items.length > 0 && pedidoValido && !sinCaja;
 
   // Vuelto (solo informativo, no se persiste)
@@ -391,6 +406,36 @@ export default function NuevaVentaPage() {
         else window.open(href, "_blank", "noopener"); // fallback si el pre-open falló
       } catch {}
     });
+
+    // La factura se emite después de la venta y no junto con ella: si algo
+    // falla emitiendo, la venta ya está cobrada y la comida ya salió a cocina.
+    // El cajero puede reintentar desde el listado sin perder nada.
+    if (comprobante === "factura") {
+      try {
+        const res = await fetchWithSupabaseSession(`/api/ventas/${ventaId}/facturar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(receptorAPayload(receptor)),
+        });
+        const body = await res.json();
+        if (res.ok && body?.success !== false && body?.data?.facturaId) {
+          router.push(`/facturas/${body.data.facturaId}`);
+          return;
+        }
+        setErrorVenta(
+          `La venta ${resultado.venta.numero_control} se registró, pero no se pudo emitir la factura: ${
+            body?.error ?? "error desconocido"
+          }. Emitila desde el listado de ventas.`
+        );
+        return;
+      } catch {
+        setErrorVenta(
+          `La venta ${resultado.venta.numero_control} se registró, pero no se pudo emitir la factura. Emitila desde el listado de ventas.`
+        );
+        return;
+      }
+    }
+
     router.push("/ventas");
   }
 
@@ -575,6 +620,50 @@ export default function NuevaVentaPage() {
                 <p className="mt-2 text-xs text-amber-700">
                   Elegí una modalidad antes de confirmar la venta.
                 </p>
+              )}
+            </div>
+
+            {/* ── Comprobante ───────────────────────────────────────────── */}
+            <div className="mt-6 border-t border-slate-100 pt-5">
+              <p className="mb-3 text-sm font-semibold text-slate-800">
+                Comprobante <span className="text-red-500">*</span>
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {([
+                  { v: "ticket" as const, label: "Ticket", nota: "Sin datos del cliente" },
+                  { v: "factura" as const, label: "Factura", nota: "Necesita RUC o cédula" },
+                ]).map((opt) => (
+                  <label
+                    key={opt.v}
+                    className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                      comprobante === opt.v
+                        ? "border-amber-500 bg-white font-medium text-amber-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="comprobante"
+                      value={opt.v}
+                      checked={comprobante === opt.v}
+                      onChange={() => setComprobante(opt.v)}
+                      className="h-4 w-4 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>
+                      {opt.label}
+                      <span className="ml-1.5 text-xs font-normal text-slate-400">{opt.nota}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {comprobante === "factura" && (
+                <div className="mt-4">
+                  <ReceptorFactura valor={receptor} onChange={setReceptor} />
+                  {validarReceptor(receptor) && (
+                    <p className="mt-2 text-xs text-amber-700">{validarReceptor(receptor)}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -26,13 +26,29 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, 250) : null;
 
     const ruc = texto(body.ruc);
+    const documento = texto(body.documento);
     const razonSocial = texto(body.razon_social);
 
-    // El RUC sin razón social deja el documento a medias, y el SET lo rechaza.
-    // Sin ninguno de los dos es consumidor final, que sí es válido.
-    if (ruc && !razonSocial) {
+    // El documento electrónico siempre lleva identificación del receptor: sin
+    // RUC ni cédula el armador del XML no puede construirlo. Una venta sin
+    // datos del cliente se cobra con ticket, no con factura.
+    if (!ruc && !documento) {
       return NextResponse.json(
-        errorResponse("Falta la razón social del cliente."),
+        errorResponse("Para facturar hace falta el RUC o la cédula del cliente."),
+        { status: 400 }
+      );
+    }
+    if (!razonSocial) {
+      return NextResponse.json(
+        errorResponse("Falta el nombre o razón social del cliente."),
+        { status: 400 }
+      );
+    }
+    // RUC y cédula juntos son dos receptores distintos: con RUC el documento
+    // sale como contribuyente y con cédula como consumidor final identificado.
+    if (ruc && documento) {
+      return NextResponse.json(
+        errorResponse("Elegí RUC o cédula, no los dos."),
         { status: 400 }
       );
     }
@@ -41,6 +57,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       ventaId: id,
       razonSocial,
       ruc,
+      documento,
       clienteId: texto(body.cliente_id),
     });
 

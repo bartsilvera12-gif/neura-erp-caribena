@@ -46,8 +46,10 @@ export interface FacturarVentaInput {
   ventaId: string;
   /** Razón social del receptor. Vacío = consumidor final. */
   razonSocial: string | null;
-  /** RUC con dígito verificador. Vacío = consumidor final. */
+  /** RUC con dígito verificador. Se usa para el receptor contribuyente. */
   ruc: string | null;
+  /** Cédula, cuando la factura va a nombre de una persona sin RUC. */
+  documento?: string | null;
   /** Cliente del ERP, si la venta se le atribuye a uno. */
   clienteId?: string | null;
 }
@@ -156,11 +158,11 @@ export async function facturarVentaPg(
       `INSERT INTO ${tF} (
          empresa_id, cliente_id, numero_factura, fecha, fecha_vencimiento,
          monto, saldo, estado, tipo, moneda,
-         cliente_razon_social, cliente_ruc, observaciones, origen_venta_id
+         cliente_razon_social, cliente_ruc, cliente_documento, observaciones, origen_venta_id
        ) VALUES (
          $1::uuid, $2::uuid, $3, $4::date, $4::date,
          $5::numeric, $6::numeric, $7, $8, $9,
-         $10, $11, $12, $13::uuid
+         $10, $11, $12, $13, $14::uuid
        ) RETURNING id`,
       [
         empresaId,
@@ -174,6 +176,7 @@ export async function facturarVentaPg(
         venta.moneda === "USD" ? "USD" : "GS",
         limpio(input.razonSocial),
         limpio(input.ruc),
+        limpio(input.documento),
         limpio(venta.observaciones),
         venta.id,
       ]
