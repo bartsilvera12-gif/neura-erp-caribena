@@ -110,128 +110,231 @@ async function nextNumeroControl(
   return `COMP-${String(next).padStart(6, "0")}`;
 }
 
+/** Cabecera: lo que es igual para toda la factura del proveedor. */
+export interface CompraCabeceraInput {
+  proveedor_id: string;
+  proveedor_nombre: string;
+  moneda: string;
+  tipo_cambio: number;
+  tipo_pago: string;
+  plazo_dias: number | null;
+  nro_timbrado: string;
+  created_by: string | null;
+  usuario_nombre: string | null;
+}
+
+/**
+ * Una linea de la factura. El IVA va por linea porque una misma factura puede
+ * traer gravadas al 10, al 5 y exentas.
+ */
+export interface CompraLineaInput {
+  producto_id: string;
+  producto_nombre: string;
+  cantidad: number;
+  costo_unitario_original: number;
+  costo_unitario: number;
+  iva_tipo: string;
+  subtotal: number;
+  monto_iva: number;
+  total: number;
+  precio_venta: number;
+  margen_venta: number | null;
+}
+
+export interface CompraMultiResult {
+  numero_control: string;
+  compras: CompraRow[];
+  movimiento_warning: string | null;
+}
+
+/**
+ * Registra una compra de varias lineas.
+ *
+ * Cada linea es una fila de compras y todas comparten numero_control: la
+ * factura del proveedor es una sola, los productos son varios. No se separo en
+ * una tabla de cabecera aparte porque la linea ya es la unidad que impacta el
+ * inventario — mueve su propio stock y recalcula el costo de su producto — y
+ * partirla en dos tablas obligaria a sostener el vinculo sin ganar nada.
+ *
+ * Todo va en una transaccion: si una linea falla no queda media factura
+ * cargada moviendo stock a medias.
+ */
+export async function insertCompraMultilinea(
+  schemaRaw: string,
+  empresaId: string,
+  cab: CompraCabeceraInput,
+  lineas: CompraLineaInput[]
+): Promise<CompraMultiResult> {
+  if (lineas.length === 0) throw new Error('La compra no tiene productos.');
+
+  const schema = assertAllowedChatDataSchema(schemaRaw);
+  const tC = quoteSchemaTable(schema, 'compras');
+  const tM = quoteSchemaTable(schema, 'movimientos_inventario');
+  const tP = quoteSchemaTable(schema, 'productos');
+
+  const client = await pool().connect();
+  const compras: CompraRow[] = [];
+  let fallosMovimiento = 0;
+
+  try {
+    await client.query('BEGIN');
+
+    const numero = await nextNumeroControl(client, schema, empresaId);
+
+    for (const l of lineas) {
+      const { rows: compraRows } = await client.query<CompraRow>(
+        `INSERT INTO ${tC} (
+           empresa_id, proveedor_id, proveedor_nombre, producto_id, producto_nombre,
+           cantidad, moneda, tipo_cambio, costo_unitario_original, costo_unitario,
+           iva_tipo, subtotal, monto_iva, total, precio_venta, margen_venta,
+           tipo_pago, plazo_dias, nro_timbrado, numero_control, estado, fecha,
+           created_by, usuario_nombre
+         ) VALUES (
+           $1::uuid, $2::uuid, $3, $4::uuid, $5,
+           $6::numeric, $7, $8::numeric, $9::numeric, $10::numeric,
+           $11, $12::numeric, $13::numeric, $14::numeric, $15::numeric, $16::numeric,
+           $17, $18::integer, $19, $20, 'registrada', now(),
+           $21::uuid, $22
+         )
+         RETURNING ${COLS}`,
+        [
+          empresaId,
+          cab.proveedor_id,
+          cab.proveedor_nombre,
+          l.producto_id,
+          l.producto_nombre,
+          l.cantidad,
+          cab.moneda,
+          cab.tipo_cambio,
+          l.costo_unitario_original,
+          l.costo_unitario,
+          l.iva_tipo,
+          l.subtotal,
+          l.monto_iva,
+          l.total,
+          l.precio_venta,
+          l.margen_venta,
+          cab.tipo_pago,
+          cab.plazo_dias,
+          cab.nro_timbrado,
+          numero,
+          cab.created_by,
+          cab.usuario_nombre,
+        ]
+      );
+      compras.push(compraRows[0]);
+
+      // Movimiento ENTRADA (origen=compra). Best-effort: si falla, la compra
+      // queda registrada pero se avisa.
+      try {
+        await client.query(
+          `INSERT INTO ${tM} (
+             empresa_id, producto_id, producto_nombre, producto_sku,
+             tipo, cantidad, costo_unitario, origen, referencia, fecha,
+             created_by, usuario_nombre
+           )
+           SELECT $1::uuid, $2::uuid, $3, COALESCE(p.sku, ''),
+                  'ENTRADA', $4::numeric, $5::numeric, 'compra', $6, now(),
+                  $7::uuid, $8
+           FROM ${tP} p WHERE p.id = $2::uuid`,
+          [
+            empresaId,
+            l.producto_id,
+            l.producto_nombre,
+            l.cantidad,
+            l.costo_unitario,
+            numero,
+            cab.created_by,
+            cab.usuario_nombre,
+          ]
+        );
+      } catch (movErr) {
+        fallosMovimiento++;
+        console.error('[compras-pg] movimiento ENTRADA fallo', {
+          schema, empresaId, numero, producto: l.producto_id,
+          message: movErr instanceof Error ? movErr.message : String(movErr),
+          code: (movErr as { code?: string })?.code,
+        });
+      }
+
+      // Actualizar producto: stock + costo_promedio + precio_venta
+      await client.query(
+        `UPDATE ${tP}
+            SET stock_actual = stock_actual + $1::numeric,
+                costo_promedio = $2::numeric,
+                precio_venta = $3::numeric,
+                updated_at = now()
+          WHERE id = $4::uuid AND empresa_id = $5::uuid`,
+        [l.cantidad, l.costo_unitario, l.precio_venta, l.producto_id, empresaId]
+      );
+    }
+
+    await client.query('COMMIT');
+    return {
+      numero_control: numero,
+      compras,
+      movimiento_warning:
+        fallosMovimiento === 0
+          ? null
+          : fallosMovimiento === 1
+            ? 'La compra se guardó pero una línea no pudo registrar su movimiento de entrada en inventario.'
+            : `La compra se guardó pero ${fallosMovimiento} líneas no pudieron registrar su movimiento de entrada en inventario.`,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => null);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export interface CompraResult {
   compra: CompraRow;
   movimiento_id: string | null;
   movimiento_warning: string | null;
 }
 
+/** Compra de un solo producto: envuelve la multilinea con una sola linea. */
 export async function insertCompraConImpacto(
   schemaRaw: string,
   empresaId: string,
   d: InsertCompraInput
 ): Promise<CompraResult> {
-  const schema = assertAllowedChatDataSchema(schemaRaw);
-  const tC = quoteSchemaTable(schema, "compras");
-  const tM = quoteSchemaTable(schema, "movimientos_inventario");
-  const tP = quoteSchemaTable(schema, "productos");
-
-  const client = await pool().connect();
-  let movimientoId: string | null = null;
-  let movimientoWarning: string | null = null;
-  try {
-    await client.query("BEGIN");
-
-    const numero = await nextNumeroControl(client, schema, empresaId);
-
-    const { rows: compraRows } = await client.query<CompraRow>(
-      `INSERT INTO ${tC} (
-         empresa_id, proveedor_id, proveedor_nombre, producto_id, producto_nombre,
-         cantidad, moneda, tipo_cambio, costo_unitario_original, costo_unitario,
-         iva_tipo, subtotal, monto_iva, total, precio_venta, margen_venta,
-         tipo_pago, plazo_dias, nro_timbrado, numero_control, estado, fecha,
-         created_by, usuario_nombre
-       ) VALUES (
-         $1::uuid, $2::uuid, $3, $4::uuid, $5,
-         $6::numeric, $7, $8::numeric, $9::numeric, $10::numeric,
-         $11, $12::numeric, $13::numeric, $14::numeric, $15::numeric, $16::numeric,
-         $17, $18::integer, $19, $20, 'registrada', now(),
-         $21::uuid, $22
-       )
-       RETURNING ${COLS}`,
-      [
-        empresaId,
-        d.proveedor_id,
-        d.proveedor_nombre,
-        d.producto_id,
-        d.producto_nombre,
-        d.cantidad,
-        d.moneda,
-        d.tipo_cambio,
-        d.costo_unitario_original,
-        d.costo_unitario,
-        d.iva_tipo,
-        d.subtotal,
-        d.monto_iva,
-        d.total,
-        d.precio_venta,
-        d.margen_venta,
-        d.tipo_pago,
-        d.plazo_dias,
-        d.nro_timbrado,
-        numero,
-        d.created_by,
-        d.usuario_nombre,
-      ]
-    );
-    const compra = compraRows[0];
-
-    // Movimiento ENTRADA (origen=compra). Best-effort: si falla, la compra
-    // queda registrada pero anunciamos warning.
-    try {
-      const { rows: movRows } = await client.query<{ id: string }>(
-        `INSERT INTO ${tM} (
-           empresa_id, producto_id, producto_nombre, producto_sku,
-           tipo, cantidad, costo_unitario, origen, referencia, fecha,
-           created_by, usuario_nombre
-         )
-         SELECT $1::uuid, $2::uuid, $3, COALESCE(p.sku, ''),
-                'ENTRADA', $4::numeric, $5::numeric, 'compra', $6, now(),
-                $7::uuid, $8
-         FROM ${tP} p WHERE p.id = $2::uuid
-         RETURNING id`,
-        [
-          empresaId,
-          d.producto_id,
-          d.producto_nombre,
-          d.cantidad,
-          d.costo_unitario,
-          numero,
-          d.created_by,
-          d.usuario_nombre,
-        ]
-      );
-      movimientoId = movRows[0]?.id ?? null;
-    } catch (movErr) {
-      const msg = movErr instanceof Error ? movErr.message : String(movErr);
-      console.error("[compras-pg] movimiento ENTRADA fallo", {
-        schema, empresaId, numero, message: msg,
-        code: (movErr as { code?: string })?.code,
-        detail: (movErr as { detail?: string })?.detail,
-      });
-      movimientoWarning =
-        "La compra se guardó pero no se pudo registrar el movimiento de entrada en inventario.";
-    }
-
-    // Actualizar producto: stock + costo_promedio + precio_venta
-    await client.query(
-      `UPDATE ${tP}
-          SET stock_actual = stock_actual + $1::numeric,
-              costo_promedio = $2::numeric,
-              precio_venta = $3::numeric,
-              updated_at = now()
-        WHERE id = $4::uuid AND empresa_id = $5::uuid`,
-      [d.cantidad, d.costo_unitario, d.precio_venta, d.producto_id, empresaId]
-    );
-
-    await client.query("COMMIT");
-    return { compra, movimiento_id: movimientoId, movimiento_warning: movimientoWarning };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => null);
-    throw err;
-  } finally {
-    client.release();
-  }
+  const out = await insertCompraMultilinea(
+    schemaRaw,
+    empresaId,
+    {
+      proveedor_id: d.proveedor_id,
+      proveedor_nombre: d.proveedor_nombre,
+      moneda: d.moneda,
+      tipo_cambio: d.tipo_cambio,
+      tipo_pago: d.tipo_pago,
+      plazo_dias: d.plazo_dias,
+      nro_timbrado: d.nro_timbrado,
+      created_by: d.created_by,
+      usuario_nombre: d.usuario_nombre,
+    },
+    [
+      {
+        producto_id: d.producto_id,
+        producto_nombre: d.producto_nombre,
+        cantidad: d.cantidad,
+        costo_unitario_original: d.costo_unitario_original,
+        costo_unitario: d.costo_unitario,
+        iva_tipo: d.iva_tipo,
+        subtotal: d.subtotal,
+        monto_iva: d.monto_iva,
+        total: d.total,
+        precio_venta: d.precio_venta,
+        margen_venta: d.margen_venta,
+      },
+    ]
+  );
+  return {
+    compra: out.compras[0],
+    movimiento_id: null,
+    movimiento_warning: out.movimiento_warning,
+  };
 }
 
 export async function getCompraById(
@@ -403,6 +506,7 @@ export interface ReporteComprasFiltro {
 export interface ReporteCompras {
   resumen: {
     ordenes: number;
+    lineas: number;
     total: number;
     gravada: number;
     iva: number;
@@ -446,10 +550,11 @@ export async function reporteCompras(
 
   const [resumen, porProveedor, porProducto, porDia, detalle] = await Promise.all([
     p.query<{
-      ordenes: string; total: string; gravada: string; iva: string;
+      ordenes: string; lineas: string; total: string; gravada: string; iva: string;
       contado: string; credito: string; proveedores: string;
     }>(
-      `SELECT COUNT(*)                                              AS ordenes,
+      `SELECT COUNT(DISTINCT numero_control)                        AS ordenes,
+              COUNT(*)                                              AS lineas,
               COALESCE(SUM(total), 0)                               AS total,
               COALESCE(SUM(subtotal), 0)                            AS gravada,
               COALESCE(SUM(monto_iva), 0)                           AS iva,
@@ -462,8 +567,8 @@ export async function reporteCompras(
     p.query<{ proveedor_id: string; proveedor: string; ordenes: string; total: string }>(
       `SELECT proveedor_id,
               MAX(proveedor_nombre) AS proveedor,
-              COUNT(*)              AS ordenes,
-              COALESCE(SUM(total), 0) AS total
+              COUNT(DISTINCT numero_control) AS ordenes,
+              COALESCE(SUM(total), 0)        AS total
          FROM ${t} ${where}
         GROUP BY proveedor_id
         ORDER BY SUM(total) DESC
@@ -485,8 +590,8 @@ export async function reporteCompras(
     ),
     p.query<{ dia: string; total: string; ordenes: string }>(
       `SELECT to_char(fecha, 'YYYY-MM-DD') AS dia,
-              COALESCE(SUM(total), 0)      AS total,
-              COUNT(*)                     AS ordenes
+              COALESCE(SUM(total), 0)        AS total,
+              COUNT(DISTINCT numero_control) AS ordenes
          FROM ${t} ${where}
         GROUP BY 1
         ORDER BY 1`,
@@ -504,6 +609,7 @@ export async function reporteCompras(
   return {
     resumen: {
       ordenes: n(r?.ordenes),
+      lineas: n(r?.lineas),
       total: n(r?.total),
       gravada: n(r?.gravada),
       iva: n(r?.iva),

@@ -90,3 +90,76 @@ export async function saveCompra(
     return { success: false, error: msg };
   }
 }
+
+// ── Compra de varios productos ────────────────────────────────────────────
+
+/** Datos que son iguales para toda la factura del proveedor. */
+export interface CompraCabecera {
+  proveedor_id: string;
+  proveedor_nombre: string;
+  moneda: Compra["moneda"];
+  tipo_cambio: number;
+  tipo_pago: Compra["tipo_pago"];
+  plazo_dias?: number;
+  nro_timbrado: string;
+}
+
+/** Una línea de la factura. El IVA es por línea. */
+export interface CompraLinea {
+  producto_id: string;
+  producto_nombre: string;
+  cantidad: number;
+  costo_unitario_original: number;
+  costo_unitario: number;
+  iva_tipo: Compra["iva_tipo"];
+  subtotal: number;
+  monto_iva: number;
+  total: number;
+  precio_venta: number;
+  margen_venta: number;
+}
+
+export interface SaveCompraMultiResult {
+  success: true;
+  numero_control: string;
+  compras: Compra[];
+  warning?: string | null;
+}
+
+export async function saveCompraMultilinea(
+  cabecera: CompraCabecera,
+  items: CompraLinea[]
+): Promise<SaveCompraMultiResult | SaveCompraError> {
+  try {
+    const r = await fetch("/api/compras", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...cabecera, items }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.success) {
+      const err = (j as { error?: string })?.error ?? `Error ${r.status} al guardar la compra.`;
+      console.error("[compras] saveCompraMultilinea:", err);
+      return { success: false, error: err };
+    }
+    const data = j.data as {
+      numero_control?: string;
+      compras?: CompraApiRow[];
+      warning?: string | null;
+    };
+    if (!data.compras?.length) {
+      return { success: false, error: "Respuesta inválida del servidor." };
+    }
+    return {
+      success: true,
+      numero_control: data.numero_control ?? data.compras[0].numero_control,
+      compras: data.compras.map(mapRow),
+      warning: data.warning ?? null,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error de red";
+    console.error("[compras] saveCompraMultilinea:", e);
+    return { success: false, error: msg };
+  }
+}

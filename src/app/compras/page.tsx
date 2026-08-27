@@ -162,6 +162,35 @@ export default function ComprasPage() {
 
   const hayFiltros = busqueda || filtroTipoPago;
 
+  /**
+   * Una factura de varios productos son varias filas con el mismo número de
+   * control. Se ordenan juntas y sólo la primera repite proveedor, pago y
+   * fecha; las demás quedan indentadas debajo.
+   */
+  const agrupadas = (() => {
+    const orden: string[] = [];
+    const porNumero = new Map<string, typeof filtradas>();
+    for (const c of filtradas) {
+      if (!porNumero.has(c.numero_control)) {
+        porNumero.set(c.numero_control, []);
+        orden.push(c.numero_control);
+      }
+      porNumero.get(c.numero_control)!.push(c);
+    }
+    return orden.flatMap((n) => {
+      const grupo = porNumero.get(n)!;
+      const totalGrupo = grupo.reduce((acc, x) => acc + x.total, 0);
+      return grupo.map((c, i) => ({
+        compra: c,
+        primera: i === 0,
+        lineas: grupo.length,
+        totalGrupo,
+      }));
+    });
+  })();
+
+  const cantidadFacturas = new Set(filtradas.map((c) => c.numero_control)).size;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -214,7 +243,8 @@ export default function ComprasPage() {
             )}
           </div>
           <span className="text-xs text-slate-500">
-            {filtradas.length} de {todas.length} compras
+            {cantidadFacturas} compra{cantidadFacturas === 1 ? "" : "s"} · {filtradas.length} de{" "}
+            {todas.length} producto{todas.length === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -247,10 +277,28 @@ export default function ComprasPage() {
                   </td>
                 </tr>
               ) : (
-                filtradas.map((c) => (
-                  <tr key={c.id} className={tr}>
-                    <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{c.numero_control}</td>
-                    <td className="px-5 py-3.5 font-medium text-slate-800">{c.proveedor_nombre}</td>
+                agrupadas.map(({ compra: c, primera, lineas, totalGrupo }) => (
+                  <tr
+                    key={c.id}
+                    className={`${tr} ${primera ? "border-t-2 border-slate-200" : ""}`}
+                  >
+                    <td className="px-5 py-3.5 font-mono text-xs text-slate-500">
+                      {primera ? (
+                        <>
+                          {c.numero_control}
+                          {lineas > 1 && (
+                            <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                              {lineas} prod.
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-slate-300">↳</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">
+                      {primera ? c.proveedor_nombre : ""}
+                    </td>
                     <td className="px-5 py-3.5 text-slate-600">{c.producto_nombre}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-slate-700">{c.cantidad}</td>
                     <td className="hidden px-5 py-3.5 text-right text-xs tabular-nums text-slate-600 lg:table-cell">
@@ -269,6 +317,11 @@ export default function ComprasPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-slate-800">
                       {formatGs(c.total)}
+                      {primera && lineas > 1 && (
+                        <span className="block text-[11px] font-normal text-slate-400">
+                          factura {formatGs(totalGrupo)}
+                        </span>
+                      )}
                     </td>
                     <td className="hidden px-5 py-3.5 text-right text-sm font-medium tabular-nums text-emerald-600 lg:table-cell">
                       {c.margen_venta != null ? `${c.margen_venta.toFixed(1)}%` : "—"}
@@ -286,7 +339,9 @@ export default function ComprasPage() {
                           : "—"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-xs tabular-nums text-slate-500">{formatFecha(c.fecha)}</td>
+                    <td className="px-5 py-3.5 text-xs tabular-nums text-slate-500">
+                      {primera ? formatFecha(c.fecha) : ""}
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1.5">
                         <button

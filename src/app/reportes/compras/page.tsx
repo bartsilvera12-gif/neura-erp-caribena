@@ -13,7 +13,7 @@ import {
 
 type Reporte = {
   resumen: {
-    ordenes: number; total: number; gravada: number; iva: number;
+    ordenes: number; lineas: number; total: number; gravada: number; iva: number;
     contado: number; credito: number; proveedores: number;
   };
   por_proveedor: Array<{ proveedor_id: string; proveedor: string; ordenes: number; total: number }>;
@@ -180,7 +180,7 @@ export default function ReporteComprasPage() {
           {/* Indicadores */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi etiqueta="Total comprado" valor={formatGs(r.total)}
-              nota={`${r.ordenes} orden${r.ordenes === 1 ? "" : "es"} · ${r.proveedores} proveedor${r.proveedores === 1 ? "" : "es"}`}
+              nota={`${r.ordenes} orden${r.ordenes === 1 ? "" : "es"} · ${r.lineas} producto${r.lineas === 1 ? "" : "s"} · ${r.proveedores} proveedor${r.proveedores === 1 ? "" : "es"}`}
               destacado />
             <Kpi etiqueta="IVA incluido" valor={formatGs(r.iva)}
               nota={`Gravada ${formatGs(r.gravada)}`} />

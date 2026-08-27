@@ -1,11 +1,12 @@
 "use client";
 
 import SelectField from "@/components/ui/SelectField";
-import { AlertTriangle, Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
+import { AlertTriangle, Check, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
-import { saveCompra } from "@/lib/compras/storage";
+import { saveCompraMultilinea, type CompraLinea } from "@/lib/compras/storage";
 import { getProveedores, proveedorExiste, createProveedor } from "@/lib/proveedores/storage";
 import {
   getProductos,
@@ -20,6 +21,39 @@ import type { MetodoValuacion, Producto } from "@/lib/inventario/types";
 
 function formatGs(valor: number) {
   return `Gs. ${valor.toLocaleString("es-PY")}`;
+}
+
+/**
+ * Una línea del borrador. El costo se guarda en la moneda de la factura, no en
+ * guaraníes: si después se corrige el tipo de cambio, todas las líneas ya
+ * cargadas se recalculan solas en vez de quedar con el valor viejo.
+ */
+type LineaCompra = {
+  key: string;
+  producto_id: string;
+  producto_nombre: string;
+  cantidad: number;
+  costo_unitario_original: number;
+  iva_tipo: TipoIva;
+  precio_venta: number;
+};
+
+/** Números derivados de una línea, con el IVA incluido en el costo. */
+function calcularLinea(l: LineaCompra, tipoCambio: number) {
+  const costoPYG = l.costo_unitario_original * tipoCambio;
+  const total = l.cantidad * costoPYG;
+  const montoIva =
+    l.iva_tipo === "exenta" ? 0 : l.iva_tipo === "5" ? total / 21 : total / 11;
+  return {
+    costoPYG,
+    total,
+    montoIva,
+    subtotal: total - montoIva,
+    margen:
+      l.precio_venta > 0 && costoPYG > 0
+        ? ((l.precio_venta - costoPYG) / l.precio_venta) * 100
+        : 0,
+  };
 }
 
 function margenColor(m: number) {
@@ -131,6 +165,10 @@ export default function NuevaCompraPage() {
     stock_minimo: "0",
     precio_venta_sugerido: "",
   });
+  /** Productos ya cargados en esta factura. */
+  const [lineas, setLineas] = useState<LineaCompra[]>([]);
+  const [lineaSeq, setLineaSeq] = useState(0);
+
   const [errorSku, setErrorSku] = useState<string | null>(null);
   const [productoCreado, setProductoCreado] = useState<string | null>(null);
   const [errorSubmit, setErrorSubmit] = useState<string | null>(null);
@@ -191,8 +229,87 @@ export default function NuevaCompraPage() {
       ? ((precioVentaNum - costoUnitarioPYG) / precioVentaNum) * 100
       : null;
 
-  const calculosListos = total > 0 && precioVentaNum > 0;
   const productoSeleccionado = productos.find((p) => p.id === form.producto_id);
+
+  /** El borrador está completo y se puede sumar a la factura. */
+  const borradorListo =
+    !!form.producto_id && cantidadNum > 0 && costoUnitarioPYG > 0 && precioVentaNum > 0;
+
+  const lineasCalculadas = useMemo(
+    () => lineas.map((l) => ({ l, c: calcularLinea(l, tipoCambioNum) })),
+    [lineas, tipoCambioNum]
+  );
+
+  const totalOrden = lineasCalculadas.reduce((acc, x) => acc + x.c.total, 0);
+  const ivaOrden = lineasCalculadas.reduce((acc, x) => acc + x.c.montoIva, 0);
+  const gravadaOrden = totalOrden - ivaOrden;
+
+  /** Se puede guardar si ya hay líneas, o si el borrador alcanza para una. */
+  const calculosListos = lineas.length > 0 || borradorListo;
+
+  const opcionesProducto: SmartOption[] = useMemo(
+    () =>
+      productos.map((p) => ({
+        id: p.id,
+        label: p.nombre,
+        sub: p.sku,
+        trailing: `stock ${p.stock_actual}`,
+      })),
+    [productos]
+  );
+
+  /** Limpia sólo lo que es de la línea: proveedor, moneda y pago siguen. */
+  function limpiarBorrador() {
+    setForm((prev) => ({
+      ...prev,
+      producto_id: "",
+      cantidad: "",
+      costo_unitario_input: "",
+      precio_venta: "",
+    }));
+    setProductoCreado(null);
+  }
+
+  /**
+   * Suma el borrador a la factura. Devuelve la línea o null si no estaba
+   * completa, para que el submit pueda reusarla sin duplicar validaciones.
+   */
+  function armarLineaBorrador(): LineaCompra | null {
+    if (!borradorListo) return null;
+    const prod = productos.find((x) => x.id === form.producto_id);
+    if (!prod) return null;
+    return {
+      key: `l${lineaSeq}`,
+      producto_id: prod.id,
+      producto_nombre: prod.nombre,
+      cantidad: cantidadNum,
+      costo_unitario_original: costoInputNum,
+      iva_tipo: form.iva_tipo,
+      precio_venta: precioVentaNum,
+    };
+  }
+
+  function agregarLinea() {
+    setErrorSubmit(null);
+    if (!form.producto_id) return setErrorSubmit("Elegí un producto antes de agregarlo.");
+    if (cantidadNum <= 0) return setErrorSubmit("La cantidad debe ser mayor a 0.");
+    if (costoUnitarioPYG <= 0) return setErrorSubmit("El costo unitario debe ser mayor a 0.");
+    if (precioVentaNum <= 0) return setErrorSubmit("El precio de venta debe ser mayor a 0.");
+    if (lineas.some((l) => l.producto_id === form.producto_id)) {
+      return setErrorSubmit(
+        "Ese producto ya está en la compra. Quitalo o cambiale la cantidad en la lista."
+      );
+    }
+    const linea = armarLineaBorrador();
+    if (!linea) return;
+    setLineas((prev) => [...prev, linea]);
+    setLineaSeq((n) => n + 1);
+    limpiarBorrador();
+  }
+
+  function quitarLinea(key: string) {
+    setLineas((prev) => prev.filter((l) => l.key !== key));
+  }
 
   // Margen preview dentro del formulario de nuevo producto
   const costoParaPreview = costoUnitarioPYG > 0 ? costoUnitarioPYG : 0;
@@ -210,13 +327,12 @@ export default function NuevaCompraPage() {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleProductoSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const id = e.target.value;
+  function handleProductoSelectChange(id: string) {
     const p = productos.find((x) => x.id === id);
     setProductoCreado(null);
     setForm((prev) => ({
       ...prev,
-      producto_id: e.target.value,
+      producto_id: id,
       costo_unitario_input: p ? String(p.costo_promedio) : "",
       precio_venta: p ? String(p.precio_venta) : "",
     }));
@@ -226,45 +342,64 @@ export default function NuevaCompraPage() {
     e.preventDefault();
     setErrorSubmit(null);
 
-    // Validaciones visibles (antes silenciosas)
     if (!form.proveedor_id) return setErrorSubmit("Seleccioná o agregá un proveedor.");
-    if (!form.producto_id) return setErrorSubmit("Seleccioná o agregá un producto.");
-    if (cantidadNum <= 0) return setErrorSubmit("La cantidad debe ser mayor a 0.");
-    if (costoUnitarioPYG <= 0) return setErrorSubmit("El costo unitario debe ser mayor a 0.");
-    if (precioVentaNum <= 0) return setErrorSubmit("El precio de venta debe ser mayor a 0.");
     if (!form.nro_timbrado?.trim()) return setErrorSubmit("Ingresá el N° de timbrado.");
+    if (form.moneda === "USD" && tipoCambioNum <= 0)
+      return setErrorSubmit("Ingresá el tipo de cambio.");
 
-    const todosProductos = await getProductos();
+    // Si quedó un producto cargado en el borrador sin apretar "Agregar", entra
+    // igual: perder la última línea porque faltó un clic es un error caro.
+    const pendiente = armarLineaBorrador();
+    const duplicado =
+      pendiente && lineas.some((l) => l.producto_id === pendiente.producto_id);
+    if (duplicado) {
+      return setErrorSubmit(
+        "El producto del formulario ya está en la lista. Quitalo de arriba o de la lista."
+      );
+    }
+    const todas = pendiente ? [...lineas, pendiente] : lineas;
+
+    if (todas.length === 0) {
+      return setErrorSubmit("Agregá al menos un producto a la compra.");
+    }
+
     const proveedor = proveedores.find((p) => String(p.id) === form.proveedor_id);
-    const producto = todosProductos.find((p) => p.id === form.producto_id);
     if (!proveedor) return setErrorSubmit("Proveedor no encontrado. Recargá e intentá de nuevo.");
-    if (!producto) return setErrorSubmit("Producto no encontrado. Recargá e intentá de nuevo.");
+
+    const items: CompraLinea[] = todas.map((l) => {
+      const c = calcularLinea(l, tipoCambioNum);
+      return {
+        producto_id: l.producto_id,
+        producto_nombre: l.producto_nombre,
+        cantidad: l.cantidad,
+        costo_unitario_original: l.costo_unitario_original,
+        costo_unitario: c.costoPYG,
+        iva_tipo: l.iva_tipo,
+        subtotal: c.subtotal,
+        monto_iva: c.montoIva,
+        total: c.total,
+        precio_venta: l.precio_venta,
+        margen_venta: c.margen,
+      };
+    });
 
     setSubmitting(true);
     try {
-      const res = await saveCompra({
-        proveedor_id: String(proveedor.id),
-        proveedor_nombre: proveedor.nombre,
-        producto_id: producto.id,
-        producto_nombre: producto.nombre,
-        cantidad: cantidadNum,
-        moneda: form.moneda,
-        tipo_cambio: tipoCambioNum,
-        costo_unitario_original: costoInputNum,
-        costo_unitario: costoUnitarioPYG,
-        iva_tipo: form.iva_tipo,
-        subtotal,
-        monto_iva: montoIva,
-        total,
-        precio_venta: precioVentaNum,
-        margen_venta: margenVenta ?? 0,
-        tipo_pago: form.tipo_pago,
-        plazo_dias:
-          form.tipo_pago === "credito" && form.plazo_dias
-            ? parseInt(form.plazo_dias)
-            : undefined,
-        nro_timbrado: form.nro_timbrado,
-      });
+      const res = await saveCompraMultilinea(
+        {
+          proveedor_id: String(proveedor.id),
+          proveedor_nombre: proveedor.nombre,
+          moneda: form.moneda,
+          tipo_cambio: tipoCambioNum,
+          tipo_pago: form.tipo_pago,
+          plazo_dias:
+            form.tipo_pago === "credito" && form.plazo_dias
+              ? parseInt(form.plazo_dias)
+              : undefined,
+          nro_timbrado: form.nro_timbrado,
+        },
+        items
+      );
 
       if (!res.success) {
         setErrorSubmit(res.error);
@@ -392,7 +527,9 @@ export default function NuevaCompraPage() {
 
       <div>
         <h1 className="text-3xl font-bold text-gray-800">Nueva compra</h1>
-        <p className="text-gray-600">Cada compra guardada impacta inmediatamente en el inventario</p>
+        <p className="text-gray-600">
+          Una factura puede tener varios productos. Cada uno impacta el inventario al guardar.
+        </p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 max-w-2xl">
@@ -501,20 +638,13 @@ export default function NuevaCompraPage() {
               <label className={labelClass}>
                 Producto <span className="text-red-500">*</span>
               </label>
-              <SelectField
-                name="producto_id"
+              <SmartSearchSelect
+                options={opcionesProducto}
                 value={form.producto_id}
                 onChange={handleProductoSelectChange}
-                className={inputClass}
-                required
-              >
-                <option value="">Seleccionar producto...</option>
-                {productos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} — {p.sku} (stock: {p.stock_actual})
-                  </option>
-                ))}
-              </SelectField>
+                placeholder="Buscar producto por nombre o SKU…"
+                emptyText="Ningún producto coincide"
+              />
 
               {productoSeleccionado && !productoCreado && (
                 <p className="mt-1.5 text-xs text-gray-400">
@@ -754,7 +884,7 @@ export default function NuevaCompraPage() {
                     </p>
                   </div>
                   <div className="rounded-xl bg-[#4FAEB2] px-3 py-3 text-center text-white">
-                    <p className="mb-1 text-xs text-white/80">Total a pagar</p>
+                    <p className="mb-1 text-xs text-white/80">Total de esta línea</p>
                     <p className="text-sm font-bold tabular-nums">{formatGs(total)}</p>
                   </div>
                 </div>
@@ -804,14 +934,109 @@ export default function NuevaCompraPage() {
             )}
           </section>
 
-          {/* ── Banner impacto en inventario ──────────────────────────────── */}
-          {calculosListos && productoSeleccionado && (
-            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-xs text-green-700">
+          {/* ── Agregar la línea a la factura ─────────────────────────────── */}
+          <div>
+            <button
+              type="button"
+              onClick={agregarLinea}
+              disabled={!borradorListo}
+              className="w-full rounded-lg border-2 border-dashed border-[#0EA5E9]/50 bg-[#0EA5E9]/5 px-5 py-3 text-sm font-semibold text-[#0284C7] transition-colors hover:bg-[#0EA5E9]/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+            >
+              <Plus className="mr-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />
+              Agregar este producto a la compra
+            </button>
+            <p className="mt-1.5 text-xs text-slate-400">
+              Una misma factura puede tener varios productos. Cargá los datos de arriba y
+              agregalos uno por uno.
+            </p>
+          </div>
+
+          {/* ── Productos de la factura ───────────────────────────────────── */}
+          {lineas.length > 0 && (
+            <section className="space-y-3">
+              <SectionTitle>Productos de la compra ({lineas.length})</SectionTitle>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2">Producto</th>
+                      <th className="px-3 py-2 text-right">Cant.</th>
+                      <th className="px-3 py-2 text-right">Costo unit.</th>
+                      <th className="px-3 py-2">IVA</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lineasCalculadas.map(({ l, c }) => (
+                      <tr key={l.key}>
+                        <td className="px-3 py-2.5">
+                          <p className="font-medium text-slate-800">{l.producto_nombre}</p>
+                          <p className="text-xs text-slate-400">
+                            Venta {formatGs(l.precio_venta)} · margen{" "}
+                            <span className={margenColor(c.margen)}>{c.margen.toFixed(1)}%</span>
+                          </p>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{l.cantidad}</td>
+                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">
+                          {form.moneda === "USD" ? (
+                            <>
+                              USD {l.costo_unitario_original.toLocaleString("es-PY")}
+                              <br />
+                              <span className="text-slate-400">≈ {formatGs(c.costoPYG)}</span>
+                            </>
+                          ) : (
+                            formatGs(c.costoPYG)
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-slate-500">
+                          {l.iva_tipo === "exenta" ? "Exenta" : `${l.iva_tipo}%`}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-800">
+                          {formatGs(c.total)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => quitarLinea(l.key)}
+                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Quitar ${l.producto_nombre}`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+                  <p className="mb-1 text-xs text-slate-500">Gravada</p>
+                  <p className="text-sm font-semibold tabular-nums text-slate-700">{formatGs(gravadaOrden)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center">
+                  <p className="mb-1 text-xs text-slate-500">IVA incluido</p>
+                  <p className="text-sm font-semibold tabular-nums text-slate-700">{formatGs(ivaOrden)}</p>
+                </div>
+                <div className="rounded-xl bg-[#4FAEB2] px-3 py-3 text-center text-white">
+                  <p className="mb-1 text-xs text-white/80">Total de la factura</p>
+                  <p className="text-base font-bold tabular-nums">{formatGs(totalOrden)}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* ── Impacto en inventario ─────────────────────────────────────── */}
+          {borradorListo && productoSeleccionado && (
+            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-xs text-green-700">
               <span className="mt-0.5 text-base leading-none"><Check className="inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
               <span>
-                Al guardar se registrará una{" "}
-                <strong>entrada de {cantidadNum} unidades</strong> de{" "}
-                <strong>{productoSeleccionado.nombre}</strong> en inventario.
+                <strong>{productoSeleccionado.nombre}</strong> todavía no está en la lista. Si
+                guardás así, igual se agrega: entrarán{" "}
+                <strong>{cantidadNum} unidades</strong> al inventario.
               </span>
             </div>
           )}
@@ -829,7 +1054,15 @@ export default function NuevaCompraPage() {
               disabled={!calculosListos || submitting}
               className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white px-5 py-3 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
             >
-              {submitting ? "Guardando..." : "Guardar compra"}
+              {submitting
+                ? "Guardando..."
+                : `Guardar compra${
+                    lineas.length + (borradorListo && !lineas.some((l) => l.producto_id === form.producto_id) ? 1 : 0) > 0
+                      ? ` (${lineas.length + (borradorListo && !lineas.some((l) => l.producto_id === form.producto_id) ? 1 : 0)} producto${
+                          lineas.length + (borradorListo && !lineas.some((l) => l.producto_id === form.producto_id) ? 1 : 0) === 1 ? "" : "s"
+                        })`
+                      : ""
+                  }`}
             </button>
             <button
               type="button"
