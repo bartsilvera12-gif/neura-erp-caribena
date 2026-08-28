@@ -122,15 +122,25 @@ export interface PagoConciliacionInput {
   observacion?: string | null;
 }
 
+/** Una forma de pago del cobro de una mesa. */
+export interface PagoMesaInput {
+  metodo_pago: "efectivo" | "tarjeta" | "transferencia" | "qr";
+  monto: number;
+  referencia?: string | null;
+  cuenta_bancaria_id?: string | null;
+}
+
 export function facturarMesa(
   sesionId: string,
   metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr",
-  pago?: PagoConciliacionInput | null
+  pago?: PagoConciliacionInput | null,
+  /** Cobro repartido. Vacío = una sola forma de pago por el total. */
+  pagos?: PagoMesaInput[]
 ) {
   return call<{ ventaId: string; numeroControl: string | null; yaFacturada: boolean }>(
     `/api/mesas/sesiones/${encodeURIComponent(sesionId)}/facturar`,
     "POST",
-    { metodo_pago: metodoPago, pago: pago ?? null }
+    { metodo_pago: metodoPago, pago: pago ?? null, pagos: pagos ?? [] }
   );
 }
 

@@ -136,6 +136,40 @@ const S = "caribenaerp";
     }
     console.log(`Efectivo con el cálculo viejo: ${efectivoViejo} (habría sobrado ${efectivoViejo - efectivo} en el cajón)`);
 
+    // ── Conciliación: una fila por línea que no sea efectivo ─────────────
+    // Al cobrar una mesa repartida, una sola fila por el total diría que se
+    // transfirió más de lo que se transfirió.
+    const ventaMix = (
+      await c.query(
+        `select id, total::float8 total from ${S}.ventas
+          where empresa_id=$1 and numero_control='VTA-QA-EFQR'`, [empresaId])
+    ).rows[0];
+    const lineasMix = (
+      await c.query(
+        `select metodo_pago, monto::float8 monto from ${S}.ventas_pagos_detalle
+          where venta_id=$1 and metodo_pago <> 'efectivo'`, [ventaMix.id])
+    ).rows;
+    for (const l of lineasMix) {
+      await c.query(
+        `insert into ${S}.conciliacion_pagos
+           (empresa_id, venta_id, caja_id, medio_pago, monto, estado)
+         values ($1,$2,$3,$4,$5,'pendiente')`,
+        [empresaId, ventaMix.id, cajaId, l.metodo_pago, l.monto]
+      );
+    }
+    const conc = (
+      await c.query(
+        `select medio_pago, monto::float8 monto from ${S}.conciliacion_pagos
+          where venta_id=$1 order by medio_pago`, [ventaMix.id])
+    ).rows;
+    console.table(conc);
+    if (conc.length !== 1) fallar(`se esperaba 1 fila de conciliación (el QR) y hay ${conc.length}`);
+    const sumaConc = conc.reduce((a, x) => a + x.monto, 0);
+    if (sumaConc !== 45000)
+      fallar(`la conciliación dice ${sumaConc} y por QR entraron 45000`);
+    if (sumaConc === ventaMix.total)
+      fallar("la conciliación se llevó el total de la venta en vez de la parte no efectiva");
+
     // La base tiene que rechazar una línea en cero.
     let bloqueado = false;
     try {

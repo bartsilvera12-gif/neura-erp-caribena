@@ -5,6 +5,7 @@ import { getCajaAbiertaPg } from "@/lib/caja/server/caja-pg";
 import {
   createVentaTransaccionalPg,
   type CreateVentaItemInput,
+  type CreateVentaPagoInput,
 } from "@/lib/ventas/server/create-venta-pg";
 import type {
   ComandaEnvioInfo,
@@ -802,9 +803,16 @@ export async function facturarSesionPg(params: {
   schema: string;
   empresaId: string;
   sesionId: string;
+  /** Método predominante. Se deriva de `pagos` cuando el cobro va repartido. */
   metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr";
+  /**
+   * Cobro repartido: una línea por forma de pago. Vacío = una sola línea con
+   * `metodoPago` por el total. Se valida contra el total real de la sesión, que
+   * lo calcula el servidor a partir de los ítems.
+   */
+  pagos?: CreateVentaPagoInput[];
   usuarioId: string | null;
-  /** Datos de conciliación para tarjeta/transferencia (estado inicial: pendiente). */
+  /** Datos de conciliación para tarjeta/transferencia/QR (estado inicial: pendiente). */
   pago?: {
     referencia?: string | null;
     entidad?: string | null;
@@ -899,6 +907,19 @@ export async function facturarSesionPg(params: {
     let sub = 0, iva = 0, tot = 0;
     for (const it of items) { sub += it.subtotal; iva += it.monto_iva; tot += it.total_linea; }
 
+    // El cobro repartido tiene que dar el total de la cuenta. Se valida contra
+    // el total que calcula el servidor y no contra el que dice el navegador: si
+    // no cerrara, el arqueo lo arrastraría hasta el cierre del turno. Se tolera
+    // 1 Gs por el redondeo de los montos que teclea el cajero.
+    if (params.pagos && params.pagos.length > 0) {
+      const sumaPagos = params.pagos.reduce((acc, p) => acc + Number(p.monto), 0);
+      if (Math.abs(sumaPagos - tot) > 1) {
+        throw new Error(
+          `El cobro suma ${Math.round(sumaPagos).toLocaleString("es-PY")} y la cuenta es de ${Math.round(tot).toLocaleString("es-PY")}.`
+        );
+      }
+    }
+
     // Nº de mesa o rótulo PARA LLEVAR para la observación.
     let observaciones: string;
     if (ses.tipo === "para_llevar") {
@@ -920,6 +941,7 @@ export async function facturarSesionPg(params: {
       tipoVenta: "CONTADO",
       plazoDias: null,
       metodoPago: params.metodoPago,
+      pagos: params.pagos,
       items,
       subtotalDeclarado: sub,
       montoIvaDeclarado: iva,
@@ -937,29 +959,35 @@ export async function facturarSesionPg(params: {
       await sb.from("mesas").update({ estado: "libre" }).eq("empresa_id", params.empresaId).eq("id", ses.mesa_id);
     }
 
-    // Transferencia/tarjeta → registro de conciliación PENDIENTE (no afecta efectivo).
-    if (
-      params.metodoPago === "tarjeta" ||
-      params.metodoPago === "transferencia" ||
-      params.metodoPago === "qr"
-    ) {
+    // Todo lo que no es efectivo queda como conciliación PENDIENTE: hay que
+    // contrastarlo después contra lo que realmente acreditó. Va una fila por
+    // línea de cobro — si el cobro estuvo repartido, una sola fila por el total
+    // diría que se transfirió más de lo que se transfirió.
+    const lineasCobro =
+      params.pagos && params.pagos.length > 0
+        ? params.pagos
+        : [{ metodo_pago: params.metodoPago, monto: tot }];
+    const noEfectivo = lineasCobro.filter((l) => l.metodo_pago !== "efectivo");
+    if (noEfectivo.length > 0) {
       const p = params.pago ?? {};
-      const cins = await sb.from("conciliacion_pagos").insert({
-        empresa_id: params.empresaId,
-        venta_id: ventaId,
-        caja_id: caja.id,
-        mesa_sesion_id: ses.id,
-        cuenta_bancaria_id: p.cuenta_bancaria_id || null,
-        medio_pago: params.metodoPago,
-        monto: tot,
-        referencia: p.referencia || null,
-        entidad: p.entidad || null,
-        tipo_tarjeta: p.tipo_tarjeta || null,
-        fecha_pago: p.fecha_pago || null,
-        estado: "pendiente",
-        observacion: p.observacion || null,
-        registrado_por: params.usuarioId,
-      });
+      const cins = await sb.from("conciliacion_pagos").insert(
+        noEfectivo.map((l) => ({
+          empresa_id: params.empresaId,
+          venta_id: ventaId,
+          caja_id: caja.id,
+          mesa_sesion_id: ses.id,
+          cuenta_bancaria_id: l.cuenta_bancaria_id || p.cuenta_bancaria_id || null,
+          medio_pago: l.metodo_pago,
+          monto: l.monto,
+          referencia: l.referencia || p.referencia || null,
+          entidad: p.entidad || null,
+          tipo_tarjeta: p.tipo_tarjeta || null,
+          fecha_pago: p.fecha_pago || null,
+          estado: "pendiente",
+          observacion: p.observacion || null,
+          registrado_por: params.usuarioId,
+        }))
+      );
       if (cins.error) throw new Error(cins.error.message);
     }
 

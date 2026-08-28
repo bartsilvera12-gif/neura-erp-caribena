@@ -10,6 +10,12 @@ import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/Mit
 import MontoInput from "@/components/ui/MontoInput";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
 import { actualizarItemCaja, agregarItemCaja, getSesionPorCobrar } from "@/lib/ventas/por-cobrar";
+import CobroRepartido, {
+  cobroValido,
+  montoDeLinea,
+  totalCobrado,
+  type LineaCobro,
+} from "@/components/ventas/CobroRepartido";
 import { facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
 import { getCajaAbierta } from "@/lib/caja/storage";
 import { getCuentasBancarias } from "@/lib/conciliacion/storage";
@@ -55,7 +61,16 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   const [cuentas, setCuentas] = useState<CuentaBancaria[]>([]);
 
   // Cobro
-  const [metodo, setMetodo] = useState<Metodo>("efectivo");
+  /**
+   * Formas de pago del cobro. Arranca en una sola —efectivo— porque así se
+   * cobra casi siempre; el monto de esa única línea lo cubre el total.
+   */
+  const [lineasCobro, setLineasCobro] = useState<LineaCobro[]>([
+    { key: "p0", metodo: "efectivo", monto: "" },
+  ]);
+  const metodo: Metodo = lineasCobro[0]?.metodo ?? "efectivo";
+  const setMetodo = (m: Metodo) =>
+    setLineasCobro((prev) => (prev.length ? [{ ...prev[0], metodo: m }, ...prev.slice(1)] : prev));
   const [montoRecibido, setMontoRecibido] = useState("");
   const [pago, setPago] = useState<PagoConciliacionInput>({});
 
@@ -84,7 +99,11 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     subtotal += d.subtotal; ivaTotal += d.monto_iva; total += d.total_linea;
   }
   const montoRecibidoNum = parseFloat(montoRecibido) || 0;
-  const vuelto = montoRecibidoNum - total;
+  const aPagarEnEfectivo =
+    lineasCobro.length > 1
+      ? totalCobrado(lineasCobro.filter((l) => l.metodo === "efectivo"))
+      : total;
+  const vuelto = montoRecibidoNum - aPagarEnEfectivo;
 
   // ── Operaciones sobre el carrito (persistidas en la sesión) ──────────────────
   function handleAgregarDesdePicker(payload: AgregarVentaPayload): boolean {
@@ -128,16 +147,31 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   // ── Confirmar venta ──────────────────────────────────────────────────────────
   async function facturar() {
     if (!detalle || items.length === 0 || sinCaja) return;
+    if (!cobroValido(lineasCobro, total)) {
+      setError(
+        `El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(total)}.`
+      );
+      return;
+    }
     setError(null); setBusy(true);
 
     // Pre-abrir la pestaña del ticket dentro del gesto del usuario (evita bloqueo de pop-ups).
     let ticketWin: Window | null = null;
     try { ticketWin = window.open("about:blank", "_blank"); } catch { ticketWin = null; }
 
-    const necesitaPago = metodo === "tarjeta" || metodo === "transferencia" || metodo === "qr";
+    const repartido = lineasCobro.length > 1;
+    // Con cobro repartido los datos de conciliación se cargan igual: aplican a
+    // las líneas que no son efectivo, que es donde hay algo que contrastar.
+    const hayNoEfectivo = lineasCobro.some((l) => l.metodo !== "efectivo");
     const r = await facturarMesa(
-      sesionId, metodo,
-      necesitaPago ? { ...pago, fecha_pago: pago.fecha_pago || new Date().toISOString() } : null
+      sesionId,
+      metodo,
+      hayNoEfectivo ? { ...pago, fecha_pago: pago.fecha_pago || new Date().toISOString() } : null,
+      repartido
+        ? lineasCobro
+            .filter((l) => montoDeLinea(l) > 0)
+            .map((l) => ({ metodo_pago: l.metodo, monto: montoDeLinea(l) }))
+        : []
     );
     setBusy(false);
 
@@ -324,30 +358,19 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cobro</p>
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Método de pago</label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["efectivo", "tarjeta", "transferencia", "qr"] as Metodo[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => { setMetodo(m); setPago({}); }}
-                      className={`text-xs py-1.5 rounded-md border transition-colors ${
-                        metodo === m
-                          ? "border-[#0EA5E9] bg-[#0EA5E9]/10 text-[#0EA5E9] font-medium"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {m === "efectivo" ? "Efectivo"
-                        : m === "tarjeta" ? "Tarjeta"
-                        : m === "transferencia" ? "Transfer."
-                        : "QR"}
-                    </button>
-                  ))}
-                </div>
+                <CobroRepartido
+                  lineas={lineasCobro}
+                  onChange={(l) => { setLineasCobro(l); setPago({}); }}
+                  total={total}
+                  inputClass={inputClass}
+                />
               </div>
 
-              {metodo === "efectivo" && (
+              {lineasCobro.some((l) => l.metodo === "efectivo") && (
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Monto recibido (Gs.)</label>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    {lineasCobro.length > 1 ? "Efectivo recibido (Gs.)" : "Monto recibido (Gs.)"}
+                  </label>
                   <MontoInput value={montoRecibido} onChange={(n) => setMontoRecibido(String(n))} placeholder="Ej: 100.000" className={inputClass} decimals={false} />
                   {montoRecibidoNum > 0 && (
                     <div className="flex justify-between text-sm pt-2">
