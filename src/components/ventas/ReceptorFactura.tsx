@@ -86,6 +86,12 @@ export default function ReceptorFactura({
   const [busqueda, setBusqueda] = useState("");
   const [hits, setHits] = useState<ClienteHit[]>([]);
   const [buscando, setBuscando] = useState(false);
+  /**
+   * Por qué falló la búsqueda, si falló. Sin esto un error de red o de permisos
+   * se ve igual que "no hay clientes con ese nombre", y el cajero se queda
+   * escribiendo contra una pantalla muda.
+   */
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
   const cajaRef = useRef<HTMLDivElement>(null);
 
   // Se espera a que deje de tipear: en el mostrador se escribe rápido y una
@@ -95,16 +101,30 @@ export default function ReceptorFactura({
     if (q.length < 2) { setHits([]); return; }
     let cancelado = false;
     setBuscando(true);
+    setErrorBusqueda(null);
     const t = setTimeout(async () => {
       try {
         const res = await fetchWithSupabaseSession(
           `/api/clientes/buscar?q=${encodeURIComponent(q)}`,
           { cache: "no-store" }
         );
-        const body = await res.json();
-        if (!cancelado) setHits(res.ok && body?.success !== false ? body.data.clientes : []);
-      } catch {
-        if (!cancelado) setHits([]);
+        const body = await res.json().catch(() => null);
+        if (cancelado) return;
+        if (!res.ok || body?.success === false) {
+          setHits([]);
+          setErrorBusqueda(
+            body?.error ?? `No se pudo buscar (error ${res.status}). Cargá los datos a mano.`
+          );
+          return;
+        }
+        setHits(Array.isArray(body?.data?.clientes) ? body.data.clientes : []);
+      } catch (e) {
+        if (!cancelado) {
+          setHits([]);
+          setErrorBusqueda(
+            `No se pudo buscar: ${e instanceof Error ? e.message : "error de red"}. Cargá los datos a mano.`
+          );
+        }
       } finally {
         if (!cancelado) setBuscando(false);
       }
@@ -161,7 +181,7 @@ export default function ReceptorFactura({
             value={busqueda}
             disabled={disabled}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar cliente por nombre, RUC o cédula…"
+            placeholder="Buscar cliente ya cargado por nombre o RUC…"
             className={`${inputCls} pl-9`}
           />
           {hits.length > 0 && (
@@ -182,7 +202,11 @@ export default function ReceptorFactura({
               ))}
             </ul>
           )}
-          {busqueda.trim().length >= 2 && !buscando && hits.length === 0 && (
+          {buscando && <p className="mt-1.5 text-xs text-slate-400">Buscando…</p>}
+          {errorBusqueda && (
+            <p className="mt-1.5 text-xs font-medium text-amber-700">{errorBusqueda}</p>
+          )}
+          {busqueda.trim().length >= 2 && !buscando && !errorBusqueda && hits.length === 0 && (
             <p className="mt-1.5 text-xs text-slate-400">
               No hay ningún cliente con eso. Cargá los datos abajo y se guarda solo.
             </p>

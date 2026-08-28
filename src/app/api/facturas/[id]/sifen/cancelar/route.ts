@@ -11,6 +11,8 @@ import type { FacturaElectronicaDTO, AmbienteSifen } from "@/lib/sifen/types";
 import { downloadSifenCertificadoObject } from "@/lib/sifen/sifen-certificados-storage";
 import { decryptSecret } from "@/lib/sifen/security";
 import { enviarEventoCancelacionSifen, normalizarMotivoEvento } from "@/lib/sifen/evento-cancelacion";
+import { anularVentaPg } from "@/lib/ventas/server/anular-venta-pg";
+import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
 
 function trimMotivo(raw: unknown): string | null {
   if (raw == null) return null;
@@ -303,15 +305,30 @@ export async function POST(
       );
     }
 
-    // Cancelar el documento en la SET no deshace la venta: el ERP no tiene
-    // anulación de ventas, así que el stock ya descontado y la plata cobrada
-    // quedan como están. Se avisa para que quien cancela lo resuelva a mano en
-    // vez de darlo por hecho.
+    // Cancelar el documento en la SET también da de baja la venta que lo
+    // originó: devuelve el stock y la saca del arqueo. Best-effort — el DE ya
+    // está cancelado en la SET y eso no se puede deshacer, así que un fallo acá
+    // se avisa en vez de romper la operación.
     const facturaRow = factura as { origen_venta_id?: string | null; numero_factura?: string };
-    const ventaAnuladaOrigenId: string | null = null;
-    const ventaAnuladaWarning: string | null = facturaRow.origen_venta_id
-      ? "El documento quedó cancelado en la SET, pero la venta que lo originó sigue registrada: el stock descontado y el cobro no se revierten solos."
-      : null;
+    let ventaAnuladaOrigenId: string | null = null;
+    let ventaAnuladaWarning: string | null = null;
+    if (facturaRow.origen_venta_id) {
+      try {
+        const schemaVenta = await fetchDataSchemaForEmpresaId(auth.empresa_id);
+        const res = await anularVentaPg(schemaVenta, auth.empresa_id, {
+          ventaId: String(facturaRow.origen_venta_id),
+          motivo: `Cancelación SIFEN ${facturaRow.numero_factura ?? ""}: ${motivo}`.trim(),
+          usuarioId: auth.usuarioCatalogId ?? null,
+          usuarioNombre: auth.user?.email ?? null,
+        });
+        if (res.ok && !res.yaAnulada) ventaAnuladaOrigenId = String(facturaRow.origen_venta_id);
+        else if (!res.ok) ventaAnuladaWarning = res.message;
+      } catch (e) {
+        ventaAnuladaWarning = `El documento quedó cancelado en la SET, pero no se pudo anular la venta que lo originó: ${
+          e instanceof Error ? e.message : String(e)
+        }. Anulala a mano desde Ventas.`;
+      }
+    }
 
     const dto = toFacturaElectronicaDto(updatedFe as Record<string, unknown>);
     const data: {

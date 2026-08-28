@@ -65,4 +65,7 @@ export interface Venta {
 
   /** Factura del ERP, si el cliente pidió factura. null = se cobró sin factura. */
   factura_id?: string | null;
+
+  /** completada | anulada. Una anulada no cuenta en caja ni en los reportes. */
+  estado?: string;
 }

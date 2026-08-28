@@ -446,9 +446,21 @@ export default function VentasPage() {
                 visibles.map((v) => {
                   const cantTotal = v.items.reduce((s, i) => s + i.cantidad, 0);
                   return (
-                    <tr key={v.id} className="border-b border-slate-200 last:border-0 hover:bg-[#4FAEB2]/[0.04] transition-colors">
+                    <tr
+                      key={v.id}
+                      className={`border-b border-slate-200 last:border-0 transition-colors ${
+                        v.estado === "anulada"
+                          ? "bg-rose-50/40 text-slate-400"
+                          : "hover:bg-[#4FAEB2]/[0.04]"
+                      }`}
+                    >
                       <td className="py-4 pr-4 font-mono text-xs text-gray-500 align-middle">
                         {v.numero_control}
+                        {v.estado === "anulada" && (
+                          <span className="mt-1 block w-fit rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700">
+                            Anulada
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 pr-4 align-middle">
                         <ResumenProductos v={v} />
@@ -466,7 +478,9 @@ export default function VentasPage() {
                           {ivaResumen(v)}
                         </span>
                       </td>
-                      <td className="py-4 pr-4 text-right tabular-nums font-semibold text-gray-800 align-middle">
+                      <td className={`py-4 pr-4 text-right tabular-nums font-semibold align-middle ${
+                        v.estado === "anulada" ? "text-slate-400 line-through" : "text-gray-800"
+                      }`}>
                         {formatGs(v.total)}
                       </td>
                       <td className="hidden py-4 pr-4 align-middle lg:table-cell">
@@ -496,6 +510,8 @@ export default function VentasPage() {
                             <FileText className="h-3.5 w-3.5" aria-hidden />
                             Ver
                           </Link>
+                        ) : v.estado === "anulada" ? (
+                          <span className="text-xs text-slate-400">—</span>
                         ) : (
                           <button
                             type="button"
