@@ -112,9 +112,16 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
   }
 
   async function onChangeQty(item: MesaSesionItem, delta: number) {
-    if (item.id.startsWith("tmp-") || item.estado !== "pendiente") return;
+    if (item.id.startsWith("tmp-") || item.estado === "cancelado") return;
     const nueva = Math.max(1, item.cantidad + delta);
     if (nueva === item.cantidad) return;
+    if (
+      item.estado === "enviado" &&
+      !(await confirmar(
+        `"${item.producto_nombre}" ya está en cocina. Cambiar la cantidad de ${item.cantidad} a ${nueva} manda un aviso de MODIFICACIÓN al sector. ¿Seguimos?`,
+        { confirmLabel: "Sí, modificar", cancelLabel: "Dejar como está", destructivo: false }
+      ))
+    ) return;
     const prev = items;
     setItems((p) => p.map((i) => (i.id === item.id ? { ...i, cantidad: nueva, total: Math.round(i.precio_unitario * nueva) } : i)));
     const r = await actualizarItemMesa(item.id, { cantidad: nueva });
@@ -132,7 +139,10 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
     return true;
   }
 
-  /** Reemplaza el producto de una línea pendiente por otro. */
+  /**
+   * Reemplaza el producto de una línea. Si ya estaba en cocina, el servidor
+   * manda además un aviso de modificación al sector que la estaba preparando.
+   */
   async function onCambiarProducto(
     item: MesaSesionItem,
     payload: {
@@ -158,7 +168,13 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
 
   async function onCancelItem(item: MesaSesionItem) {
     if (item.id.startsWith("tmp-")) return;
-    if (item.estado === "enviado" && !(await confirmar("Este producto ya fue enviado a cocina. ¿Cancelarlo igual?"))) return;
+    if (
+      item.estado === "enviado" &&
+      !(await confirmar(
+        `"${item.producto_nombre}" ya está en cocina. Al cancelarlo se manda un aviso de CANCELACIÓN al sector para que dejen de prepararlo. ¿Seguimos?`,
+        { confirmLabel: "Sí, cancelar el producto", cancelLabel: "Volver" }
+      ))
+    ) return;
     const prev = items;
     setItems((p) => p.filter((i) => i.id !== item.id));
     const r = await actualizarItemMesa(item.id, { cancelar: true });
@@ -242,17 +258,27 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
                     <p className="text-xs text-slate-400">{formatGs(it.precio_unitario)} c/u</p>
                     <NotaCocina
                       valor={it.observacion}
-                      editable={!porCobrar && !enviado && !tmp}
+                      editable={!porCobrar && !tmp}
                       onGuardar={(texto) => onCambiarNota(it, texto)}
                     />
-                    {!porCobrar && !enviado && !tmp && (
+                    {!porCobrar && !tmp && (
                       <div className="mt-1 flex items-center gap-2">
                         <button type="button" onClick={() => onChangeQty(it, -1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">−</button>
                         <span className="w-6 text-center text-sm font-semibold tabular-nums">{it.cantidad}</span>
                         <button type="button" onClick={() => onChangeQty(it, +1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">+</button>
                         <button
                           type="button"
-                          onClick={() => { setCambiandoItem(it); setPickerOpen(true); }}
+                          onClick={async () => {
+                            if (
+                              it.estado === "enviado" &&
+                              !(await confirmar(
+                                `"${it.producto_nombre}" ya está en cocina. Cambiarlo manda un aviso de MODIFICACIÓN al sector. ¿Seguimos?`,
+                                { confirmLabel: "Sí, cambiar", cancelLabel: "Dejar como está", destructivo: false }
+                              ))
+                            ) return;
+                            setCambiandoItem(it);
+                            setPickerOpen(true);
+                          }}
                           className="ml-1 inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-[#4FAEB2] hover:text-[#3F8E91]"
                           title="Cambiar este producto por otro"
                         >

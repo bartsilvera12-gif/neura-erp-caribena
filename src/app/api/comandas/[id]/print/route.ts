@@ -46,16 +46,36 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 
   // Pizzería = COPIA COMPLETA con precios (igualita al ticket cliente, solo cambia
   // el encabezado). Plancha y legacy = comanda de producción sin precios.
-  const conPrecios = c.sector === "pizzeria";
-  const banner =
-    c.sector === "pizzeria" ? "COPIA PIZZERÍA"
+  // Un aviso no es un pedido: no lleva precios ni ítems, y el encabezado tiene
+  // que gritar qué pasó para que nadie lo confunda con comida por preparar.
+  const esAviso = c.tipo === "modificacion" || c.tipo === "cancelacion";
+  const conPrecios = !esAviso && c.sector === "pizzeria";
+  const banner = esAviso
+    ? (c.tipo === "cancelacion" ? "*** CANCELACIÓN ***" : "*** MODIFICACIÓN ***")
+    : c.sector === "pizzeria" ? "COPIA PIZZERÍA"
     : c.sector === "plancha" ? "COMANDA PLANCHA"
     : `COMANDA #${c.numero}`;
   const metaSector =
     c.sector === "pizzeria" ? "PIZZERÍA" : c.sector === "plancha" ? "PLANCHA" : "COCINA";
 
+  // Cuerpo del aviso: qué había antes y qué hay ahora, en ese orden.
+  const avisoHtml = (c.aviso ?? [])
+    .map((l) => {
+      const ahora = l.ahora
+        ? `<tr><td class="qty"></td><td class="name" colspan="2"><strong>AHORA: ${escapeHtml(l.ahora)}</strong></td></tr>`
+        : "";
+      const obs = l.observacion
+        ? `<tr class="sub"><td></td><td colspan="2">&gt;&gt; ${escapeHtml(l.observacion)}</td></tr>`
+        : "";
+      const etiquetaAntes = c.tipo === "cancelacion" ? "SE CANCELA" : "ANTES";
+      return `
+        <tr><td class="qty"></td><td class="name" colspan="2"><strong>${etiquetaAntes}: ${escapeHtml(l.antes)}</strong></td></tr>${ahora}${obs}
+        <tr class="sub"><td colspan="3">&nbsp;</td></tr>`;
+    })
+    .join("");
+
   const vigentes = c.items.filter((it) => !it.cancelado);
-  const itemsHtml = vigentes
+  const itemsHtml = esAviso ? avisoHtml : vigentes
     .map((it) => {
       const mitad = it.es_mitad_mitad && it.mitad_1_nombre && it.mitad_2_nombre
         ? `<tr class="sub"><td></td><td colspan="2">½ ${escapeHtml(it.mitad_1_nombre)} + ½ ${escapeHtml(it.mitad_2_nombre)}</td></tr>` : "";

@@ -557,6 +557,97 @@ export async function agregarItemPg(params: {
   return mapItem(ins.data as Record<string, unknown>);
 }
 
+/**
+ * Deja constancia de un cambio en el pedido: quién, cuándo y qué.
+ *
+ * Best-effort a propósito: si falla el registro no se cae la edición. Perder
+ * una línea de auditoría es malo; impedirle al mozo corregir un pedido con el
+ * cliente esperando es peor.
+ */
+async function registrarHistorial(
+  sb: Sb,
+  d: {
+    empresaId: string;
+    sesionId: string;
+    itemId: string | null;
+    accion: "agregado" | "cantidad" | "producto" | "observacion" | "cancelado";
+    descripcion: string;
+    detalle?: Record<string, unknown> | null;
+    yaEnviado: boolean;
+    usuarioId: string | null;
+    usuarioNombre: string | null;
+  }
+): Promise<void> {
+  try {
+    await sb.from("mesa_sesion_item_historial").insert({
+      empresa_id: d.empresaId,
+      sesion_id: d.sesionId,
+      item_id: d.itemId,
+      accion: d.accion,
+      descripcion: d.descripcion,
+      detalle: d.detalle ?? null,
+      ya_enviado: d.yaEnviado,
+      usuario_id: d.usuarioId,
+      usuario_nombre: d.usuarioNombre,
+    });
+  } catch (e) {
+    console.error("[mesas] historial:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Manda a cocina un aviso de que algo que YA salió cambió o se canceló.
+ *
+ * Sin esto el cocinero se queda con el papel viejo preparando algo que nadie
+ * va a comer. El aviso no tiene ítems propios: no es un pedido nuevo, es un
+ * mensaje sobre uno que ya está en la plancha, y por eso el detalle viaja en la
+ * misma comanda.
+ *
+ * Va al sector donde se preparó el ítem original. Si el ítem no fue a ningún
+ * sector (una gaseosa, por ejemplo) no se avisa nada: no hay a quién.
+ */
+async function avisarCocina(
+  sb: Sb,
+  d: {
+    empresaId: string;
+    sesionId: string;
+    tipo: "modificacion" | "cancelacion";
+    sector: "pizzeria" | "plancha" | null;
+    lineas: Array<{ antes: string; ahora?: string | null; observacion?: string | null }>;
+    usuarioId: string | null;
+  }
+): Promise<void> {
+  if (!d.sector) return;
+  try {
+    const maxQ = await sb.from("comandas").select("numero")
+      .eq("empresa_id", d.empresaId).eq("sesion_id", d.sesionId)
+      .order("numero", { ascending: false }).limit(1);
+    const numero = num((maxQ.data?.[0] as { numero?: number } | undefined)?.numero) + 1;
+    await sb.from("comandas").insert({
+      empresa_id: d.empresaId,
+      sesion_id: d.sesionId,
+      numero,
+      creado_por: d.usuarioId,
+      sector: d.sector,
+      tipo: d.tipo,
+      detalle: { lineas: d.lineas },
+    });
+  } catch (e) {
+    console.error("[mesas] aviso a cocina:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Sector donde se preparó un ítem ya enviado, leído de su comanda. */
+async function sectorDeItemEnviado(
+  sb: Sb, empresaId: string, comandaId: string | null
+): Promise<"pizzeria" | "plancha" | null> {
+  if (!comandaId) return null;
+  const q = await sb.from("comandas").select("sector")
+    .eq("empresa_id", empresaId).eq("id", comandaId).maybeSingle();
+  const sec = (q.data as { sector: string | null } | null)?.sector ?? null;
+  return sec === "pizzeria" || sec === "plancha" ? sec : null;
+}
+
 export async function actualizarItemPg(params: {
   schema: string;
   empresaId: string;
@@ -572,31 +663,52 @@ export async function actualizarItemPg(params: {
   displayName?: string | null;
   /** null explícito = deja de ser mitad y mitad. */
   mitad?: MitadMitadInput | null;
+  /** Quién hace el cambio, para el historial y para firmar el aviso. */
+  usuarioId?: string | null;
+  usuarioNombre?: string | null;
 }): Promise<MesaSesionItem> {
   const sb = createServiceRoleClientWithDbSchema(params.schema);
   const cur = await sb
     .from("mesa_sesion_items")
-    .select("id, precio_unitario, cantidad, sesion_id, estado")
+    .select("id, precio_unitario, cantidad, sesion_id, estado, producto_nombre, item_display_name, comanda_id, observacion")
     .eq("empresa_id", params.empresaId)
     .eq("id", params.itemId)
     .maybeSingle();
   if (cur.error) throw new Error(cur.error.message);
   if (!cur.data) throw new Error("Ítem no encontrado.");
-  const row = cur.data as { precio_unitario: number | string; cantidad: number | string; estado: string };
+  const row = cur.data as {
+    precio_unitario: number | string; cantidad: number | string; estado: string;
+    sesion_id: string; producto_nombre: string; item_display_name: string | null;
+    comanda_id: string | null; observacion: string | null;
+  };
   if (row.estado === "cancelado") throw new Error("El producto ya fue cancelado.");
+
+  const yaEnviado = row.estado === "enviado";
+  const nombreAntes = row.item_display_name || row.producto_nombre;
+  const cantAntes = num(row.cantidad);
+  const usuarioId = params.usuarioId ?? null;
+  const usuarioNombre = params.usuarioNombre ?? null;
+  /** Cambios que hay que anunciarle a cocina, si el ítem ya había salido. */
+  const avisos: Array<{ antes: string; ahora?: string | null; observacion?: string | null }> = [];
+  /** Renglones del historial. */
+  const historial: Array<{
+    accion: "cantidad" | "producto" | "observacion" | "cancelado";
+    descripcion: string;
+  }> = [];
 
   const patch: Record<string, unknown> = {};
   if (params.cancelar) {
     // Cancelar se permite en pendiente y enviado (no impacta stock/caja).
     patch.estado = "cancelado";
+    historial.push({
+      accion: "cancelado",
+      descripcion: `Canceló ${cantAntes}× ${nombreAntes}`,
+    });
+    if (yaEnviado) avisos.push({ antes: `${cantAntes}× ${nombreAntes}` });
   } else {
-    // Editar solo si el ítem aún NO fue enviado a comanda. Después ya hay un
-    // papel en cocina y alguien cocinando otra cosa: cambiarlo acá dejaría al
-    // sistema diciendo algo distinto de lo que se está preparando. Para eso
-    // está cancelar la línea y cargar la correcta, que manda comanda nueva.
-    if (row.estado !== "pendiente") {
-      throw new Error("El producto ya fue enviado a comanda; no se puede editar.");
-    }
+    // Un ítem ya enviado SÍ se puede corregir: el cliente pidió otra cosa y la
+    // mesa sigue abierta. Lo que no puede pasar es que cocina no se entere, y
+    // de eso se ocupa el aviso que se manda más abajo.
 
     // El precio unitario después de la edición: si cambió el producto, sale
     // del producto nuevo (o del override de mitad y mitad); si no, se conserva.
@@ -613,8 +725,16 @@ export async function actualizarItemPg(params: {
       const override = params.precioUnitario != null ? num(params.precioUnitario) : 0;
       precio = override > 0 ? override : num(prod.precio_venta);
 
+      const nombreAhora = params.displayName || prod.nombre;
+      if (nombreAhora !== nombreAntes) {
+        historial.push({
+          accion: "producto",
+          descripcion: `Cambió ${nombreAntes} por ${nombreAhora}`,
+        });
+        if (yaEnviado) avisos.push({ antes: `${cantAntes}× ${nombreAntes}`, ahora: `${cantAntes}× ${nombreAhora}` });
+      }
       patch.producto_id = params.productoId;
-      patch.producto_nombre = params.displayName || prod.nombre;
+      patch.producto_nombre = nombreAhora;
       patch.sku = prod.sku;
       patch.precio_unitario = precio;
       // Se reescriben siempre las columnas de mitad y mitad: cambiar de una
@@ -626,9 +746,33 @@ export async function actualizarItemPg(params: {
     if (params.cantidad != null) {
       const c = num(params.cantidad);
       if (c <= 0) throw new Error("La cantidad debe ser mayor a 0.");
+      if (c !== cantAntes) {
+        const nombreFinal = (patch.producto_nombre as string | undefined) ?? nombreAntes;
+        historial.push({
+          accion: "cantidad",
+          descripcion: `Cambió la cantidad de ${nombreFinal} de ${cantAntes} a ${c}`,
+        });
+        if (yaEnviado) {
+          avisos.push({ antes: `${cantAntes}× ${nombreFinal}`, ahora: `${c}× ${nombreFinal}` });
+        }
+      }
       patch.cantidad = c;
     }
-    if (params.observacion !== undefined) patch.observacion = params.observacion;
+    if (params.observacion !== undefined && params.observacion !== row.observacion) {
+      patch.observacion = params.observacion;
+      const nombreFinal = (patch.producto_nombre as string | undefined) ?? nombreAntes;
+      historial.push({
+        accion: "observacion",
+        descripcion: params.observacion
+          ? `Nota de ${nombreFinal}: "${params.observacion}"`
+          : `Quitó la nota de ${nombreFinal}`,
+      });
+      if (yaEnviado) {
+        avisos.push({ antes: `${cantAntes}× ${nombreFinal}`, observacion: params.observacion });
+      }
+    } else if (params.observacion !== undefined) {
+      patch.observacion = params.observacion;
+    }
 
     // El total se recalcula si cambió el precio o la cantidad.
     if (patch.cantidad != null || patch.precio_unitario != null) {
@@ -646,6 +790,31 @@ export async function actualizarItemPg(params: {
     .select(ITEM_COLS)
     .single();
   if (upd.error) throw new Error(upd.error.message);
+
+  for (const h of historial) {
+    await registrarHistorial(sb, {
+      empresaId: params.empresaId,
+      sesionId: row.sesion_id,
+      itemId: params.itemId,
+      accion: h.accion,
+      descripcion: h.descripcion,
+      yaEnviado,
+      usuarioId,
+      usuarioNombre,
+    });
+  }
+
+  if (avisos.length > 0) {
+    await avisarCocina(sb, {
+      empresaId: params.empresaId,
+      sesionId: row.sesion_id,
+      tipo: params.cancelar ? "cancelacion" : "modificacion",
+      sector: await sectorDeItemEnviado(sb, params.empresaId, row.comanda_id),
+      lineas: avisos,
+      usuarioId,
+    });
+  }
+
   return mapItem(upd.data as Record<string, unknown>);
 }
 
@@ -712,6 +881,12 @@ async function enviarProduccionDeSesion(
   const hayPizzeria = pendientes.some((p) => sectores.get(p.producto_id) === "pizzeria");
   const hayPlancha = pendientes.some((p) => sectores.get(p.producto_id) === "plancha");
 
+  // Si la sesión ya tenía comandas, lo que sale ahora es un agregado: cocina
+  // tiene que ver que se suma a lo que está preparando, no que lo reemplaza.
+  const previasQ = await sb.from("comandas").select("id")
+    .eq("empresa_id", empresaId).eq("sesion_id", sesionId).limit(1);
+  const esAgregado = (previasQ.data ?? []).length > 0;
+
   const batchId = randomUUID();
   const nowIso = new Date().toISOString();
   const creadas: ComandaEnvioInfo[] = [];
@@ -732,7 +907,7 @@ async function enviarProduccionDeSesion(
     for (const s of sectoresACrear) {
       numero += 1;
       const ins = await sb.from("comandas")
-        .insert({ empresa_id: empresaId, sesion_id: sesionId, numero, creado_por: usuarioId, sector: s.sector, batch_id: batchId })
+        .insert({ empresa_id: empresaId, sesion_id: sesionId, numero, creado_por: usuarioId, sector: s.sector, batch_id: batchId, es_agregado: esAgregado })
         .select("id, numero").single();
       if (ins.error) throw new Error(ins.error.message);
       const row = ins.data as { id: string; numero: number };
@@ -1148,7 +1323,18 @@ export async function agregarItemSesionPg(params: {
     ...mitadInsertCols(params.displayName ?? null, params.mitad),
   }).select(ITEM_COLS).single();
   if (ins.error) throw new Error(ins.error.message);
-  return mapItem(ins.data as Record<string, unknown>);
+  const creado = mapItem(ins.data as Record<string, unknown>);
+  await registrarHistorial(sb, {
+    empresaId: params.empresaId,
+    sesionId: params.sesionId,
+    itemId: creado.id,
+    accion: "agregado",
+    descripcion: `Agregó ${creado.cantidad}× ${creado.item_display_name || creado.producto_nombre}`,
+    yaEnviado: false,
+    usuarioId: params.creadoPor,
+    usuarioNombre: null,
+  });
+  return creado;
 }
 
 /** Envía a cocina los ítems pendientes de una sesión PL. */

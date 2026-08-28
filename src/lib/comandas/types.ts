@@ -14,6 +14,22 @@ export const ESTADOS_COMANDA: EstadoComanda[] = ["generada", "impresa", "cancela
 /** Sector de producción de una comanda: pizzería (copia completa) o plancha (filtrada). */
 export type SectorComanda = "pizzeria" | "plancha";
 
+/**
+ * Qué es esta comanda para cocina.
+ *
+ * - pedido: lo que hay que preparar.
+ * - modificacion / cancelacion: un aviso sobre algo que YA salió. No trae
+ *   ítems: es un mensaje sobre un pedido anterior, y el detalle viaja adentro.
+ */
+export type TipoComanda = "pedido" | "modificacion" | "cancelacion";
+
+/** Una línea del aviso: qué había antes y qué hay ahora. */
+export interface ComandaAvisoLinea {
+  antes: string;
+  ahora?: string | null;
+  observacion?: string | null;
+}
+
 export interface ComandaItem {
   id: string;
   producto_nombre: string;
@@ -33,6 +49,11 @@ export interface ComandaCard {
   id: string;
   numero: number;
   estado: EstadoComanda;
+  tipo: TipoComanda;
+  /** true cuando la mesa ya tenía comandas: esto se suma, no reemplaza. */
+  es_agregado: boolean;
+  /** Detalle del cambio, sólo en modificación y cancelación. */
+  aviso: ComandaAvisoLinea[] | null;
   created_at: string;
   mesa_numero: number | null;
   /** Modalidad de la sesión ('mesa' por defecto). */

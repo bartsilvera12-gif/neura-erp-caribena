@@ -71,6 +71,22 @@ export default function ComandasPage() {
   }
 
   function ItemsList({ c }: { c: ComandaCard }) {
+    // Los avisos no traen ítems: lo que hay que leer es qué cambió.
+    if (c.tipo !== "pedido") {
+      return (
+        <ul className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+          {(c.aviso ?? []).map((l, i) => (
+            <li key={i} className="text-sm">
+              <p className={c.tipo === "cancelacion" ? "font-semibold text-red-700 line-through" : "text-slate-500 line-through"}>
+                {l.antes}
+              </p>
+              {l.ahora && <p className="font-semibold text-slate-800">→ {l.ahora}</p>}
+              {l.observacion && <p className="text-xs text-amber-700">— {l.observacion}</p>}
+            </li>
+          ))}
+        </ul>
+      );
+    }
     const items = c.items.filter((i) => !i.cancelado);
     return (
       <ul className="mt-2 space-y-1 border-t border-slate-100 pt-2">
@@ -88,11 +104,32 @@ export default function ComandasPage() {
     const vigentes = c.items.filter((i) => !i.cancelado).length;
     const abierto = verDetalle.has(c.id);
     return (
-      <div className="rounded-xl border border-amber-300 bg-white p-3 shadow-sm">
+      <div
+        className={`rounded-xl border bg-white p-3 shadow-sm ${
+          c.tipo === "cancelacion" ? "border-red-400"
+          : c.tipo === "modificacion" ? "border-amber-500"
+          : "border-amber-300"
+        }`}
+      >
         <div className="flex items-center justify-between">
           <span className="text-base font-bold text-slate-800">Comanda N°{c.numero}</span>
           <span className="text-xs text-slate-400">{formatHora(c.created_at)}</span>
         </div>
+        {/* Qué es esto para cocina: comida por preparar, un agregado a lo que ya
+            está haciendo, o un aviso sobre algo que ya salió. */}
+        {c.tipo === "cancelacion" ? (
+          <span className="mt-1 inline-block rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+            Cancelación
+          </span>
+        ) : c.tipo === "modificacion" ? (
+          <span className="mt-1 inline-block rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+            Modificación
+          </span>
+        ) : c.es_agregado ? (
+          <span className="mt-1 inline-block rounded-md bg-[#4FAEB2] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+            Agregado
+          </span>
+        ) : null}
         <SectorBadge sector={c.sector} />
         <p className="text-sm text-slate-600">Mesa <strong>{c.mesa_numero ?? "—"}</strong> · Mozo: {c.mozo_nombre ?? "—"}</p>
         <p className="text-xs text-slate-500">{vigentes} ítem(s)</p>

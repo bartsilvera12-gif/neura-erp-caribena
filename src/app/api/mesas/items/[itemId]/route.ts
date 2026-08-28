@@ -33,6 +33,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ itemI
         const m = parseMitadFromBody(o);
         return { precioUnitario: m.precioUnitario, displayName: m.displayName, mitad: m.mitad };
       })(),
+      usuarioId: auth.usuarioCatalogId ?? null,
+      usuarioNombre: auth.user?.email ?? null,
     });
     return NextResponse.json(successResponse({ item }));
   } catch (err) {

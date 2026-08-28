@@ -1,6 +1,7 @@
 import { consumirInsumosDeComanda } from "@/lib/recetas/server/consumo-pg";
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
-import type { ComandaCard, ComandaHistorialFiltros, ComandaItem, EstadoComanda } from "@/lib/comandas/types";
+import type {
+  TipoComanda, ComandaCard, ComandaHistorialFiltros, ComandaItem, EstadoComanda } from "@/lib/comandas/types";
 
 type Sb = ReturnType<typeof createServiceRoleClientWithDbSchema>;
 
@@ -9,7 +10,7 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const COMANDA_COLS = "id, numero, estado, created_at, sesion_id, creado_por, printed_at, print_count, sector, batch_id";
+const COMANDA_COLS = "id, numero, estado, created_at, sesion_id, creado_por, printed_at, print_count, sector, batch_id, tipo, detalle, es_agregado";
 
 interface ComandaRow {
   id: string;
@@ -21,6 +22,9 @@ interface ComandaRow {
   printed_at: string | null;
   print_count: number | string | null;
   sector: string | null;
+  tipo?: string | null;
+  detalle?: { lineas?: Array<{ antes: string; ahora?: string | null; observacion?: string | null }> } | null;
+  es_agregado?: boolean | null;
   batch_id: string | null;
 }
 
@@ -149,6 +153,11 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
       id: c.id,
       numero: num(c.numero),
       estado: c.estado as EstadoComanda,
+      // Los avisos no tienen ítems propios: el detalle del cambio viaja en la
+      // comanda porque no son un pedido, son un mensaje sobre uno que ya salió.
+      tipo: (c.tipo === "modificacion" || c.tipo === "cancelacion" ? c.tipo : "pedido") as TipoComanda,
+      es_agregado: c.es_agregado === true,
+      aviso: c.detalle?.lineas ?? null,
       created_at: c.created_at,
       mesa_numero: ses && ses.mesa_id ? mesaNum.get(ses.mesa_id) ?? null : null,
       sesion_tipo: ses?.tipo ?? "mesa",

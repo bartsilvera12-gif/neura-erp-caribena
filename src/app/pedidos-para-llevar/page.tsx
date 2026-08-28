@@ -236,6 +236,19 @@ export default function PedidosParaLlevarPage() {
                               <span className="rounded-md bg-[#4FAEB2]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#2F6E71]">Para llevar</span>
                               <span className="font-bold tabular-nums text-slate-800">{formatPL(c.numero_pl)}</span>
                             </div>
+                            {c.tipo === "cancelacion" ? (
+                              <span className="mt-1 inline-block rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                Cancelación
+                              </span>
+                            ) : c.tipo === "modificacion" ? (
+                              <span className="mt-1 inline-block rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                Modificación
+                              </span>
+                            ) : c.es_agregado ? (
+                              <span className="mt-1 inline-block rounded-md bg-[#4FAEB2] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                Agregado
+                              </span>
+                            ) : null}
                             {c.nombre_cliente && <p className="mt-0.5 text-sm text-slate-600">{c.nombre_cliente}</p>}
                             <p className="text-xs text-slate-400">
                               N°{c.numero} · {formatHora(c.created_at)}
@@ -246,6 +259,16 @@ export default function PedidosParaLlevarPage() {
                         </div>
 
                         <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2">
+                          {c.tipo !== "pedido" &&
+                            (c.aviso ?? []).map((l, i) => (
+                              <li key={`av${i}`} className="text-sm">
+                                <p className={c.tipo === "cancelacion" ? "font-semibold text-red-700 line-through" : "text-slate-500 line-through"}>
+                                  {l.antes}
+                                </p>
+                                {l.ahora && <p className="font-semibold text-slate-800">→ {l.ahora}</p>}
+                                {l.observacion && <p className="text-xs text-amber-700">— {l.observacion}</p>}
+                              </li>
+                            ))}
                           {items.map((it) => (
                             <li key={it.id} className="text-sm text-slate-800">
                               <span className="font-semibold">{it.cantidad}×</span> {it.producto_nombre}
