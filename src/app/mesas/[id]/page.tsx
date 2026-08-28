@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Pizza, X } from "lucide-react";
+import { AlertTriangle, Pizza, Replace, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
@@ -35,6 +35,12 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   const [items, setItems] = useState<MesaSesionItem[]>([]);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Línea que se está corrigiendo. Cuando está seteada, el buscador y el
+   * armador de mitad y mitad reemplazan ese ítem en vez de agregar uno nuevo:
+   * es el caso de "cargué el sabor equivocado".
+   */
+  const [cambiandoItem, setCambiandoItem] = useState<MesaSesionItem | null>(null);
   const [mitadOpen, setMitadOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,18 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   async function onAddMitad(r: MitadMitadResult) {
     setMitadOpen(false);
     setError(null);
+    // Si venía de "Cambiar", corrige la línea en vez de sumar otra pizza.
+    if (cambiandoItem) {
+      const item = cambiandoItem;
+      setCambiandoItem(null);
+      void onCambiarProducto(item, {
+        producto_id: r.producto_id,
+        display_name: r.display_name,
+        precio_unitario: r.precio_unitario,
+        mitad: r.mitad,
+      });
+      return;
+    }
     const tmpId = `tmp-${++tmpCounter.current}`;
     const optimistic: MesaSesionItem = {
       id: tmpId, sesion_id: "", producto_id: r.producto_id, producto_nombre: r.display_name, sku: null,
@@ -133,6 +151,30 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     setItems((p) => p.map((i) => (i.id === item.id ? { ...i, observacion } : i)));
     const r = await actualizarItemMesa(item.id, { observacion });
     if (!r.success) { setItems(prev); setError(r.error); return false; }
+    return true;
+  }
+
+  /** Reemplaza el producto de una línea pendiente por otro. */
+  async function onCambiarProducto(
+    item: MesaSesionItem,
+    payload: {
+      producto_id: string;
+      display_name?: string | null;
+      precio_unitario?: number | null;
+      mitad?: { producto1_id: string; producto2_id: string; nombre1: string; nombre2: string } | null;
+    }
+  ): Promise<boolean> {
+    if (item.id.startsWith("tmp-")) return false;
+    setError(null);
+    const prev = items;
+    const r = await actualizarItemMesa(item.id, {
+      producto_id: payload.producto_id,
+      display_name: payload.display_name ?? null,
+      precio_unitario: payload.precio_unitario ?? null,
+      mitad: payload.mitad ?? null,
+    });
+    if (!r.success) { setItems(prev); setError(r.error); return false; }
+    setItems((p) => p.map((i) => (i.id === item.id ? r.item : i)));
     return true;
   }
 
@@ -212,6 +254,36 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
       {okMsg && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{okMsg}</div>}
 
+      {cambiandoItem && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#4FAEB2]/40 bg-[#4FAEB2]/10 px-4 py-2.5 text-sm text-[#2F6E71]">
+          <Replace className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            Cambiando <strong>{cambiandoItem.producto_nombre}</strong>. Elegí el producto correcto.
+          </span>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="rounded-md border border-[#4FAEB2]/40 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-[#4FAEB2]/10"
+          >
+            Buscar producto
+          </button>
+          <button
+            type="button"
+            onClick={() => setMitadOpen(true)}
+            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            Pizza mitad y mitad
+          </button>
+          <button
+            type="button"
+            onClick={() => setCambiandoItem(null)}
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
       {/* Lista de productos */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Pedido</h2>
@@ -247,6 +319,15 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                         <button type="button" onClick={() => onChangeQty(it, -1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">−</button>
                         <span className="w-6 text-center text-sm font-semibold tabular-nums">{it.cantidad}</span>
                         <button type="button" onClick={() => onChangeQty(it, +1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">+</button>
+                        <button
+                          type="button"
+                          onClick={() => { setCambiandoItem(it); setPickerOpen(true); }}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-[#4FAEB2] hover:text-[#3F8E91]"
+                          title="Cambiar este producto por otro"
+                        >
+                          <Replace className="h-3.5 w-3.5" aria-hidden />
+                          Cambiar
+                        </button>
                       </div>
                     )}
                   </div>
@@ -303,7 +384,19 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      <MesaProductPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={onAdd} />
+      <MesaProductPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onAdd={async (prod, cantidad, observacion) => {
+          if (cambiandoItem) {
+            const item = cambiandoItem;
+            setCambiandoItem(null);
+            setPickerOpen(false);
+            return onCambiarProducto(item, { producto_id: prod.id });
+          }
+          return onAdd(prod, cantidad, observacion);
+        }}
+      />
       <MitadMitadPicker open={mitadOpen} onClose={() => setMitadOpen(false)} onConfirm={onAddMitad} />
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Pizza, X } from "lucide-react";
+import { AlertTriangle, Pizza, Replace, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
@@ -30,6 +30,12 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
   const [items, setItems] = useState<MesaSesionItem[]>([]);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Línea que se está corrigiendo. Cuando está seteada, el buscador y el
+   * armador de mitad y mitad reemplazan ese ítem en vez de agregar uno nuevo:
+   * es el caso de "cargué el sabor equivocado".
+   */
+  const [cambiandoItem, setCambiandoItem] = useState<MesaSesionItem | null>(null);
   const [mitadOpen, setMitadOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +129,30 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
     setItems((p) => p.map((i) => (i.id === item.id ? { ...i, observacion } : i)));
     const r = await actualizarItemMesa(item.id, { observacion });
     if (!r.success) { setItems(prev); setError(r.error); return false; }
+    return true;
+  }
+
+  /** Reemplaza el producto de una línea pendiente por otro. */
+  async function onCambiarProducto(
+    item: MesaSesionItem,
+    payload: {
+      producto_id: string;
+      display_name?: string | null;
+      precio_unitario?: number | null;
+      mitad?: { producto1_id: string; producto2_id: string; nombre1: string; nombre2: string } | null;
+    }
+  ): Promise<boolean> {
+    if (item.id.startsWith("tmp-")) return false;
+    setError(null);
+    const prev = items;
+    const r = await actualizarItemMesa(item.id, {
+      producto_id: payload.producto_id,
+      display_name: payload.display_name ?? null,
+      precio_unitario: payload.precio_unitario ?? null,
+      mitad: payload.mitad ?? null,
+    });
+    if (!r.success) { setItems(prev); setError(r.error); return false; }
+    setItems((p) => p.map((i) => (i.id === item.id ? r.item : i)));
     return true;
   }
 
@@ -220,6 +250,15 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
                         <button type="button" onClick={() => onChangeQty(it, -1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">−</button>
                         <span className="w-6 text-center text-sm font-semibold tabular-nums">{it.cantidad}</span>
                         <button type="button" onClick={() => onChangeQty(it, +1)} className="h-8 w-8 rounded-md border border-slate-300 text-lg font-bold leading-none">+</button>
+                        <button
+                          type="button"
+                          onClick={() => { setCambiandoItem(it); setPickerOpen(true); }}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-[#4FAEB2] hover:text-[#3F8E91]"
+                          title="Cambiar este producto por otro"
+                        >
+                          <Replace className="h-3.5 w-3.5" aria-hidden />
+                          Cambiar
+                        </button>
                       </div>
                     )}
                   </div>
@@ -269,7 +308,19 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
         </div>
       )}
 
-      <MesaProductPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={onAdd} />
+      <MesaProductPicker
+        open={pickerOpen}
+        onClose={() => { setPickerOpen(false); setCambiandoItem(null); }}
+        onAdd={async (prod, cantidad, observacion) => {
+          if (cambiandoItem) {
+            const item = cambiandoItem;
+            setCambiandoItem(null);
+            setPickerOpen(false);
+            return onCambiarProducto(item, { producto_id: prod.id });
+          }
+          return onAdd(prod, cantidad, observacion);
+        }}
+      />
       <MitadMitadPicker open={mitadOpen} onClose={() => setMitadOpen(false)} onConfirm={onAddMitad} />
     </div>
   );

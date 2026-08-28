@@ -563,6 +563,14 @@ export async function actualizarItemPg(params: {
   cantidad?: number;
   observacion?: string | null;
   cancelar?: boolean;
+  /** Cambia el producto de la línea: el mozo cargó el sabor equivocado. */
+  productoId?: string;
+  /** Precio override (pizza mitad y mitad = el del sabor más caro). */
+  precioUnitario?: number | null;
+  /** Nombre a mostrar (ej. "½ Margarita + ½ Pepperoni"). */
+  displayName?: string | null;
+  /** null explícito = deja de ser mitad y mitad. */
+  mitad?: MitadMitadInput | null;
 }): Promise<MesaSesionItem> {
   const sb = createServiceRoleClientWithDbSchema(params.schema);
   const cur = await sb
@@ -581,17 +589,51 @@ export async function actualizarItemPg(params: {
     // Cancelar se permite en pendiente y enviado (no impacta stock/caja).
     patch.estado = "cancelado";
   } else {
-    // Editar cantidad/observación solo si el ítem aún NO fue enviado a comanda.
+    // Editar solo si el ítem aún NO fue enviado a comanda. Después ya hay un
+    // papel en cocina y alguien cocinando otra cosa: cambiarlo acá dejaría al
+    // sistema diciendo algo distinto de lo que se está preparando. Para eso
+    // está cancelar la línea y cargar la correcta, que manda comanda nueva.
     if (row.estado !== "pendiente") {
       throw new Error("El producto ya fue enviado a comanda; no se puede editar.");
     }
+
+    // El precio unitario después de la edición: si cambió el producto, sale
+    // del producto nuevo (o del override de mitad y mitad); si no, se conserva.
+    let precio = num(row.precio_unitario);
+
+    if (params.productoId) {
+      const pQ = await sb
+        .from("productos").select("id, nombre, sku, precio_venta")
+        .eq("empresa_id", params.empresaId).eq("id", params.productoId).maybeSingle();
+      if (pQ.error) throw new Error(pQ.error.message);
+      if (!pQ.data) throw new Error("Producto no encontrado en esta empresa.");
+      const prod = pQ.data as { nombre: string; sku: string | null; precio_venta: number | string };
+
+      const override = params.precioUnitario != null ? num(params.precioUnitario) : 0;
+      precio = override > 0 ? override : num(prod.precio_venta);
+
+      patch.producto_id = params.productoId;
+      patch.producto_nombre = params.displayName || prod.nombre;
+      patch.sku = prod.sku;
+      patch.precio_unitario = precio;
+      // Se reescriben siempre las columnas de mitad y mitad: cambiar de una
+      // pizza mitad y mitad a un producto normal tiene que limpiarlas, o la
+      // comanda seguiría anunciando dos sabores que ya no existen.
+      Object.assign(patch, mitadInsertCols(params.displayName ?? null, params.mitad ?? null));
+    }
+
     if (params.cantidad != null) {
       const c = num(params.cantidad);
       if (c <= 0) throw new Error("La cantidad debe ser mayor a 0.");
       patch.cantidad = c;
-      patch.total = Math.round(num(row.precio_unitario) * c);
     }
     if (params.observacion !== undefined) patch.observacion = params.observacion;
+
+    // El total se recalcula si cambió el precio o la cantidad.
+    if (patch.cantidad != null || patch.precio_unitario != null) {
+      const cantidadFinal = patch.cantidad != null ? num(patch.cantidad) : num(row.cantidad);
+      patch.total = Math.round(precio * cantidadFinal);
+    }
   }
   if (Object.keys(patch).length === 0) throw new Error("Nada para actualizar.");
 

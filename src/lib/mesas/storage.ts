@@ -79,7 +79,18 @@ export function agregarItemMesa(
   return call<{ item: MesaSesionItem }>(`/api/mesas/${encodeURIComponent(mesaId)}/items`, "POST", payload);
 }
 
-export function actualizarItemMesa(itemId: string, payload: { cantidad?: number; observacion?: string | null; cancelar?: boolean }) {
+export function actualizarItemMesa(
+  itemId: string,
+  payload: {
+    cantidad?: number;
+    observacion?: string | null;
+    cancelar?: boolean;
+    producto_id?: string;
+    precio_unitario?: number | null;
+    display_name?: string | null;
+    mitad?: MitadItemPayload["mitad"] | null;
+  }
+) {
   return call<{ item: MesaSesionItem }>(`/api/mesas/items/${encodeURIComponent(itemId)}`, "PATCH", payload);
 }
 
