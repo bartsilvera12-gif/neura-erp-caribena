@@ -88,7 +88,7 @@ export async function handleSifenFirmarPost(
 
   const { data: cfg, error: errCfg } = await supabase
     .from("empresa_sifen_config")
-    .select("certificado_path, certificado_password_encrypted, ambiente, csc")
+    .select("certificado_path, certificado_password_encrypted, ambiente, csc, id_csc")
     .eq("empresa_id", auth.empresa_id)
     .maybeSingle();
 
@@ -130,6 +130,11 @@ export async function handleSifenFirmarPost(
     );
   }
   const cscCfg = cfg.csc == null ? "" : String(cfg.csc).trim();
+  // Marangatú entrega hasta dos CSC por emisor: el ID puede ser 0001 o 0002.
+  const idCscCfg =
+    (cfg as { id_csc?: string | null }).id_csc == null
+      ? undefined
+      : String((cfg as { id_csc?: string | null }).id_csc).trim() || undefined;
   const cscParaQr =
     ambiente === "test"
       ? cscCfg !== ""
@@ -184,6 +189,7 @@ export async function handleSifenFirmarPost(
     signedXml = signSifenDocumentoXml(xmlDl.data.toString("utf8"), material, {
       ambiente,
       csc: cscParaQr,
+      idCsc: idCscCfg,
     });
   } catch (e) {
     const m = e instanceof Error ? e.message : "Error al firmar el XML";
