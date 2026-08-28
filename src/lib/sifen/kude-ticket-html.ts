@@ -95,7 +95,9 @@ export async function buildKudeTicketHtml(input: {
   .c{text-align:center}
   .b{font-weight:700}
   .emis{text-align:center;margin-bottom:1mm}
-  .emis .logo{max-width:${widthMm === 58 ? 36 : 46}mm;max-height:${widthMm === 58 ? 18 : 22}mm;width:auto;height:auto;object-fit:contain;display:inline-block;margin:0 auto 1mm}
+  /* Al imprimir el margen es de 2mm por lado: en 80mm quedan 76mm utiles,
+     asi que 62mm de logo deja aire a los costados sin desperdiciar el ancho. */
+  .emis .logo{max-width:${widthMm === 58 ? 46 : 62}mm;max-height:${widthMm === 58 ? 24 : 32}mm;width:auto;height:auto;object-fit:contain;display:inline-block;margin:0 auto 2mm}
   .emis .nom{font-weight:700;font-size:${fontPx + 1}px}
   .tit{text-align:center;font-weight:700;font-size:${fontPx + 1}px;letter-spacing:.03em;margin:1mm 0}
   .small{font-size:${fontPx - 1}px}
