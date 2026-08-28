@@ -32,6 +32,7 @@ interface SupabaseRow {
   direccion:          string | null;
   ciudad:             string | null;
   pais:               string | null;
+  es_contribuyente?: boolean | null;
   sifen_receptor_extranjero?: boolean | null;
   sifen_codigo_pais?: string | null;
   sifen_tipo_doc_receptor?: number | string | null;
@@ -122,6 +123,8 @@ function rowToCliente(row: SupabaseRow): Cliente {
     created_at:          row.created_at ?? now,
     updated_at:          row.updated_at ?? row.created_at ?? now,
   };
+  if (row.es_contribuyente === true) c.es_contribuyente = true;
+  if (row.es_contribuyente === false) c.es_contribuyente = false;
   if (row.sifen_receptor_extranjero === true) c.sifen_receptor_extranjero = true;
   if (row.sifen_receptor_extranjero === false) c.sifen_receptor_extranjero = false;
   if (row.sifen_codigo_pais != null && String(row.sifen_codigo_pais).trim() !== "") {
@@ -291,6 +294,7 @@ export async function saveCliente(datos: NuevoClienteData): Promise<Cliente | nu
     prospecto_id:       datos.prospecto_id ?? null,
     estado:             datos.estado ?? "activo",
   };
+  if (datos.es_contribuyente !== undefined) insert.es_contribuyente = datos.es_contribuyente;
   if (datos.sifen_receptor_extranjero === true) insert.sifen_receptor_extranjero = true;
   if (datos.sifen_receptor_extranjero === false) insert.sifen_receptor_extranjero = false;
   if (datos.sifen_codigo_pais !== undefined) {
@@ -361,6 +365,9 @@ export function construirPatchActualizacionCliente(datos: ActualizarClienteInput
   if (datos.direccion !== undefined) patch.direccion = datos.direccion ?? null;
   if (datos.ciudad !== undefined) patch.ciudad = datos.ciudad ?? null;
   if (datos.pais !== undefined) patch.pais = datos.pais ?? null;
+  if (datos.es_contribuyente !== undefined) {
+    patch.es_contribuyente = datos.es_contribuyente;
+  }
   if (datos.sifen_receptor_extranjero !== undefined) {
     patch.sifen_receptor_extranjero = Boolean(datos.sifen_receptor_extranjero);
   }

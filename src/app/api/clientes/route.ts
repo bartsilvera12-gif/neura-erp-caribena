@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
       direccion,
       ciudad,
       pais,
+      es_contribuyente,
       sifen_receptor_extranjero,
       sifen_codigo_pais,
       sifen_tipo_doc_receptor,
@@ -286,6 +287,11 @@ export async function POST(request: NextRequest) {
       vendedor_usuario_id:  vendedorUsuarioId,
     };
 
+    // Define si el receptor va como contribuyente en el documento electrónico.
+    // Sin esto guardado, la factura del cliente se frena al armar el XML.
+    if (typeof es_contribuyente === "boolean") {
+      (insertBase as Record<string, unknown>).es_contribuyente = es_contribuyente;
+    }
     if (typeof sifen_receptor_extranjero === "boolean") {
       (insertBase as Record<string, unknown>).sifen_receptor_extranjero = sifen_receptor_extranjero;
     }

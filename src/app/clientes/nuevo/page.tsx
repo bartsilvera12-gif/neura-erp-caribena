@@ -54,6 +54,7 @@ function NuevoClienteForm() {
 
   const [form, setForm] = useState({
     tipo_cliente:        "empresa" as TipoCliente,
+    es_contribuyente:    false,
     empresa:             "",
     nombre_contacto:     "",
     ruc:                 "",
@@ -279,6 +280,8 @@ function NuevoClienteForm() {
 
     const creado = await apiCreateCliente({
       tipo_cliente: form.tipo_cliente,
+      es_contribuyente:
+        form.tipo_cliente === "empresa" ? true : form.es_contribuyente,
       tipo_servicio_cliente: form.tipo_servicio_cliente || undefined,
       empresa: form.tipo_cliente === "empresa" ? form.empresa.trim().toUpperCase() : undefined,
       nombre_contacto: form.nombre_contacto.trim().toUpperCase(),
@@ -475,6 +478,55 @@ function NuevoClienteForm() {
                 )}
               </div>
             </div>
+            {form.tipo_cliente === "persona" && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <label className="flex items-start gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    name="es_contribuyente"
+                    checked={form.es_contribuyente}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      // Al destildar se borra el RUC: dejarlo cargado en alguien
+                      // que no es contribuyente es exactamente lo que hace que
+                      // el SET rechace el documento.
+                      setForm((prev) => ({
+                        ...prev,
+                        es_contribuyente: checked,
+                        ruc: checked ? prev.ruc : "",
+                      }));
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#4FAEB2] focus:ring-[#4FAEB2]"
+                  />
+                  <span>
+                    <span className="font-medium">Es contribuyente inscripto en la SET</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      Marcalo sólo si esta persona figura en el padrón de Marangatú. Con esto
+                      tildado y RUC cargado, la factura sale como contribuyente; sin tildar,
+                      como consumidor final. Mandar un RUC que no está en el padrón hace que
+                      el SET rechace el lote (0301).
+                    </span>
+                  </span>
+                </label>
+                {form.es_contribuyente && (
+                  <div className="mt-3">
+                    <label className={labelClass}>RUC de la persona</label>
+                    <input
+                      type="text"
+                      name="ruc"
+                      value={form.ruc}
+                      onChange={handleChange}
+                      placeholder="Ej: 2431868-0"
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      En Paraguay el RUC de persona física es la cédula más el dígito
+                      verificador.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* ── Contacto ─────────────────────────────────────────────────── */}

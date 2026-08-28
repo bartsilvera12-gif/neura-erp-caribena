@@ -82,6 +82,13 @@ export interface Cliente {
   baja_operativa_motivo?:     string | null;
   baja_operativa_anulo_factura?: boolean | null;
 
+  /**
+   * Persona física inscripta como contribuyente en Marangatú. Sólo con esto en
+   * true y RUC cargado la factura sale como contribuyente; si no, el SET
+   * rechaza el documento con 0301. Las empresas son contribuyentes siempre.
+   */
+  es_contribuyente?: boolean | null;
+
   /** SIFEN factura electrónica: receptor extranjero (no dRucRec/dDVRec paraguayos en el DE). */
   sifen_receptor_extranjero?: boolean;
   /** ISO 3166-1 alpha-3 (ej. PER); opcional si `pais` ya permite inferir el código. */

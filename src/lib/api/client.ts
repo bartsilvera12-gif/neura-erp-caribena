@@ -73,6 +73,8 @@ async function apiPut<T>(path: string, data: Record<string, unknown>): Promise<{
 
 export async function apiCreateCliente(data: {
   tipo_cliente?: string;
+  /** Persona inscripta en Marangatú. Las empresas van siempre en true. */
+  es_contribuyente?: boolean;
   tipo_servicio_cliente?: string;
   empresa?: string;
   nombre_contacto: string;
