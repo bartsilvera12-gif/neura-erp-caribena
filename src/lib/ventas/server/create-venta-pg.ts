@@ -39,7 +39,15 @@ export interface CreateVentaPgParams {
   tipoCambio: number;
   tipoVenta: "CONTADO" | "CREDITO";
   plazoDias: number | null;
+  /** Método predominante. Se deriva de `pagos` cuando el cobro va repartido. */
   metodoPago: "efectivo" | "tarjeta" | "transferencia" | null;
+  /**
+   * Cómo se cobró la venta. Una fila por forma de pago: 60.000 en efectivo y
+   * 40.000 por transferencia son dos líneas. Si viene vacío se arma una sola
+   * línea con `metodoPago` por el total, así toda venta tiene su detalle y el
+   * arqueo no depende de dos caminos distintos.
+   */
+  pagos?: CreateVentaPagoInput[];
   items: CreateVentaItemInput[];
   subtotalDeclarado: number;
   montoIvaDeclarado: number;
@@ -47,6 +55,49 @@ export interface CreateVentaPgParams {
   pedidoCocina?: CreateVentaPedidoCocinaInput | null;
   /** Caja (turno) a la que se asocia la venta. Obligatoria en Caribeña. */
   cajaId: string;
+}
+
+export interface CreateVentaPagoInput {
+  metodo_pago: "efectivo" | "tarjeta" | "transferencia";
+  monto: number;
+  cuenta_bancaria_id?: string | null;
+  referencia?: string | null;
+}
+
+/**
+ * Arma las líneas de cobro que se van a guardar.
+ *
+ * Si no se detalló nada, el cobro es una sola línea por el total con el método
+ * elegido. Se descartan las líneas en cero: son filas que no dicen nada y la
+ * base las rechaza.
+ */
+function armarPagos(
+  pagos: CreateVentaPagoInput[] | undefined,
+  metodoPago: "efectivo" | "tarjeta" | "transferencia" | null,
+  total: number
+): CreateVentaPagoInput[] {
+  const limpias = (pagos ?? []).filter((p) => Number(p.monto) > 0);
+  if (limpias.length > 0) return limpias;
+  if (total <= 0) return [];
+  return [{ metodo_pago: metodoPago ?? "efectivo", monto: total }];
+}
+
+/** Método que más plata aportó: es el que se guarda en la venta. */
+function metodoPredominante(
+  pagos: CreateVentaPagoInput[],
+  fallback: "efectivo" | "tarjeta" | "transferencia" | null
+): "efectivo" | "tarjeta" | "transferencia" | null {
+  if (pagos.length === 0) return fallback;
+  const porMetodo = new Map<string, number>();
+  for (const p of pagos) {
+    porMetodo.set(p.metodo_pago, (porMetodo.get(p.metodo_pago) ?? 0) + Number(p.monto));
+  }
+  let mejor = pagos[0].metodo_pago;
+  let mejorMonto = -1;
+  for (const [m, monto] of porMetodo) {
+    if (monto > mejorMonto) { mejor = m as CreateVentaPagoInput["metodo_pago"]; mejorMonto = monto; }
+  }
+  return mejor;
 }
 
 function recalcTotals(items: CreateVentaItemInput[]) {
@@ -197,7 +248,10 @@ export async function createVentaTransaccionalPg(
       estado: "completada",
       tipo_venta: params.tipoVenta,
       plazo_dias: params.plazoDias,
-      metodo_pago: params.metodoPago,
+      metodo_pago: metodoPredominante(
+        armarPagos(params.pagos, params.metodoPago, calc.total),
+        params.metodoPago
+      ),
       caja_id: params.cajaId,
       fecha: fechaIso,
       observaciones: params.observaciones,
@@ -206,6 +260,31 @@ export async function createVentaTransaccionalPg(
     .single();
   if (insVenta.error) throw new Error(insVenta.error.message);
   const ventaId = String((insVenta.data as { id: string }).id);
+
+  // Detalle del cobro. Va antes que los ítems para que, si falla, el rollback
+  // se lleve una venta que todavía no movió stock. Toda venta guarda su
+  // detalle — con una sola forma de pago es una fila — así el cierre de caja
+  // tiene una única fuente de verdad para repartir el efectivo.
+  const pagosVenta = armarPagos(params.pagos, params.metodoPago, calc.total);
+  if (pagosVenta.length > 0) {
+    const insPagos = await sb.from("ventas_pagos_detalle").insert(
+      pagosVenta.map((p) => ({
+        empresa_id: params.empresaId,
+        venta_id: ventaId,
+        metodo_pago: p.metodo_pago,
+        monto: p.monto,
+        cuenta_bancaria_id: p.cuenta_bancaria_id ?? null,
+        referencia: p.referencia ?? null,
+        fecha_pago: fechaIso,
+      }))
+    );
+    if (insPagos.error) {
+      try {
+        await sb.from("ventas").delete().eq("id", ventaId).eq("empresa_id", params.empresaId);
+      } catch {}
+      throw new Error(`No se pudo registrar el cobro de la venta: ${insPagos.error.message}`);
+    }
+  }
 
   // Helper de rollback best-effort
   const rollback = async () => {

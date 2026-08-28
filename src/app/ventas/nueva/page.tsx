@@ -14,6 +14,12 @@ import ReceptorFactura, {
   type DatosReceptor,
 } from "@/components/ventas/ReceptorFactura";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
+import CobroRepartido, {
+  cobroValido,
+  montoDeLinea,
+  totalCobrado,
+  type LineaCobro,
+} from "@/components/ventas/CobroRepartido";
 import { saveVenta } from "@/lib/ventas/storage";
 import { getCajaAbierta } from "@/lib/caja/storage";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
@@ -77,7 +83,14 @@ export default function NuevaVentaPage() {
 
   // ── Cobro (solo CONTADO, no se persiste — solo ayuda al cajero) ───────────
   const [montoRecibido, setMontoRecibido] = useState("");
-  const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo");
+  /**
+   * Formas de pago del cobro. Arranca en una sola —efectivo— porque así se
+   * cobra casi siempre; el monto de esa única línea lo cubre el total.
+   */
+  const [lineasCobro, setLineasCobro] = useState<LineaCobro[]>([
+    { key: "p0", metodo: "efectivo", monto: "" },
+  ]);
+  const metodoPago: MetodoPago = lineasCobro[0]?.metodo ?? "efectivo";
 
   // ── IVA por defecto de las líneas nuevas ──────────────────────────────────
   // Ya no hay "línea en construcción": el producto se agrega al carrito apenas
@@ -224,11 +237,17 @@ export default function NuevaVentaPage() {
    */
   const comprobanteValido = comprobante === "ticket" || validarReceptor(receptor) === null;
   const pedidoValido = modalidad !== "" && comprobanteValido;
-  const ventaValida   = items.length > 0 && pedidoValido && !sinCaja;
+  const cobroCierra = tipoVenta !== "CONTADO" || cobroValido(lineasCobro, totalGeneral);
+  const ventaValida   = items.length > 0 && pedidoValido && !sinCaja && cobroCierra;
 
   // Vuelto (solo informativo, no se persiste)
   const montoRecibidoNum = parseFloat(montoRecibido) || 0;
-  const vuelto           = montoRecibidoNum - totalGeneral;
+  /** Parte del cobro que se paga en efectivo: es contra eso que se da vuelto. */
+  const aPagarEnEfectivo =
+    lineasCobro.length > 1
+      ? totalCobrado(lineasCobro.filter((l) => l.metodo === "efectivo"))
+      : totalGeneral;
+  const vuelto           = montoRecibidoNum - aPagarEnEfectivo;
 
   // ── Opciones del buscador ─────────────────────────────────────────────────
   // Solo vendibles (Reventa + Menú). Excluye materia prima / insumos.
@@ -378,6 +397,12 @@ export default function NuevaVentaPage() {
         total:        totalGeneral,
         tipo_venta:   tipoVenta,
         metodo_pago:  metodoPago,
+        pagos:
+          lineasCobro.length > 1
+            ? lineasCobro
+                .filter((l) => montoDeLinea(l) > 0)
+                .map((l) => ({ metodo_pago: l.metodo, monto: montoDeLinea(l) }))
+            : [],
       },
       {
         // ventaValida garantiza modalidad !== "" en este punto.
@@ -847,26 +872,16 @@ export default function NuevaVentaPage() {
                       </p>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Método de pago</label>
-                        <div className="grid grid-cols-3 gap-1">
-                          {(["efectivo", "tarjeta", "transferencia"] as MetodoPago[]).map((m) => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => setMetodoPago(m)}
-                              className={`text-xs py-1.5 rounded-md border transition-colors ${
-                                metodoPago === m
-                                  ? "border-[#4FAEB2] bg-[#4FAEB2]/10 font-semibold text-[#3F8E91]"
-                                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                              }`}
-                            >
-                              {m === "efectivo" ? "Efectivo" : m === "tarjeta" ? "Tarjeta" : "Transfer."}
-                            </button>
-                          ))}
-                        </div>
+                        <CobroRepartido
+                          lineas={lineasCobro}
+                          onChange={setLineasCobro}
+                          total={totalGeneral}
+                          inputClass={inputClass}
+                        />
                       </div>
-                      <div>
+                      <div className={lineasCobro.some((l) => l.metodo === "efectivo") ? "" : "hidden"}>
                         <label className="block text-xs text-gray-600 mb-1">
-                          Monto recibido (Gs.)
+                          {lineasCobro.length > 1 ? "Efectivo recibido (Gs.)" : "Monto recibido (Gs.)"}
                         </label>
                         <MontoInput
                           value={montoRecibido}

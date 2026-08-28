@@ -26,6 +26,13 @@ export interface LineaVenta {
   item_display_name?:    string | null;
 }
 
+/** Una forma de pago dentro del cobro de una venta. */
+export interface PagoVenta {
+  metodo_pago: MetodoPago;
+  monto: number;
+  referencia?: string | null;
+}
+
 /** Cabecera de venta: condiciones comerciales + totales consolidados. */
 export interface Venta {
   /** UUID en base de datos (antes del bloque DB-first era numérico local). */
@@ -45,6 +52,13 @@ export interface Venta {
   plazo_dias?: number;       // solo si tipo_venta === "CREDITO"
 
   metodo_pago?: MetodoPago;  // Caribeña: efectivo/tarjeta/transferencia
+
+  /**
+   * Cómo se cobró: una línea por forma de pago. Con una sola forma es una
+   * línea; con cobro repartido, varias. `metodo_pago` queda con la de mayor
+   * monto para el listado y los filtros.
+   */
+  pagos?: PagoVenta[];
 
   fecha: string;             // ISO string, generado automáticamente
 

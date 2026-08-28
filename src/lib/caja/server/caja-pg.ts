@@ -269,12 +269,36 @@ async function computeResumen(sb: Sb, empresaId: string, caja: Caja): Promise<Ca
   // Ventas de la caja (excluye anuladas).
   const vQ = await sb
     .from("ventas")
-    .select("total, metodo_pago, estado")
+    .select("id, total, metodo_pago, estado")
     .eq("empresa_id", empresaId)
     .eq("caja_id", caja.id)
     .neq("estado", "anulada");
   if (vQ.error) throw new Error(vQ.error.message);
-  const ventas = (vQ.data ?? []) as unknown as Array<{ total: number | string; metodo_pago: string | null }>;
+  const ventas = (vQ.data ?? []) as unknown as Array<{
+    id: string;
+    total: number | string;
+    metodo_pago: string | null;
+  }>;
+
+  // El reparto por método sale del detalle de cobro y no de `metodo_pago`:
+  // una venta cobrada 60.000 en efectivo y 40.000 por transferencia tiene un
+  // solo método guardado, y contarla entera de un lado descuadra el arqueo por
+  // plata que nunca entró al cajón.
+  const pagosPorVenta = new Map<string, Array<{ metodo: string; monto: number }>>();
+  const idsVentas = ventas.map((v) => v.id);
+  if (idsVentas.length) {
+    const pQ = await sb
+      .from("ventas_pagos_detalle")
+      .select("venta_id, metodo_pago, monto")
+      .eq("empresa_id", empresaId)
+      .in("venta_id", idsVentas);
+    if (pQ.error) throw new Error(pQ.error.message);
+    for (const p of (pQ.data ?? []) as Array<{ venta_id: string; metodo_pago: string; monto: number | string }>) {
+      const lista = pagosPorVenta.get(p.venta_id) ?? [];
+      lista.push({ metodo: p.metodo_pago, monto: num(p.monto) });
+      pagosPorVenta.set(p.venta_id, lista);
+    }
+  }
 
   let totalVendido = 0;
   let totalEfectivo = 0;
@@ -283,9 +307,13 @@ async function computeResumen(sb: Sb, empresaId: string, caja: Caja): Promise<Ca
   for (const v of ventas) {
     const t = num(v.total);
     totalVendido += t;
-    if (v.metodo_pago === "tarjeta") totalTarjeta += t;
-    else if (v.metodo_pago === "transferencia") totalTransferencia += t;
-    else totalEfectivo += t; // efectivo o método no especificado → efectivo
+    // Sin detalle (ventas anteriores a que existiera) se cae al método único.
+    const lineas = pagosPorVenta.get(v.id) ?? [{ metodo: v.metodo_pago ?? "efectivo", monto: t }];
+    for (const l of lineas) {
+      if (l.metodo === "tarjeta") totalTarjeta += l.monto;
+      else if (l.metodo === "transferencia") totalTransferencia += l.monto;
+      else totalEfectivo += l.monto; // efectivo o método no especificado → efectivo
+    }
   }
 
   // Movimientos manuales.

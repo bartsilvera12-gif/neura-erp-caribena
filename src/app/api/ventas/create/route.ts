@@ -122,6 +122,44 @@ export async function POST(request: NextRequest) {
         : null;
     const metodoPago: "efectivo" | "tarjeta" | "transferencia" =
       o.metodo_pago === "tarjeta" || o.metodo_pago === "transferencia" ? o.metodo_pago : "efectivo";
+
+    // Cobro repartido: una línea por forma de pago. Si no viene, más abajo se
+    // arma una sola línea con `metodoPago` por el total de la venta.
+    const METODOS = ["efectivo", "tarjeta", "transferencia"] as const;
+    const pagos = Array.isArray((o as { pagos?: unknown }).pagos)
+      ? ((o as { pagos: unknown[] }).pagos
+          .map((raw) => {
+            const p = raw as Record<string, unknown>;
+            const metodo = String(p.metodo_pago ?? "");
+            const monto = Number(p.monto) || 0;
+            if (!(METODOS as readonly string[]).includes(metodo) || monto <= 0) return null;
+            return {
+              metodo_pago: metodo as (typeof METODOS)[number],
+              monto,
+              referencia:
+                typeof p.referencia === "string" && p.referencia.trim() !== ""
+                  ? p.referencia.trim().slice(0, 120)
+                  : null,
+            };
+          })
+          .filter((p): p is { metodo_pago: (typeof METODOS)[number]; monto: number; referencia: string | null } => p !== null))
+      : [];
+
+    // Lo cobrado tiene que dar el total. Se tolera una diferencia de 1 Gs por
+    // el redondeo de los montos que teclea el cajero; más que eso es un error
+    // de carga y el arqueo lo arrastraría hasta el cierre.
+    if (pagos.length > 0) {
+      const sumaPagos = pagos.reduce((acc, p) => acc + p.monto, 0);
+      const totalVenta = Number(o.total) || 0;
+      if (Math.abs(sumaPagos - totalVenta) > 1) {
+        return NextResponse.json(
+          errorResponse(
+            `El cobro suma ${Math.round(sumaPagos).toLocaleString("es-PY")} y la venta es de ${Math.round(totalVenta).toLocaleString("es-PY")}.`
+          ),
+          { status: 400 }
+        );
+      }
+    }
     const clienteRaw = o.cliente_id;
     const clienteId =
       clienteRaw === null || clienteRaw === undefined || clienteRaw === ""
@@ -205,6 +243,7 @@ export async function POST(request: NextRequest) {
       tipoVenta,
       plazoDias: Number.isFinite(plazoDias as number) ? plazoDias : null,
       metodoPago,
+      pagos,
       items,
       subtotalDeclarado,
       montoIvaDeclarado,
