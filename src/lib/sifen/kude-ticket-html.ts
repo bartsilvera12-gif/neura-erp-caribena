@@ -38,6 +38,8 @@ export async function buildKudeTicketHtml(input: {
   widthMm: 58 | 80;
   emisorTelefonoOverride?: string | null;
   emisorEmailOverride?: string | null;
+  /** Logo de la configuración, embebido como data URL. null = sin logo. */
+  logoUrl?: string | null;
   /** Branding de la sucursal (logo/teléfono/dirección) para el encabezado. */
   marca?: MembreteMarca;
   auto?: boolean;
@@ -51,7 +53,8 @@ export async function buildKudeTicketHtml(input: {
   const to = parsed.totales;
   // Encabezado: branding de la sucursal si existe (logo + tel/dirección de la
   // sucursal), manteniendo el NOMBRE legal y el RUC del emisor (dato fiscal).
-  const logoUrl = (marca?.logoUrl && marca.logoUrl.trim()) || "";
+  const logoUrl =
+    (input.logoUrl && input.logoUrl.trim()) || (marca?.logoUrl && marca.logoUrl.trim()) || "";
   const email = (input.emisorEmailOverride && input.emisorEmailOverride.trim()) || e.dEmailE || "";
   const tel = (marca?.telefono && marca.telefono.trim())
     || (input.emisorTelefonoOverride && input.emisorTelefonoOverride.trim())

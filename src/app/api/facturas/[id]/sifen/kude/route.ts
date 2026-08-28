@@ -352,6 +352,9 @@ export async function GET(
         widthMm,
         emisorTelefonoOverride,
         emisorEmailOverride,
+        logoUrl: branding?.logoBytes
+          ? `data:image/png;base64,${Buffer.from(branding.logoBytes).toString("base64")}`
+          : null,
         auto: request.nextUrl.searchParams.get("auto") !== "0",
       });
       return new NextResponse(html, {
