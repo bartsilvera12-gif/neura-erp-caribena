@@ -59,6 +59,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       ruc,
       documento,
       clienteId: texto(body.cliente_id),
+      guardarCliente: body.guardar_cliente === true,
     });
 
     return NextResponse.json(successResponse(out));

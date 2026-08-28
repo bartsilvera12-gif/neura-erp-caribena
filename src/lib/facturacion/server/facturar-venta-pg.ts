@@ -52,6 +52,11 @@ export interface FacturarVentaInput {
   documento?: string | null;
   /** Cliente del ERP, si la venta se le atribuye a uno. */
   clienteId?: string | null;
+  /**
+   * Guardar los datos como cliente nuevo y dejar la factura atada a él.
+   * Se ignora si ya vino un `clienteId`.
+   */
+  guardarCliente?: boolean;
 }
 
 export interface FacturarVentaResult {
@@ -59,6 +64,8 @@ export interface FacturarVentaResult {
   numeroFactura: string;
   ventaId: string;
   total: number;
+  /** Cliente creado en el momento, si se pidió guardarlo. */
+  clienteCreadoId: string | null;
 }
 
 interface VentaRow {
@@ -84,6 +91,7 @@ export async function facturarVentaPg(
   const tVI = quoteSchemaTable(schema, "ventas_items");
   const tF = quoteSchemaTable(schema, "facturas");
   const tFI = quoteSchemaTable(schema, "factura_items");
+  const tCli = quoteSchemaTable(schema, "clientes");
 
   const client = await pool().connect();
   try {
@@ -150,6 +158,36 @@ export async function facturarVentaPg(
 
     const limpio = (v: string | null | undefined) =>
       typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+
+    // Alta del cliente desde la caja. Los campos fiscales se derivan de cómo se
+    // identificó: con RUC es una empresa contribuyente y el documento sale como
+    // B2B; con cédula es una persona que no es contribuyente y sale como B2C.
+    // Guardarlo mal acá hace que el SET rechace el lote más adelante.
+    let clienteCreadoId: string | null = null;
+    const idClienteFinal = input.clienteId ?? venta.cliente_id ?? null;
+    if (!idClienteFinal && input.guardarCliente && (input.ruc || input.documento)) {
+      const conRuc = !!limpio(input.ruc);
+      const nombre = limpio(input.razonSocial);
+      const { rows: cliRows } = await client.query<{ id: string }>(
+        `INSERT INTO ${tCli} (
+           empresa_id, tipo_cliente, nombre, empresa, nombre_facturacion,
+           ruc, documento, es_contribuyente, estado, origen
+         ) VALUES (
+           $1::uuid, $2, $3, $4, $3,
+           $5, $6, $7, 'activo', 'CAJA'
+         ) RETURNING id`,
+        [
+          empresaId,
+          conRuc ? "empresa" : "persona",
+          nombre,
+          conRuc ? nombre : null,
+          limpio(input.ruc),
+          limpio(input.documento),
+          conRuc,
+        ]
+      );
+      clienteCreadoId = cliRows[0].id;
+    }
     const fecha = venta.fecha_dia;
     const aCredito = venta.tipo_venta === "CREDITO";
     const total = Number(venta.total) || 0;
@@ -166,7 +204,7 @@ export async function facturarVentaPg(
        ) RETURNING id`,
       [
         empresaId,
-        input.clienteId ?? venta.cliente_id ?? null,
+        idClienteFinal ?? clienteCreadoId,
         numeroFactura,
         fecha,
         total,
@@ -213,7 +251,7 @@ export async function facturarVentaPg(
     );
 
     await client.query("COMMIT");
-    return { facturaId, numeroFactura, ventaId: venta.id, total };
+    return { facturaId, numeroFactura, ventaId: venta.id, total, clienteCreadoId };
   } catch (err) {
     await client.query("ROLLBACK").catch(() => null);
     throw err;
