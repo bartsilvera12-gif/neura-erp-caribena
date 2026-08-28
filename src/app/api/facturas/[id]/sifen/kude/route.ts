@@ -319,21 +319,10 @@ export async function GET(
     const formatoParam = request.nextUrl.searchParams.get("formato");
     const wParam = request.nextUrl.searchParams.get("w");
 
+    // El formato sale de la configuración de facturación de la empresa
+    // (pdf_a4 | ticket_58mm | ticket_80mm). Acá no hay sucursales.
     let formatoBase = "";
-    const sucId = (fac as { sucursal_id?: string | null }).sucursal_id ?? null;
-    if (sucId) {
-      try {
-        const { data: sucRow } = await supabase
-          .from("sucursales")
-          .select("kude_formato")
-          .eq("id", String(sucId))
-          .eq("empresa_id", auth.empresa_id)
-          .maybeSingle();
-        const kf = String((sucRow as { kude_formato?: string | null } | null)?.kude_formato ?? "").trim();
-        if (kf) formatoBase = kf;
-      } catch { /* sigue con config de empresa */ }
-    }
-    if (!formatoBase) {
+    {
       try {
         const { data: modoRow } = await supabase
           .from("empresa_facturacion_modo")

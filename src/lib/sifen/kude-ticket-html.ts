@@ -52,6 +52,7 @@ export async function buildKudeTicketHtml(input: {
   // Encabezado: branding de la sucursal si existe (logo + tel/dirección de la
   // sucursal), manteniendo el NOMBRE legal y el RUC del emisor (dato fiscal).
   const logoUrl = (marca?.logoUrl && marca.logoUrl.trim()) || "";
+  const email = (input.emisorEmailOverride && input.emisorEmailOverride.trim()) || e.dEmailE || "";
   const tel = (marca?.telefono && marca.telefono.trim())
     || (input.emisorTelefonoOverride && input.emisorTelefonoOverride.trim())
     || e.dTelEmi;
@@ -117,7 +118,8 @@ export async function buildKudeTicketHtml(input: {
       <div class="nom">${esc(e.dNomEmi)}</div>
       <div class="small">RUC: ${esc(e.dRucEm)}-${esc(e.dDVEmi)}</div>
       ${dirLineas.map((l) => `<div class="small">${esc(l)}</div>`).join("")}
-      ${tel ? `<div class="small">Tel: ${esc(tel)}</div>` : ""}
+      ${tel ? `<div class="small">Teléfono: ${esc(tel)}</div>` : ""}
+      ${email ? `<div class="small">${esc(email)}</div>` : ""}
     </div>
     <hr>
     <div class="tit">${esc(tipoDoc)}</div>
