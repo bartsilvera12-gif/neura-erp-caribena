@@ -18,7 +18,7 @@ import type { CuentaBancaria } from "@/lib/conciliacion/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatGs(v: number) { return `Gs. ${Math.round(v).toLocaleString("es-PY")}`; }
-type Metodo = "efectivo" | "tarjeta" | "transferencia";
+type Metodo = "efectivo" | "tarjeta" | "transferencia" | "qr";
 
 const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none bg-white text-sm";
@@ -31,7 +31,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
  * Checkout de mesa — MISMA experiencia que "Nueva venta" de Caja, pero con los
  * ítems de la mesa precargados. Reutiliza el buscador de productos de Caja
  * (ProductPickerModal), el desglose IVA incluido, la lógica de cobro
- * (efectivo/tarjeta/transferencia + conciliación) y el ticket de venta.
+ * (efectivo/tarjeta/transferencia/QR + conciliación) y el ticket de venta.
  *
  * El "carrito" es el estado persistido de la sesión (mesa_sesion_items): agregar,
  * cambiar cantidad y quitar pasan por los endpoints de edición de caja, de modo
@@ -134,7 +134,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     let ticketWin: Window | null = null;
     try { ticketWin = window.open("about:blank", "_blank"); } catch { ticketWin = null; }
 
-    const necesitaPago = metodo === "tarjeta" || metodo === "transferencia";
+    const necesitaPago = metodo === "tarjeta" || metodo === "transferencia" || metodo === "qr";
     const r = await facturarMesa(
       sesionId, metodo,
       necesitaPago ? { ...pago, fecha_pago: pago.fecha_pago || new Date().toISOString() } : null
@@ -325,7 +325,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Método de pago</label>
                 <div className="grid grid-cols-3 gap-1">
-                  {(["efectivo", "tarjeta", "transferencia"] as Metodo[]).map((m) => (
+                  {(["efectivo", "tarjeta", "transferencia", "qr"] as Metodo[]).map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -336,7 +336,10 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      {m === "efectivo" ? "Efectivo" : m === "tarjeta" ? "Tarjeta" : "Transfer."}
+                      {m === "efectivo" ? "Efectivo"
+                        : m === "tarjeta" ? "Tarjeta"
+                        : m === "transferencia" ? "Transfer."
+                        : "QR"}
                     </button>
                   ))}
                 </div>
@@ -360,7 +363,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               )}
 
               {/* Transferencia → cuenta destino + titular + N° de comprobante. */}
-              {metodo === "transferencia" && (
+              {(metodo === "transferencia" || metodo === "qr") && (
                 <div className="space-y-2">
                   {cuentas.length > 0 ? (
                     <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
@@ -386,7 +389,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
                   <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de operación" className={inputClass} />
                 </div>
               )}
-              {(metodo === "tarjeta" || metodo === "transferencia") && (
+              {(metodo === "tarjeta" || metodo === "transferencia" || metodo === "qr") && (
                 <p className="text-[11px] text-slate-400">Queda como conciliación <strong>pendiente</strong>. No suma al efectivo esperado.</p>
               )}
             </div>

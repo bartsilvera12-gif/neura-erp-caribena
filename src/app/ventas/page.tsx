@@ -479,6 +479,7 @@ export default function VentasPage() {
                       <td className="hidden py-4 pr-4 align-middle text-xs text-gray-600 lg:table-cell">
                         {v.metodo_pago === "tarjeta" ? "Tarjeta"
                           : v.metodo_pago === "transferencia" ? "Transfer."
+                          : v.metodo_pago === "qr" ? "QR"
                           : v.metodo_pago === "efectivo" ? "Efectivo"
                           : "—"}
                       </td>

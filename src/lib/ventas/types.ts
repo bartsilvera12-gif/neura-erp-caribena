@@ -1,7 +1,8 @@
 export type TipoIvaVenta = "EXENTA" | "5%" | "10%";
 export type TipoVenta   = "CONTADO" | "CREDITO";
 export type MonedaVenta = "GS" | "USD";
-export type MetodoPago  = "efectivo" | "tarjeta" | "transferencia";
+/** Formas de cobro. QR no entra al cajón: para el arqueo va como no efectivo. */
+export type MetodoPago  = "efectivo" | "tarjeta" | "transferencia" | "qr";
 
 /** Un ítem dentro de una venta (una línea de producto). */
 export interface LineaVenta {

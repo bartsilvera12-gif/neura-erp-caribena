@@ -105,6 +105,7 @@ export default function CajaControlPanel({
               <Stat label="Total vendido" value={formatGs(resumen.total_vendido)} sub={`${resumen.cantidad_ventas} venta(s)`} />
               <Stat label="Efectivo" value={formatGs(resumen.total_efectivo)} />
               <Stat label="Transferencia" value={formatGs(resumen.total_transferencia)} />
+              <Stat label="QR" value={formatGs(resumen.total_qr)} />
               <Stat label="Tarjeta" value={formatGs(resumen.total_tarjeta)} />
               <Stat
                 label="Debería haber en caja"

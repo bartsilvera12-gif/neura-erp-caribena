@@ -74,6 +74,12 @@ const S = "caribenaerp";
     // Simple: una sola forma de pago.
     await venta("VTA-QA-EF", 30000, [{ metodo: "efectivo", monto: 30000 }]);
     await venta("VTA-QA-TJ", 50000, [{ metodo: "tarjeta", monto: 50000 }]);
+    await venta("VTA-QA-QR", 20000, [{ metodo: "qr", monto: 20000 }]);
+    // Repartida entre efectivo y QR: el caso que confunde al arqueo.
+    await venta("VTA-QA-EFQR", 70000, [
+      { metodo: "efectivo", monto: 25000 },
+      { metodo: "qr", monto: 45000 },
+    ]);
 
     // ── Lo que hace computeResumen ────────────────────────────────────────
     const ventas = (
@@ -99,25 +105,27 @@ const S = "caribenaerp";
       porVenta.set(p.venta_id, l);
     }
 
-    let vendido = 0, efectivo = 0, tarjeta = 0, transferencia = 0;
+    let vendido = 0, efectivo = 0, tarjeta = 0, transferencia = 0, qr = 0;
     for (const v of ventas) {
       vendido += v.total;
       const lineas = porVenta.get(v.id) ?? [{ metodo: v.metodo_pago ?? "efectivo", monto: v.total }];
       for (const l of lineas) {
         if (l.metodo === "tarjeta") tarjeta += l.monto;
         else if (l.metodo === "transferencia") transferencia += l.monto;
+        else if (l.metodo === "qr") qr += l.monto;
         else efectivo += l.monto;
       }
     }
 
-    console.table([{ vendido, efectivo, tarjeta, transferencia }]);
+    console.table([{ vendido, efectivo, tarjeta, transferencia, qr }]);
 
-    // Esperado: 180.000 vendidos = 90.000 efectivo + 50.000 tarjeta + 40.000 transf.
-    if (vendido !== 180000) fallar(`vendido ${vendido}, se esperaba 180000`);
-    if (efectivo !== 90000) fallar(`efectivo ${efectivo}, se esperaba 90000 (60000 de la mixta + 30000)`);
+    // 270.000 vendidos = 115.000 efectivo + 50.000 tarjeta + 40.000 transf. + 65.000 QR.
+    if (vendido !== 270000) fallar(`vendido ${vendido}, se esperaba 270000`);
+    if (efectivo !== 115000) fallar(`efectivo ${efectivo}, se esperaba 115000 (60000 + 30000 + 25000)`);
     if (tarjeta !== 50000) fallar(`tarjeta ${tarjeta}, se esperaba 50000`);
     if (transferencia !== 40000) fallar(`transferencia ${transferencia}, se esperaba 40000`);
-    if (efectivo + tarjeta + transferencia !== vendido)
+    if (qr !== 65000) fallar(`qr ${qr}, se esperaba 65000 (20000 + 45000)`);
+    if (efectivo + tarjeta + transferencia + qr !== vendido)
       fallar("el reparto por método no suma el total vendido");
 
     // El arqueo viejo — todo al método predominante — habría dado 100.000 de

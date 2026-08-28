@@ -60,6 +60,7 @@ export default function EstadoCuentaPage() {
               <Stat label="Neto estimado" value={formatGs(data.neto_estimado)} sub="vendido − egresos − retiros" accent />
               <Stat label="Total efectivo" value={formatGs(data.total_efectivo)} />
               <Stat label="Total transferencia" value={formatGs(data.total_transferencia)} />
+              <Stat label="Total QR" value={formatGs(data.total_qr)} />
               <Stat label="Total tarjeta" value={formatGs(data.total_tarjeta)} />
               <Stat label="Total egresos" value={formatGs(data.total_egresos)} />
               <Stat label="Total retiros" value={formatGs(data.total_retiros)} />

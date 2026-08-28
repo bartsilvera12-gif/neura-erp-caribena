@@ -9,7 +9,7 @@
 
 export type EstadoCaja = "abierta" | "cerrada";
 export type TipoMovimientoCaja = "ingreso" | "egreso" | "retiro" | "ajuste";
-export type MedioPagoCaja = "efectivo" | "tarjeta" | "transferencia" | "otro";
+export type MedioPagoCaja = "efectivo" | "tarjeta" | "transferencia" | "qr" | "otro";
 
 export interface Caja {
   id: string;
@@ -52,6 +52,7 @@ export interface CajaResumen {
   total_efectivo: number;
   total_tarjeta: number;
   total_transferencia: number;
+  total_qr: number;
   /** Movimientos manuales en efectivo. */
   ingresos_efectivo: number;
   egresos_efectivo: number;
@@ -72,7 +73,7 @@ export interface VentaDeCaja {
   id: string;
   numero_control: string;
   fecha: string;
-  metodo_pago: "efectivo" | "tarjeta" | "transferencia" | null;
+  metodo_pago: "efectivo" | "tarjeta" | "transferencia" | "qr" | null;
   total: number;
   cantidad_items: number;
 }
@@ -104,6 +105,7 @@ export interface EstadoCuentaLomiteria {
   total_efectivo: number;
   total_transferencia: number;
   total_tarjeta: number;
+  total_qr: number;
   total_egresos: number;
   total_retiros: number;
   diferencias_acumuladas: number;

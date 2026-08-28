@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     let body: unknown = {};
     try { body = await request.json(); } catch { /* sin body → efectivo por defecto */ }
     const o = (body ?? {}) as Record<string, unknown>;
-    const metodoPago: "efectivo" | "tarjeta" | "transferencia" =
+    const metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr" =
       o.metodo_pago === "tarjeta" || o.metodo_pago === "transferencia" ? o.metodo_pago : "efectivo";
     const pagoRaw = (o.pago ?? null) as Record<string, unknown> | null;
     const str = (v: unknown) => (v == null || v === "" ? null : String(v).slice(0, 2000));

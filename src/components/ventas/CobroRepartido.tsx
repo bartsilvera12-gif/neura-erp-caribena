@@ -27,6 +27,7 @@ const METODOS: Array<{ v: MetodoPago; label: string }> = [
   { v: "efectivo", label: "Efectivo" },
   { v: "tarjeta", label: "Tarjeta" },
   { v: "transferencia", label: "Transfer." },
+  { v: "qr", label: "QR" },
 ];
 
 export function montoDeLinea(l: LineaCobro): number {
@@ -93,7 +94,7 @@ export default function CobroRepartido({
     <div className="space-y-2">
       {lineas.map((l, i) => (
         <div key={l.key} className="space-y-1.5">
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-4 gap-1">
             {METODOS.map((m) => (
               <button
                 key={m.v}

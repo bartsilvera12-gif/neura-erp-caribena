@@ -120,12 +120,14 @@ export async function POST(request: NextRequest) {
       tipoVenta === "CREDITO" && o.plazo_dias != null && String(o.plazo_dias).trim() !== ""
         ? parseInt(String(o.plazo_dias), 10)
         : null;
-    const metodoPago: "efectivo" | "tarjeta" | "transferencia" =
-      o.metodo_pago === "tarjeta" || o.metodo_pago === "transferencia" ? o.metodo_pago : "efectivo";
+    const metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr" =
+      o.metodo_pago === "tarjeta" || o.metodo_pago === "transferencia" || o.metodo_pago === "qr"
+        ? o.metodo_pago
+        : "efectivo";
 
     // Cobro repartido: una línea por forma de pago. Si no viene, más abajo se
     // arma una sola línea con `metodoPago` por el total de la venta.
-    const METODOS = ["efectivo", "tarjeta", "transferencia"] as const;
+    const METODOS = ["efectivo", "tarjeta", "transferencia", "qr"] as const;
     const pagos = Array.isArray((o as { pagos?: unknown }).pagos)
       ? ((o as { pagos: unknown[] }).pagos
           .map((raw) => {

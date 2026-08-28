@@ -124,7 +124,7 @@ export interface PagoConciliacionInput {
 
 export function facturarMesa(
   sesionId: string,
-  metodoPago: "efectivo" | "tarjeta" | "transferencia",
+  metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr",
   pago?: PagoConciliacionInput | null
 ) {
   return call<{ ventaId: string; numeroControl: string | null; yaFacturada: boolean }>(

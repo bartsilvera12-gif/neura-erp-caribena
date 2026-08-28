@@ -802,7 +802,7 @@ export async function facturarSesionPg(params: {
   schema: string;
   empresaId: string;
   sesionId: string;
-  metodoPago: "efectivo" | "tarjeta" | "transferencia";
+  metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr";
   usuarioId: string | null;
   /** Datos de conciliación para tarjeta/transferencia (estado inicial: pendiente). */
   pago?: {
@@ -938,7 +938,11 @@ export async function facturarSesionPg(params: {
     }
 
     // Transferencia/tarjeta → registro de conciliación PENDIENTE (no afecta efectivo).
-    if (params.metodoPago === "tarjeta" || params.metodoPago === "transferencia") {
+    if (
+      params.metodoPago === "tarjeta" ||
+      params.metodoPago === "transferencia" ||
+      params.metodoPago === "qr"
+    ) {
       const p = params.pago ?? {};
       const cins = await sb.from("conciliacion_pagos").insert({
         empresa_id: params.empresaId,

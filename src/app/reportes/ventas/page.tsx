@@ -41,6 +41,7 @@ const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
   transferencia: "Transferencia",
+  qr: "QR",
   sin_dato: "Sin registrar",
 };
 

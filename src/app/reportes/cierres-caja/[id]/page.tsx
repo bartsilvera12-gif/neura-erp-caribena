@@ -59,6 +59,7 @@ export default function CajaDetallePage({ params }: { params: Promise<{ id: stri
           <Field label="Total vendido" value={formatGs(resumen.total_vendido)} />
           <Field label="Efectivo" value={formatGs(resumen.total_efectivo)} />
           <Field label="Transferencia" value={formatGs(resumen.total_transferencia)} />
+          <Field label="QR" value={formatGs(resumen.total_qr)} />
           <Field label="Tarjeta" value={formatGs(resumen.total_tarjeta)} />
           <Field label="Ingresos efvo." value={formatGs(resumen.ingresos_efectivo)} />
           <Field label="Egresos efvo." value={formatGs(resumen.egresos_efectivo)} />
@@ -85,6 +86,7 @@ export default function CajaDetallePage({ params }: { params: Promise<{ id: stri
         <div className="grid grid-cols-3 gap-3">
           <Field label="Efectivo" value={formatGs(resumen.total_efectivo)} />
           <Field label="Transferencia" value={formatGs(resumen.total_transferencia)} />
+          <Field label="QR" value={formatGs(resumen.total_qr)} />
           <Field label="Tarjeta" value={formatGs(resumen.total_tarjeta)} />
         </div>
         <p className="mt-2 text-[11px] text-slate-400">Transferencia y tarjeta cuentan como ventas, pero no como efectivo esperado.</p>

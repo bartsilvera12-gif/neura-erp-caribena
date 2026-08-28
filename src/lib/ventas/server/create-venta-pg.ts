@@ -40,7 +40,7 @@ export interface CreateVentaPgParams {
   tipoVenta: "CONTADO" | "CREDITO";
   plazoDias: number | null;
   /** Método predominante. Se deriva de `pagos` cuando el cobro va repartido. */
-  metodoPago: "efectivo" | "tarjeta" | "transferencia" | null;
+  metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr" | null;
   /**
    * Cómo se cobró la venta. Una fila por forma de pago: 60.000 en efectivo y
    * 40.000 por transferencia son dos líneas. Si viene vacío se arma una sola
@@ -58,7 +58,7 @@ export interface CreateVentaPgParams {
 }
 
 export interface CreateVentaPagoInput {
-  metodo_pago: "efectivo" | "tarjeta" | "transferencia";
+  metodo_pago: "efectivo" | "tarjeta" | "transferencia" | "qr";
   monto: number;
   cuenta_bancaria_id?: string | null;
   referencia?: string | null;
@@ -73,7 +73,7 @@ export interface CreateVentaPagoInput {
  */
 function armarPagos(
   pagos: CreateVentaPagoInput[] | undefined,
-  metodoPago: "efectivo" | "tarjeta" | "transferencia" | null,
+  metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr" | null,
   total: number
 ): CreateVentaPagoInput[] {
   const limpias = (pagos ?? []).filter((p) => Number(p.monto) > 0);
@@ -85,8 +85,8 @@ function armarPagos(
 /** Método que más plata aportó: es el que se guarda en la venta. */
 function metodoPredominante(
   pagos: CreateVentaPagoInput[],
-  fallback: "efectivo" | "tarjeta" | "transferencia" | null
-): "efectivo" | "tarjeta" | "transferencia" | null {
+  fallback: "efectivo" | "tarjeta" | "transferencia" | "qr" | null
+): "efectivo" | "tarjeta" | "transferencia" | "qr" | null {
   if (pagos.length === 0) return fallback;
   const porMetodo = new Map<string, number>();
   for (const p of pagos) {

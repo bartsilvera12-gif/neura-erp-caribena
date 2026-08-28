@@ -206,13 +206,14 @@ export async function getEstadoCuentaPg(
     return true;
   });
 
-  let total_vendido = 0, total_efectivo = 0, total_transferencia = 0, total_tarjeta = 0;
+  let total_vendido = 0, total_efectivo = 0, total_transferencia = 0, total_tarjeta = 0, total_qr = 0;
   let total_egresos = 0, total_retiros = 0, diferencias_acumuladas = 0;
   for (const c of cerradas) {
     total_vendido += c.total_vendido;
     total_efectivo += c.total_efectivo;
     total_transferencia += c.total_transferencia;
     total_tarjeta += c.total_tarjeta;
+    total_qr += c.total_qr;
     total_egresos += c.egresos_efectivo;
     total_retiros += c.retiros_efectivo;
     diferencias_acumuladas += c.caja.diferencia ?? 0;
@@ -222,7 +223,7 @@ export async function getEstadoCuentaPg(
   return {
     desde, hasta,
     cajas_cerradas: n,
-    total_vendido, total_efectivo, total_transferencia, total_tarjeta,
+    total_vendido, total_efectivo, total_transferencia, total_tarjeta, total_qr,
     total_egresos, total_retiros, diferencias_acumuladas,
     promedio_vendido: n ? Math.round(total_vendido / n) : 0,
     neto_estimado: total_vendido - total_egresos - total_retiros,
@@ -304,6 +305,7 @@ async function computeResumen(sb: Sb, empresaId: string, caja: Caja): Promise<Ca
   let totalEfectivo = 0;
   let totalTarjeta = 0;
   let totalTransferencia = 0;
+  let totalQr = 0;
   for (const v of ventas) {
     const t = num(v.total);
     totalVendido += t;
@@ -312,6 +314,9 @@ async function computeResumen(sb: Sb, empresaId: string, caja: Caja): Promise<Ca
     for (const l of lineas) {
       if (l.metodo === "tarjeta") totalTarjeta += l.monto;
       else if (l.metodo === "transferencia") totalTransferencia += l.monto;
+      // El QR no entra al cajón: se controla contra la liquidación del
+      // proveedor, no contra el arqueo de efectivo.
+      else if (l.metodo === "qr") totalQr += l.monto;
       else totalEfectivo += l.monto; // efectivo o método no especificado → efectivo
     }
   }
@@ -373,6 +378,7 @@ async function computeResumen(sb: Sb, empresaId: string, caja: Caja): Promise<Ca
     cantidad_ventas: ventas.length,
     total_vendido: totalVendido,
     total_efectivo: totalEfectivo,
+    total_qr: totalQr,
     total_tarjeta: totalTarjeta,
     total_transferencia: totalTransferencia,
     ingresos_efectivo: ingresosEf,
