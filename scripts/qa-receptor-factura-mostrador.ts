@@ -79,15 +79,10 @@ const CASOS = [
     nombre: "Con RUC (contribuyente)",
     receptor: receptorMostrador({ razon: "PANADERIA SAN JUAN SRL", ruc: "80012345-6", documento: "" }),
   },
-  {
-    nombre: "Con cédula (consumidor final identificado)",
-    receptor: receptorMostrador({ razon: "JUAN PEREZ", ruc: "", documento: "4123456" }),
-  },
 ];
 
-// El caso "sin datos" no está a propósito: el armador exige RUC o cédula. Una
-// venta sin datos del cliente se cobra con ticket, no con factura, y por eso la
-// caja ya no ofrece emitir una factura anónima.
+// La caja factura siempre a un RUC: es la regla del local. Sin RUC se cobra con
+// ticket, así que no hay caso de cédula ni de receptor sin datos que probar.
 
 let fallos = 0;
 for (const caso of CASOS) {
@@ -114,5 +109,5 @@ for (const caso of CASOS) {
   );
 }
 
-console.log(fallos === 0 ? "\nLOS DOS RECEPTORES DEL MOSTRADOR ARMAN OK" : `\n${fallos} FALLO(S)`);
+console.log(fallos === 0 ? "\nEL RECEPTOR DEL MOSTRADOR ARMA OK" : `\n${fallos} FALLO(S)`);
 process.exit(fallos === 0 ? 0 : 1);

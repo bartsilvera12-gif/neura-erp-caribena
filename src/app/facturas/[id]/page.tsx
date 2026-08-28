@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { FacturaElectronicaPanel } from "@/components/sifen/FacturaElectronicaPanel";
 import type {
@@ -62,9 +62,24 @@ function FacturaDetalleInner() {
     cantidad_aprobadas: number;
   } | null>(null);
 
+  /** Evita reabrir el KUDE en cada refresco del resumen. */
+  const kudeAbierto = useRef(false);
+
   const onResumenLoaded = useCallback((r: SifenResumen) => {
     setResumen(r);
-  }, []);
+    // Viene de cobrar con factura: el comprobante que se lleva el cliente es el
+    // KUDE, así que se abre solo apenas está aprobado.
+    if (
+      searchParams.get("kude") === "1" &&
+      !kudeAbierto.current &&
+      r.factura_electronica?.estado_sifen === "aprobado"
+    ) {
+      kudeAbierto.current = true;
+      try {
+        window.open(`/api/facturas/${id}/sifen/kude?auto=1`, "_blank", "noopener");
+      } catch { /* el navegador puede bloquearlo: queda el botón del panel */ }
+    }
+  }, [searchParams, id]);
 
   const reloadFacturaComercial = useCallback(async () => {
     if (!id) return;

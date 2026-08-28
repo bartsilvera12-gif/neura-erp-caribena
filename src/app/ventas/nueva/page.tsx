@@ -382,7 +382,9 @@ export default function NuevaVentaPage() {
     // Pre-abrimos una pestaña en blanco por cada copia (Cliente / Pizzería /
     // Plancha) ANTES del await, mientras todavía hay gesto del usuario: así el
     // navegador no bloquea la apertura de varias pestañas. Luego las redirigimos.
-    const copiasTicket = sectoresParaTicket(items);
+    // Con factura el cliente se lleva el KUDE, no un ticket: se abren sólo las
+    // copias de cocina, que hacen falta igual.
+    const copiasTicket = sectoresParaTicket(items, comprobante !== "factura");
     const ventanasTicket = copiasTicket.map(() => {
       try { return window.open("about:blank", "_blank"); } catch { return null; }
     });
@@ -444,7 +446,9 @@ export default function NuevaVentaPage() {
         });
         const body = await res.json();
         if (res.ok && body?.success !== false && body?.data?.facturaId) {
-          router.push(`/facturas/${body.data.facturaId}`);
+          // El comprobante de una factura es el KUDE: la pantalla lo abre sola
+          // apenas el documento queda aprobado por el SET.
+          router.push(`/facturas/${body.data.facturaId}?kude=1`);
           return;
         }
         setErrorVenta(
@@ -656,7 +660,7 @@ export default function NuevaVentaPage() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {([
                   { v: "ticket" as const, label: "Ticket", nota: "Sin datos del cliente" },
-                  { v: "factura" as const, label: "Factura", nota: "Necesita RUC o cédula" },
+                  { v: "factura" as const, label: "Factura", nota: "Necesita RUC" },
                 ]).map((opt) => (
                   <label
                     key={opt.v}

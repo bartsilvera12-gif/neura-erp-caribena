@@ -2,7 +2,9 @@
  * Decide qué "pestañas de impresión" (copias de ticket) abrir para una venta,
  * según los sectores de cocina presentes en sus ítems.
  *
- * - Siempre incluye "cliente" (ticket con precios).
+ * - Incluye "cliente" (ticket con precios) salvo que la venta se facture: en
+ *   ese caso el comprobante que se lleva el cliente es la factura, y sacarle
+ *   además un ticket lo deja con dos papeles por la misma compra.
  * - Agrega "pizzeria" si hay ítems de pizzería.
  * - Agrega "plancha"  si hay ítems de plancha.
  *
@@ -24,9 +26,17 @@ function classifyBySku(sku: string): SectorCocina {
   return null;
 }
 
-/** Lista ordenada de copias a imprimir: cliente, luego pizzería y/o plancha. */
-export function sectoresParaTicket(items: ReadonlyArray<{ sku: string }>): CopiaTicket[] {
-  const copias: CopiaTicket[] = ["cliente"];
+/**
+ * Lista ordenada de copias a imprimir: cliente, luego pizzería y/o plancha.
+ *
+ * `conTicketCliente=false` deja sólo las copias de cocina, que hay que imprimir
+ * igual: la cocina necesita saber qué preparar, se facture o no.
+ */
+export function sectoresParaTicket(
+  items: ReadonlyArray<{ sku: string }>,
+  conTicketCliente = true
+): CopiaTicket[] {
+  const copias: CopiaTicket[] = conTicketCliente ? ["cliente"] : [];
   const hayPizzeria = items.some((i) => classifyBySku(i.sku) === "pizzeria");
   const hayPlancha = items.some((i) => classifyBySku(i.sku) === "plancha");
   if (hayPizzeria) copias.push("pizzeria");

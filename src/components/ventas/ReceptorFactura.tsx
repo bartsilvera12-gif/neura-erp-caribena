@@ -7,13 +7,12 @@ import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session"
 /**
  * Datos del receptor de una factura, tal como se piden en el mostrador.
  *
- * Son dos casos y no un formulario libre porque el XML del SET los trata
- * distinto: con RUC el documento sale como contribuyente (B2B) y con cédula
- * como consumidor final identificado (B2C). Mandar un RUC de alguien que no es
- * contribuyente hace que la SET rechace el lote entero.
+ * Acá sólo se factura con RUC, que es como trabaja el local: la factura va
+ * siempre a nombre de un contribuyente. Para una venta sin RUC está el ticket,
+ * que es la otra opción del comprobante.
  *
- * No hay opción "sin datos": el documento electrónico siempre lleva
- * identificación del receptor. Para una venta sin datos está el ticket.
+ * Mandar un RUC de alguien que no está inscripto hace que la SET rechace el
+ * lote entero, así que el formulario lo advierte.
  *
  * Primero busca entre los clientes ya cargados — al que factura seguido no hay
  * que tipearle el RUC cada vez — y si no está, lo carga en el momento y queda
@@ -23,12 +22,8 @@ import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session"
  * lo mismo en los dos lados.
  */
 
-export type TipoReceptor = "ruc" | "ci";
-
 export interface DatosReceptor {
-  tipo: TipoReceptor;
   ruc: string;
-  documento: string;
   razonSocial: string;
   /** Cliente ya cargado que se eligió del buscador. */
   clienteId: string | null;
@@ -37,9 +32,7 @@ export interface DatosReceptor {
 }
 
 export const RECEPTOR_VACIO: DatosReceptor = {
-  tipo: "ruc",
   ruc: "",
-  documento: "",
   razonSocial: "",
   clienteId: null,
   guardar: true,
@@ -47,21 +40,17 @@ export const RECEPTOR_VACIO: DatosReceptor = {
 
 /** Qué falta para poder emitir. null = está listo. */
 export function validarReceptor(d: DatosReceptor): string | null {
-  if (d.tipo === "ruc") {
-    if (!d.ruc.trim()) return "Ingresá el RUC del cliente.";
-    if (!d.razonSocial.trim()) return "Ingresá la razón social del cliente.";
-    return null;
-  }
-  if (!d.documento.trim()) return "Ingresá la cédula del cliente.";
-  if (!d.razonSocial.trim()) return "Ingresá el nombre del cliente.";
+  if (!d.ruc.trim()) return "Ingresá el RUC del cliente.";
+  if (!d.razonSocial.trim()) return "Ingresá la razón social del cliente.";
   return null;
 }
 
 /** Cuerpo que espera /api/ventas/[id]/facturar. */
 export function receptorAPayload(d: DatosReceptor): Record<string, string | boolean> {
-  const base: Record<string, string | boolean> = { razon_social: d.razonSocial.trim() };
-  if (d.tipo === "ruc") base.ruc = d.ruc.trim();
-  else base.documento = d.documento.trim();
+  const base: Record<string, string | boolean> = {
+    razon_social: d.razonSocial.trim(),
+    ruc: d.ruc.trim(),
+  };
   // Un cliente ya cargado se referencia; uno nuevo se guarda si lo pidieron.
   if (d.clienteId) base.cliente_id = d.clienteId;
   else base.guardar_cliente = d.guardar;
@@ -80,11 +69,6 @@ const inputCls =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20";
 const labelCls =
   "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500";
-
-const OPCIONES: Array<{ v: TipoReceptor; label: string }> = [
-  { v: "ruc", label: "Con RUC" },
-  { v: "ci", label: "Con cédula" },
-];
 
 export default function ReceptorFactura({
   valor,
@@ -137,13 +121,8 @@ export default function ReceptorFactura({
   }, []);
 
   function elegir(c: ClienteHit) {
-    // El tipo sale de lo que tiene cargado el cliente, no de lo que estaba
-    // elegido antes: es el dato con el que se va a armar el documento.
-    const conRuc = !!c.ruc && c.es_contribuyente;
     onChange({
-      tipo: conRuc ? "ruc" : "ci",
-      ruc: conRuc ? c.ruc ?? "" : "",
-      documento: conRuc ? "" : c.documento ?? c.ruc ?? "",
+      ruc: c.ruc ?? "",
       razonSocial: c.razon_social,
       clienteId: c.id,
       guardar: false,
@@ -196,7 +175,7 @@ export default function ReceptorFactura({
                   >
                     <span className="font-medium text-slate-800">{c.razon_social}</span>
                     <span className="text-xs text-slate-500">
-                      {c.ruc ? `RUC ${c.ruc}` : c.documento ? `CI ${c.documento}` : "Sin identificación"}
+                      {c.ruc ? `RUC ${c.ruc}` : "Sin RUC — no se le puede facturar"}
                     </span>
                   </button>
                 </li>
@@ -211,51 +190,26 @@ export default function ReceptorFactura({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        {OPCIONES.map((o) => (
-          <button
-            key={o.v}
-            type="button"
-            disabled={disabled || !!valor.clienteId}
-            onClick={() => set({ tipo: o.v })}
-            className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-              valor.tipo === o.v
-                ? "border-[#4FAEB2] bg-[#4FAEB2]/10 text-[#2F6E71]"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>{valor.tipo === "ruc" ? "RUC" : "Cédula"}</label>
+          <label className={labelCls}>RUC</label>
           <input
             autoFocus={autoFocus}
             disabled={disabled || !!valor.clienteId}
-            value={valor.tipo === "ruc" ? valor.ruc : valor.documento}
-            onChange={(e) =>
-              set(valor.tipo === "ruc" ? { ruc: e.target.value } : { documento: e.target.value })
-            }
-            placeholder={valor.tipo === "ruc" ? "Ej: 80012345-6" : "Ej: 4123456"}
+            value={valor.ruc}
+            onChange={(e) => set({ ruc: e.target.value })}
+            placeholder="Ej: 80012345-6"
             maxLength={20}
-            inputMode={valor.tipo === "ci" ? "numeric" : "text"}
             className={inputCls}
           />
         </div>
         <div>
-          <label className={labelCls}>
-            {valor.tipo === "ruc" ? "Razón social" : "Nombre y apellido"}
-          </label>
+          <label className={labelCls}>Razón social</label>
           <input
             disabled={disabled || !!valor.clienteId}
             value={valor.razonSocial}
             onChange={(e) => set({ razonSocial: e.target.value })}
-            placeholder={
-              valor.tipo === "ruc" ? "Nombre que figura en el RUC" : "Como figura en la cédula"
-            }
+            placeholder="Nombre que figura en el RUC"
             maxLength={250}
             className={inputCls}
           />
@@ -277,10 +231,10 @@ export default function ReceptorFactura({
         </label>
       )}
 
-      {valor.tipo === "ruc" && !valor.clienteId && (
+      {!valor.clienteId && (
         <p className="text-xs text-slate-400">
-          Con RUC el documento sale como contribuyente. Si la persona no está inscripta en
-          Marangatú, cargala con cédula: el SET rechaza el RUC que no figura en el padrón.
+          El RUC tiene que estar inscripto en Marangatú: el SET rechaza el documento si no
+          figura en el padrón. Si el cliente no tiene RUC, cobrale con ticket.
         </p>
       )}
     </div>
