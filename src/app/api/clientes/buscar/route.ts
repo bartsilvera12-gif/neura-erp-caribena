@@ -35,9 +35,10 @@ export async function GET(request: NextRequest) {
       nombre_facturacion: string | null;
       ruc: string | null;
       documento: string | null;
+      email: string | null;
       es_contribuyente: boolean | null;
     }>(
-      `SELECT id, nombre, empresa, nombre_facturacion, ruc, documento, es_contribuyente
+      `SELECT id, nombre, empresa, nombre_facturacion, ruc, documento, email, es_contribuyente
          FROM ${t}
         WHERE empresa_id = $1::uuid
           AND deleted_at IS NULL
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
           razon_social: r.nombre_facturacion || r.empresa || r.nombre || "",
           ruc: r.ruc,
           documento: r.documento,
+          email: r.email,
           es_contribuyente: r.es_contribuyente === true,
         })),
       })

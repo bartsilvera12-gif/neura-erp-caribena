@@ -27,6 +27,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
     const ruc = texto(body.ruc);
     const razonSocial = texto(body.razon_social);
+    const email = texto(body.email);
 
     // El local factura siempre a nombre de un contribuyente: sin RUC no hay
     // factura, hay ticket. La regla se valida acá y no sólo en la pantalla
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       ventaId: id,
       razonSocial,
       ruc,
+      email,
       clienteId: texto(body.cliente_id),
       guardarCliente: body.guardar_cliente === true,
     });

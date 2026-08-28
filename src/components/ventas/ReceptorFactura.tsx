@@ -25,6 +25,8 @@ import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session"
 export interface DatosReceptor {
   ruc: string;
   razonSocial: string;
+  /** A dónde se le manda la factura. Opcional: no todos lo dan. */
+  email: string;
   /** Cliente ya cargado que se eligió del buscador. */
   clienteId: string | null;
   /** Guardar en Clientes al facturar. Sólo aplica si no vino de la búsqueda. */
@@ -34,6 +36,7 @@ export interface DatosReceptor {
 export const RECEPTOR_VACIO: DatosReceptor = {
   ruc: "",
   razonSocial: "",
+  email: "",
   clienteId: null,
   guardar: true,
 };
@@ -42,6 +45,12 @@ export const RECEPTOR_VACIO: DatosReceptor = {
 export function validarReceptor(d: DatosReceptor): string | null {
   if (!d.ruc.trim()) return "Ingresá el RUC del cliente.";
   if (!d.razonSocial.trim()) return "Ingresá la razón social del cliente.";
+  // El correo es opcional, pero uno mal escrito es peor que ninguno: la factura
+  // se daría por enviada a una dirección que no existe.
+  const mail = d.email.trim();
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) {
+    return "El correo no parece válido. Corregilo o dejalo vacío.";
+  }
   return null;
 }
 
@@ -51,6 +60,7 @@ export function receptorAPayload(d: DatosReceptor): Record<string, string | bool
     razon_social: d.razonSocial.trim(),
     ruc: d.ruc.trim(),
   };
+  if (d.email.trim()) base.email = d.email.trim();
   // Un cliente ya cargado se referencia; uno nuevo se guarda si lo pidieron.
   if (d.clienteId) base.cliente_id = d.clienteId;
   else base.guardar_cliente = d.guardar;
@@ -62,6 +72,7 @@ type ClienteHit = {
   razon_social: string;
   ruc: string | null;
   documento: string | null;
+  email: string | null;
   es_contribuyente: boolean;
 };
 
@@ -144,6 +155,7 @@ export default function ReceptorFactura({
     onChange({
       ruc: c.ruc ?? "",
       razonSocial: c.razon_social,
+      email: c.email ?? "",
       clienteId: c.id,
       guardar: false,
     });
@@ -238,6 +250,23 @@ export default function ReceptorFactura({
             className={inputCls}
           />
         </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>
+          Correo <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <input
+          type="email"
+          disabled={disabled}
+          value={valor.email}
+          onChange={(e) => set({ email: e.target.value })}
+          placeholder="Para mandarle la factura"
+          maxLength={200}
+          inputMode="email"
+          autoComplete="off"
+          className={inputCls}
+        />
       </div>
 
       {/* Guardar en Clientes: sólo tiene sentido si no vino de la búsqueda. */}

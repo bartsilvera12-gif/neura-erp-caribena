@@ -48,6 +48,8 @@ export interface FacturarVentaInput {
   razonSocial: string | null;
   /** RUC con dígito verificador. Se usa para el receptor contribuyente. */
   ruc: string | null;
+  /** A dónde mandarle la factura. Va también al XML como dEmailRec. */
+  email?: string | null;
   /** Cédula, cuando la factura va a nombre de una persona sin RUC. */
   documento?: string | null;
   /** Cliente del ERP, si la venta se le atribuye a uno. */
@@ -184,14 +186,22 @@ export async function facturarVentaPg(
       );
       if (yaExiste[0]) {
         clienteCreadoId = yaExiste[0].id;
+        if (limpio(input.email)) {
+          await client.query(
+            `UPDATE ${tCli} SET email = $1, updated_at = now()
+              WHERE id = $2::uuid AND empresa_id = $3::uuid
+                AND COALESCE(NULLIF(TRIM(email), ''), '') = ''`,
+            [limpio(input.email), yaExiste[0].id, empresaId]
+          );
+        }
       } else {
       const { rows: cliRows } = await client.query<{ id: string }>(
         `INSERT INTO ${tCli} (
            empresa_id, tipo_cliente, nombre, empresa, nombre_facturacion,
-           ruc, documento, es_contribuyente, estado, origen
+           ruc, documento, email, es_contribuyente, estado, origen
          ) VALUES (
            $1::uuid, $2, $3, $4, $3,
-           $5, $6, $7, 'activo', 'CAJA'
+           $5, $6, $7, $8, 'activo', 'CAJA'
          ) RETURNING id`,
         [
           empresaId,
@@ -200,6 +210,7 @@ export async function facturarVentaPg(
           conRuc ? nombre : null,
           limpio(input.ruc),
           limpio(input.documento),
+          limpio(input.email),
           conRuc,
         ]
       );
@@ -214,11 +225,12 @@ export async function facturarVentaPg(
       `INSERT INTO ${tF} (
          empresa_id, cliente_id, numero_factura, fecha, fecha_vencimiento,
          monto, saldo, estado, tipo, moneda,
-         cliente_razon_social, cliente_ruc, cliente_documento, observaciones, origen_venta_id
+         cliente_razon_social, cliente_ruc, cliente_documento, cliente_email,
+         observaciones, origen_venta_id
        ) VALUES (
          $1::uuid, $2::uuid, $3, $4::date, $4::date,
          $5::numeric, $6::numeric, $7, $8, $9,
-         $10, $11, $12, $13, $14::uuid
+         $10, $11, $12, $13, $14, $15::uuid
        ) RETURNING id`,
       [
         empresaId,
@@ -233,6 +245,7 @@ export async function facturarVentaPg(
         limpio(input.razonSocial),
         limpio(input.ruc),
         limpio(input.documento),
+        limpio(input.email),
         limpio(venta.observaciones),
         venta.id,
       ]

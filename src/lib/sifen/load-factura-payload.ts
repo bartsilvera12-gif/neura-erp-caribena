@@ -31,7 +31,7 @@ export async function loadValidatedSifenPayload(
 
   const { data: factura, error: errFactura } = await supabase
     .from("facturas")
-    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc, cliente_documento")
+    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc, cliente_documento, cliente_email")
     .eq("id", fid)
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -120,7 +120,10 @@ export async function loadValidatedSifenPayload(
         documento: docSnap || null,
         direccion: null,
         telefono: null,
-        email: null,
+        email:
+          typeof factura.cliente_email === "string" && factura.cliente_email.trim()
+            ? factura.cliente_email.trim()
+            : null,
         pais: null,
         // Con RUC el receptor va como contribuyente (B2B); con cédula, como
         // consumidor final identificado (B2C). El armador rechaza un RUC que no
