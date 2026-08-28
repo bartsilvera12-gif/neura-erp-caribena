@@ -168,6 +168,23 @@ export async function facturarVentaPg(
     if (!idClienteFinal && input.guardarCliente && (input.ruc || input.documento)) {
       const conRuc = !!limpio(input.ruc);
       const nombre = limpio(input.razonSocial);
+
+      // Antes de dar de alta, se busca si ese RUC ya está cargado. Sin esto
+      // cada factura al mismo cliente creaba una ficha nueva: el buscador
+      // terminaba mostrando el mismo nombre repetido y cada factura apuntando
+      // a una ficha distinta.
+      const idBuscado = limpio(input.ruc) ?? limpio(input.documento);
+      const { rows: yaExiste } = await client.query<{ id: string }>(
+        `SELECT id FROM ${tCli}
+          WHERE empresa_id = $1::uuid AND deleted_at IS NULL
+            AND (COALESCE(NULLIF(TRIM(ruc), ''), NULLIF(TRIM(documento), '')) = $2)
+          ORDER BY created_at
+          LIMIT 1`,
+        [empresaId, idBuscado]
+      );
+      if (yaExiste[0]) {
+        clienteCreadoId = yaExiste[0].id;
+      } else {
       const { rows: cliRows } = await client.query<{ id: string }>(
         `INSERT INTO ${tCli} (
            empresa_id, tipo_cliente, nombre, empresa, nombre_facturacion,
@@ -187,6 +204,7 @@ export async function facturarVentaPg(
         ]
       );
       clienteCreadoId = cliRows[0].id;
+      }
     }
     const fecha = venta.fecha_dia;
     const aCredito = venta.tipo_venta === "CREDITO";
