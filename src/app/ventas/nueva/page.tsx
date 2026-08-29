@@ -61,6 +61,12 @@ export default function NuevaVentaPage() {
   const [productos, setProductos]   = useState<Producto[]>([]);
   const [items, setItems]           = useState<LineaVenta[]>([]);
   const [errorLinea, setErrorLinea] = useState<string | null>(null);
+  /**
+   * Falta de stock. Avisa, no frena: el conteo se desfasa solo y la caja no
+   * puede quedar rehén de eso. Va aparte del error justamente para que se lea
+   * distinto — esto no impide cobrar.
+   */
+  const [avisoStock, setAvisoStock] = useState<string | null>(null);
   const [errorVenta, setErrorVenta] = useState<string | null>(null);
   // Caja por turno: sin caja abierta no se puede confirmar la venta.
   const [sinCaja, setSinCaja] = useState(false);
@@ -289,11 +295,13 @@ export default function NuevaVentaPage() {
       .reduce((s, i) => s + i.cantidad, 0);
 
     // El Menú (controla_stock=false) se vende sin restricción: se produce al momento.
+    // La Reventa sin stock también se vende, pero avisando.
     if (p.controla_stock !== false && yaEnCarrito + 1 > p.stock_actual) {
-      setErrorLinea(
-        `Stock insuficiente para "${p.nombre}". Disponible: ${p.stock_actual - yaEnCarrito} u.`
+      setAvisoStock(
+        `"${p.nombre}" figura con ${p.stock_actual} u. en el sistema. Se vende igual y el stock queda en negativo.`
       );
-      return;
+    } else {
+      setAvisoStock(null);
     }
 
     if (yaIdx >= 0) {
@@ -361,8 +369,11 @@ export default function NuevaVentaPage() {
         .filter((i) => i.producto_id === l.producto_id)
         .reduce((s, i) => s + i.cantidad, 0);
       if (otras + destino > prod.stock_actual) {
-        setErrorLinea(`Stock insuficiente para "${l.producto_nombre}". Disponible: ${prod.stock_actual - otras} u.`);
-        return;
+        setAvisoStock(
+          `"${l.producto_nombre}" figura con ${prod.stock_actual} u. en el sistema. Se vende igual y el stock queda en negativo.`
+        );
+      } else {
+        setAvisoStock(null);
       }
     }
     setErrorLinea(null);
@@ -739,6 +750,16 @@ export default function NuevaVentaPage() {
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
               <span className="font-medium">{errorLinea}</span>
+            </div>
+          )}
+
+          {avisoStock && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
+              <span>
+                <span className="font-medium">{avisoStock}</span>{" "}
+                Revisá el conteo o cargá la compra que falte.
+              </span>
             </div>
           )}
 

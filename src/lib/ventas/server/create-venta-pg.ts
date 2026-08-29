@@ -123,8 +123,9 @@ const TOL = 2;
  * Para una instancia gastronómica de bajo volumen es aceptable.
  *
  * Regla `controla_stock`:
- *  - true (Reventa): valida stock disponible, descuenta stock, genera movimiento.
- *  - false (Menú): se inserta en ventas_items igual, NO valida stock, NO descuenta, NO movimiento.
+ *  - true (Reventa): descuenta stock y genera movimiento. Si no alcanza, la
+ *    venta se hace igual y el stock queda en negativo (ver punto 3).
+ *  - false (Menú): se inserta en ventas_items igual, NO descuenta, NO movimiento.
  */
 export async function createVentaTransaccionalPg(
   params: CreateVentaPgParams
@@ -206,13 +207,31 @@ export async function createVentaTransaccionalPg(
     });
   }
 
-  // 3) Validar stock SOLO para productos que controlan stock (Reventa).
+  // 3) Falta de stock: se avisa, no se bloquea.
+  //
+  // Antes esto cortaba la venta. En el mostrador eso es peor que el problema
+  // que evita: el cliente ya tiene la cerveza en la mano y el sistema se niega
+  // a cobrarla porque el conteo dice cero. El conteo se desfasa solo — una
+  // botella que salió sin registrarse, una compra que todavía no se cargó — y
+  // la caja no puede quedar rehén de eso.
+  //
+  // El stock queda en negativo a propósito. Un negativo es la marca visible de
+  // que el conteo está mal, y se corrige solo cuando se carga la compra que
+  // faltaba. Recortarlo a cero perdería esa información y dejaría el faltante
+  // invisible para siempre.
+  const faltantes: string[] = [];
   for (const [pid, need] of qtyByProduct) {
     const p = stockMap.get(pid)!;
     if (!p.controlaStock) continue;
     if (p.stock < need) {
-      throw new Error(`Stock insuficiente para "${p.nombre}". Disponible: ${p.stock} u.; requerido: ${need}.`);
+      faltantes.push(`${p.nombre} (había ${p.stock}, se vendieron ${need})`);
     }
+  }
+  if (faltantes.length > 0) {
+    console.warn("[venta] se vendió sin stock suficiente", {
+      empresa_id: params.empresaId,
+      productos: faltantes,
+    });
   }
 
   // 4) Numero control VTA-XXXXXX (best-effort: race posible en entorno multi-usuario).

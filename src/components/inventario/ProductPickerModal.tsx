@@ -134,24 +134,28 @@ export default function ProductPickerModal({
     if (cantNum <= 0) { setFeedback({ text: "Cantidad debe ser > 0", ok: false }); return; }
     if (precioNum <= 0) { setFeedback({ text: "Precio debe ser > 0", ok: false }); return; }
     if (moneda === "USD" && tipoCambio <= 0) { setFeedback({ text: "Falta tipo de cambio en la venta", ok: false }); return; }
-    // Solo validar stock si el producto controla stock (Reventa).
-    // Productos del Menú (controla_stock=false) se agregan sin restricción.
+    // Falta de stock: avisa pero deja agregar. Frenar acá dejaba al cajero sin
+    // poder cobrar algo que el cliente ya tiene en la mano, sólo porque el
+    // conteo del sistema está atrasado.
     const ctrlStock = sel.controla_stock !== false;
+    let avisoSinStock: string | null = null;
     if (ctrlStock) {
       const enCarrito = excludeIds.filter((id) => id === sel.id).length;
       const disp = sel.stock_actual - enCarrito;
       if (cantNum > disp) {
-        setFeedback({ text: `Stock insuficiente (disponible ${disp})`, ok: false });
-        return;
+        avisoSinStock = `Agregado. Figuraban ${disp} u.: el stock queda en negativo.`;
       }
     }
     const ok = onAgregar({ producto: sel, cantidad: cantNum, precio_input: precioNum, iva });
     if (ok !== false) {
-      setFeedback({ text: "Producto agregado", ok: true });
+      setFeedback(
+        avisoSinStock ? { text: avisoSinStock, ok: false } : { text: "Producto agregado", ok: true }
+      );
       setCantidad("1");
       // foco al buscador para seguir cargando
       setTimeout(() => inputRef.current?.focus(), 0);
-      setTimeout(() => setFeedback(null), 1500);
+      // El aviso de stock necesita más tiempo en pantalla que un "agregado".
+      setTimeout(() => setFeedback(null), avisoSinStock ? 4000 : 1500);
     }
   }
 
