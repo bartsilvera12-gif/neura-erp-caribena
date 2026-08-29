@@ -192,15 +192,8 @@ export async function facturarVentaPg(
         [empresaId, idBuscado]
       );
       if (yaExiste[0]) {
+        // El correo se completa más abajo, junto con el resto de los casos.
         clienteCreadoId = yaExiste[0].id;
-        if (limpio(input.email)) {
-          await client.query(
-            `UPDATE ${tCli} SET email = $1, updated_at = now()
-              WHERE id = $2::uuid AND empresa_id = $3::uuid
-                AND COALESCE(NULLIF(TRIM(email), ''), '') = ''`,
-            [limpio(input.email), yaExiste[0].id, empresaId]
-          );
-        }
       } else {
       const { rows: cliRows } = await client.query<{ id: string }>(
         `INSERT INTO ${tCli} (
@@ -224,6 +217,25 @@ export async function facturarVentaPg(
       clienteCreadoId = cliRows[0].id;
       }
     }
+
+    // El correo también se guarda cuando la factura va a un cliente que ya
+    // estaba cargado. Sin esto sólo se guardaba al crear la ficha: al que ya
+    // existía había que escribirle el correo en cada factura, y el buscador
+    // nunca se lo traía.
+    //
+    // Se completa únicamente si estaba vacío. Un correo cargado antes puede
+    // haberse corregido a mano, y lo tipeado al vuelo en la caja no tiene por
+    // qué pisarlo.
+    const idClienteAComplementar = idClienteFinal ?? clienteCreadoId;
+    if (idClienteAComplementar && limpio(input.email)) {
+      await client.query(
+        `UPDATE ${tCli} SET email = $1, updated_at = now()
+          WHERE id = $2::uuid AND empresa_id = $3::uuid
+            AND COALESCE(NULLIF(TRIM(email), ''), '') = ''`,
+        [limpio(input.email), idClienteAComplementar, empresaId]
+      );
+    }
+
     const fecha = venta.fecha_dia;
     const aCredito = venta.tipo_venta === "CREDITO";
     const total = Number(venta.total) || 0;

@@ -234,10 +234,13 @@ export default function ProductPickerModal({
                   return (
                     <li
                       key={p.id}
-                      onClick={() => !sinStock && selectProducto(p)}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                        sinStock ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                      } ${isSel ? "bg-sky-50" : "hover:bg-slate-50"}`}
+                      // Sin stock se elige igual; el "Sin stock" en rojo de más
+                      // abajo alcanza como aviso. Bloquear el clic dejaba al
+                      // cajero sin poder cobrar algo que tenía en la mano.
+                      onClick={() => selectProducto(p)}
+                      className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${
+                        isSel ? "bg-sky-50" : "hover:bg-slate-50"
+                      }`}
                     >
                       <div className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden shrink-0">
                         {p.imagen_url ? (

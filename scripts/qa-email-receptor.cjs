@@ -84,6 +84,41 @@ const MAIL = "cliente.prueba@example.com";
       fallar("no completó el correo de una ficha que no lo tenía");
     console.log("Ficha sin correo: se completa con el que se carga.");
 
+    // ── Cliente elegido del buscador: también se le completa el correo ────
+    //
+    // Este era el hueco: la ficha ya existía y venía elegida desde la caja, así
+    // que no pasaba por el alta y el correo nunca se guardaba. Había que
+    // escribirlo en cada factura y el buscador jamás lo traía.
+    await c.query(`update ${S}.clientes set email = null where id = $1`, [a.id]);
+
+    /** Lo que hace facturarVentaPg cuando la factura ya tiene cliente_id. */
+    async function completarCorreoDeClienteElegido(clienteId, email) {
+      await c.query(
+        `update ${S}.clientes set email=$1, updated_at=now()
+          where id=$2 and coalesce(nullif(trim(email),''),'') = ''`,
+        [email, clienteId]
+      );
+    }
+
+    await completarCorreoDeClienteElegido(a.id, MAIL);
+    const elegido = (await c.query(
+      `select email from ${S}.clientes where id=$1`, [a.id])).rows[0];
+    if (elegido.email !== MAIL) {
+      fallar("al facturar a un cliente ya existente no se le guardó el correo");
+    } else {
+      console.log("Cliente elegido del buscador: se le guarda el correo.");
+    }
+
+    // Y una segunda factura a ese mismo cliente no lo pisa.
+    await completarCorreoDeClienteElegido(a.id, "otro@example.com");
+    const trasSegunda = (await c.query(
+      `select email from ${S}.clientes where id=$1`, [a.id])).rows[0];
+    if (trasSegunda.email !== MAIL) {
+      fallar(`pisó el correo ya guardado: quedó ${trasSegunda.email}`);
+    } else {
+      console.log("Segunda factura al mismo cliente: no pisa el correo.");
+    }
+
     // ── La factura guarda su propia copia ─────────────────────────────────
     const ventaId = (await c.query(
       `insert into ${S}.ventas (empresa_id, numero_control, subtotal, monto_iva, total, fecha)

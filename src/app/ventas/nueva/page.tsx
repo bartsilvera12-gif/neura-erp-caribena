@@ -268,12 +268,16 @@ export default function NuevaVentaPage() {
     const controla = p.controla_stock !== false;
     const disponible = p.stock_actual - enCarro;
     const sinStock = controla && disponible <= 0;
+    // Sin stock se puede elegir igual: el conteo del sistema se atrasa y no
+    // puede impedir cobrar algo que está en la heladera. Se avisa en el
+    // subtítulo, que es lo que el cajero lee al elegir.
     return {
       id: String(p.id),
       label: p.nombre,
-      sub: controla ? `${p.sku} · ${disponible} u. disp.` : `${p.sku} · Menú`,
+      sub: controla
+        ? `${p.sku} · ${sinStock ? `sin stock (${disponible} u.)` : `${disponible} u. disp.`}`
+        : `${p.sku} · Menú`,
       keywords: p.sku,
-      disabled: sinStock,
       trailing: formatGs(p.precio_venta),
     };
   });
