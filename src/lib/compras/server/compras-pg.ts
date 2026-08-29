@@ -9,6 +9,7 @@
  */
 import { getChatPostgresPool, quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
+import { sqlDiaLocal, sqlDesdeDiaLocal, sqlHastaDiaLocal } from "@/lib/fechas/zona-paraguay";
 
 function pool() {
   const p = getChatPostgresPool();
@@ -543,8 +544,8 @@ export async function reporteCompras(
 
   const cond = [`empresa_id = $1::uuid`];
   const vals: unknown[] = [empresaId];
-  if (f.desde) { vals.push(f.desde); cond.push(`fecha >= $${vals.length}::date`); }
-  if (f.hasta) { vals.push(f.hasta); cond.push(`fecha < ($${vals.length}::date + interval '1 day')`); }
+  if (f.desde) { vals.push(f.desde); cond.push(sqlDesdeDiaLocal("fecha", `$${vals.length}`)); }
+  if (f.hasta) { vals.push(f.hasta); cond.push(sqlHastaDiaLocal("fecha", `$${vals.length}`)); }
   if (f.proveedorId) { vals.push(f.proveedorId); cond.push(`proveedor_id = $${vals.length}::uuid`); }
   const where = `WHERE ${cond.join(" AND ")}`;
 
@@ -591,7 +592,7 @@ export async function reporteCompras(
       vals
     ),
     p.query<{ dia: string; total: string; ordenes: string }>(
-      `SELECT to_char(fecha, 'YYYY-MM-DD') AS dia,
+      `SELECT ${sqlDiaLocal("fecha")} AS dia,
               COALESCE(SUM(total), 0)        AS total,
               COUNT(DISTINCT numero_control) AS ordenes
          FROM ${t} ${where}

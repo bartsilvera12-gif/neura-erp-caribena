@@ -20,6 +20,7 @@
  */
 import { getChatPostgresPool, quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
+import { sqlDiaLocal, sqlDesdeDiaLocal, sqlHastaDiaLocal } from "@/lib/fechas/zona-paraguay";
 import type { Pool } from "pg";
 
 function pool(): Pool {
@@ -176,11 +177,11 @@ export async function reporteVentas(
   const vals: unknown[] = [empresaId];
   if (f.desde) {
     vals.push(f.desde);
-    cond.push(`ve.fecha >= $${vals.length}::date`);
+    cond.push(sqlDesdeDiaLocal("ve.fecha", `$${vals.length}`));
   }
   if (f.hasta) {
     vals.push(f.hasta);
-    cond.push(`ve.fecha < ($${vals.length}::date + interval '1 day')`);
+    cond.push(sqlHastaDiaLocal("ve.fecha", `$${vals.length}`));
   }
   if (!f.incluirAnuladas) cond.push(`ve.estado <> 'anulada'`);
   if (f.modalidad) {
@@ -231,7 +232,7 @@ export async function reporteVentas(
         vals
       ),
       p.query<{ dia: string; total: string; ventas: string }>(
-        `SELECT to_char(ve.fecha, 'YYYY-MM-DD') AS dia,
+        `SELECT ${sqlDiaLocal("ve.fecha")} AS dia,
                 COALESCE(SUM(ve.total), 0)      AS total,
                 COUNT(*)                        AS ventas
            FROM ${tVentas} ve ${where}

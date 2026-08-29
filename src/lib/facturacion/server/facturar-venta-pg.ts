@@ -18,6 +18,7 @@
  */
 import { getChatPostgresPool, quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
+import { sqlDiaLocal } from "@/lib/fechas/zona-paraguay";
 import type { Pool } from "pg";
 
 function pool(): Pool {
@@ -79,7 +80,13 @@ interface VentaRow {
   tipo_venta: string;
   moneda: string;
   observaciones: string | null;
-  /** Día de la venta, ya formateado por la base como YYYY-MM-DD. */
+  /**
+   * Día de la venta en hora de Paraguay, como YYYY-MM-DD.
+   *
+   * Tiene que ser el día local y no el UTC: es la fecha de emisión que va al
+   * documento electrónico y al CDC. Una venta de las 20:06 del jueves leída en
+   * UTC cae en viernes, y la factura sale con fecha de mañana.
+   */
   fecha_dia: string;
 }
 
@@ -103,7 +110,7 @@ export async function facturarVentaPg(
     // mismo tiempo tienen que resolverse en serie, no crear dos facturas.
     const { rows: ventas } = await client.query<VentaRow>(
       `SELECT id, factura_id, estado, cliente_id, total, tipo_venta, moneda, observaciones,
-              to_char(fecha, 'YYYY-MM-DD') AS fecha_dia
+              ${sqlDiaLocal("fecha")} AS fecha_dia
          FROM ${tV}
         WHERE id = $1::uuid AND empresa_id = $2::uuid
           FOR UPDATE`,
