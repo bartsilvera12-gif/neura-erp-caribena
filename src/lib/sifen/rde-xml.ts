@@ -57,10 +57,20 @@ function montoRedondeo(n: number): string {
 }
 
 /**
- * Zona usada en `dFeEmiDE` / `dFecFirma`. SET valida contra su reloj en Paraguay; usar `getHours()` del servidor
- * (p. ej. UTC en la nube) provoca error **1004 — La fecha y hora de la firma digital es adelantada**.
+ * Hora de pared paraguaya para `dFeEmiDE` / `dFecFirma`. SET valida contra su
+ * reloj en Paraguay; usar `getHours()` del servidor (UTC en la nube) provoca el
+ * error **1004 — La fecha y hora de la firma digital es adelantada**.
+ *
+ * Minutos de Paraguay respecto de UTC. Fijo desde que el país dejó de cambiar
+ * de hora en 2024.
+ *
+ * Se calcula a mano en vez de pedirle la hora local a `Intl`, porque eso
+ * depende de qué tan al día esté la base de zonas horarias del contenedor.
+ * El Postgres de producción, por ejemplo, todavía aplica el horario de verano
+ * derogado y entre abril y septiembre responde una hora de menos. Acá eso
+ * saldría en `dFeEmiDE` y en `dFecFirma`, que son campos del documento fiscal.
  */
-const SIFEN_FECHA_REFERENCIA_TZ = "America/Asuncion";
+const PARAGUAY_OFFSET_MIN = -180;
 
 /**
  * Margen si el reloj del host va algunos segundos por delante del SET (misma causa 1004).
@@ -68,22 +78,11 @@ const SIFEN_FECHA_REFERENCIA_TZ = "America/Asuncion";
 const SIFEN_FIRMA_SKEW_MS = 120_000;
 
 function wallYmdAndHmsInSifenTz(d: Date): { ymd: string; hms: string } {
-  const tz = SIFEN_FECHA_REFERENCIA_TZ;
-  const ymd = d.toLocaleDateString("en-CA", { timeZone: tz });
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    hourCycle: "h23",
-  }).formatToParts(d);
-  const pick2 = (ty: Intl.DateTimeFormatPart["type"]) => {
-    const raw = parts.find((p) => p.type === ty)?.value ?? "0";
-    const n = parseInt(raw.replace(/\D/g, ""), 10);
-    return Number.isFinite(n) ? String(n).padStart(2, "0") : "00";
-  };
-  return { ymd, hms: `${pick2("hour")}:${pick2("minute")}:${pick2("second")}` };
+  // Se corre el instante y se lee en UTC: así el reloj de pared paraguayo sale
+  // del desplazamiento fijo y no de la tabla de zonas del entorno.
+  const local = new Date(d.getTime() + PARAGUAY_OFFSET_MIN * 60_000);
+  const iso = local.toISOString();
+  return { ymd: iso.slice(0, 10), hms: iso.slice(11, 19) };
 }
 
 function formatDeDateTimeEnTzSifen(d: Date): string {

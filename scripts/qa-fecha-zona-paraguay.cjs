@@ -2,13 +2,20 @@
  * Prueba en transacción con ROLLBACK de que el día de una venta es el día en
  * Paraguay y no el día UTC.
  *
- * La base corre en UTC. Una venta de las 20:06 de Paraguay ocurre a las 00:06
- * UTC del día siguiente, así que leer la fecha sin convertir la corre un día
- * para adelante. En una lomitería eso afecta a toda la cena.
+ * Hay dos defectos distintos en juego:
  *
- * Se comprueba en los tres lugares donde importa: la fecha de emisión que va a
- * la factura electrónica, el agrupado por día del reporte de ventas y el filtro
- * por rango de fechas.
+ *   1. Leer la fecha sin convertir devuelve el día UTC. Una venta de las 21:06
+ *      de Paraguay ocurre a las 00:06 UTC del día siguiente, así que toda la
+ *      cena se contaba como del día de mañana.
+ *
+ *   2. Convertir con el nombre 'America/Asuncion' tampoco alcanza: el Postgres
+ *      de producción tiene la base de zonas horarias vieja y sigue aplicando el
+ *      horario de verano que Paraguay derogó en 2024. Entre abril y septiembre
+ *      responde UTC-4 en vez de UTC-3, y una venta de las 00:30 queda fechada
+ *      el día anterior.
+ *
+ * Por eso se usa el desplazamiento fijo -03:00, que no depende de qué tan al
+ * día esté el servidor.
  *
  * No deja nada en la base.
  */
@@ -16,11 +23,23 @@ const { Client } = require("pg");
 
 const CONN = process.env.PG_URL || "postgresql://postgres:NeuraDB2026@187.77.247.54:6432/postgres?sslmode=disable";
 const S = "caribenaerp";
-const TZ = "America/Asuncion";
+const OFF = "-03:00";
 
-/** Jueves 20:06 en Paraguay = viernes 00:06 UTC. El caso que rompía. */
-const INSTANTE = "2026-08-29T00:06:04Z";
-const DIA_LOCAL_ESPERADO = "2026-08-28";
+/** Cada caso: un instante UTC y el día paraguayo que le corresponde de verdad. */
+const CASOS = [
+  {
+    nombre: "cena: 21:06 del viernes en Paraguay",
+    instante: "2026-08-29T00:06:04Z",
+    diaEsperado: "2026-08-28",
+    rompe: "UTC",
+  },
+  {
+    nombre: "cierre: 00:30 del sábado en Paraguay",
+    instante: "2026-08-29T03:30:00Z",
+    diaEsperado: "2026-08-29",
+    rompe: "el nombre de la zona (tzdata viejo)",
+  },
+];
 
 (async () => {
   const c = new Client({ connectionString: CONN });
@@ -30,67 +49,48 @@ const DIA_LOCAL_ESPERADO = "2026-08-28";
   await c.query("BEGIN");
   try {
     let fallos = 0;
-    const fallar = (m) => { fallos++; console.log("FALLO: " + m); };
+    const fallar = (m) => { fallos++; console.log("  FALLO: " + m); };
 
-    const ventaId = (await c.query(
-      `insert into ${S}.ventas (empresa_id, numero_control, subtotal, monto_iva, total, fecha)
-       values ($1,'VTA-QA-TZ',22727,2273,25000,$2::timestamptz) returning id`,
-      [empresaId, INSTANTE]
-    )).rows[0].id;
+    for (const caso of CASOS) {
+      console.log(`\n${caso.nombre}  (rompía con ${caso.rompe})`);
 
-    // ── Fecha de emisión del documento electrónico ────────────────────────
-    const q = await c.query(
-      `select to_char(fecha, 'YYYY-MM-DD')                        as dia_utc,
-              to_char(fecha at time zone $2, 'YYYY-MM-DD')        as dia_local
-         from ${S}.ventas where id = $1`,
-      [ventaId, TZ]
-    );
-    const { dia_utc, dia_local } = q.rows[0];
-    console.log(`Venta de las 20:06 del ${DIA_LOCAL_ESPERADO} en Paraguay:`);
-    console.log(`  leída en UTC      → ${dia_utc}${dia_utc !== DIA_LOCAL_ESPERADO ? "   ← un día de más" : ""}`);
-    console.log(`  leída en Paraguay → ${dia_local}`);
+      const ventaId = (await c.query(
+        `insert into ${S}.ventas (empresa_id, numero_control, subtotal, monto_iva, total, fecha)
+         values ($1,'VTA-QA-TZ',22727,2273,25000,$2::timestamptz) returning id`,
+        [empresaId, caso.instante]
+      )).rows[0].id;
 
-    if (dia_utc === DIA_LOCAL_ESPERADO) {
-      fallar("la prueba no reproduce el defecto: revisá el instante elegido");
+      const q = await c.query(
+        `select to_char(fecha, 'YYYY-MM-DD')                                as dia_utc,
+                to_char(fecha at time zone 'America/Asuncion','YYYY-MM-DD') as dia_por_nombre,
+                to_char(fecha at time zone interval '${OFF}','YYYY-MM-DD')  as dia_fijo
+           from ${S}.ventas where id = $1`,
+        [ventaId]
+      );
+      const r = q.rows[0];
+      const marca = (v) => (v === caso.diaEsperado ? "" : "   ← mal");
+      console.log(`  en UTC                 → ${r.dia_utc}${marca(r.dia_utc)}`);
+      console.log(`  con 'America/Asuncion' → ${r.dia_por_nombre}${marca(r.dia_por_nombre)}`);
+      console.log(`  con -03:00 fijo        → ${r.dia_fijo}${marca(r.dia_fijo)}`);
+
+      if (r.dia_fijo !== caso.diaEsperado) {
+        fallar(`el día dio ${r.dia_fijo} y tenía que dar ${caso.diaEsperado}`);
+      }
+
+      // El filtro por rango tiene que traer la venta al pedir ese día.
+      const filtro = await c.query(
+        `select count(*)::int as n from ${S}.ventas
+          where id = $1
+            and fecha >= ($2::timestamp at time zone interval '${OFF}')
+            and fecha <  (($2::timestamp + interval '1 day') at time zone interval '${OFF}')`,
+        [ventaId, caso.diaEsperado]
+      );
+      if (filtro.rows[0].n !== 1) {
+        fallar(`filtrando por el ${caso.diaEsperado} la venta no aparece`);
+      } else {
+        console.log(`  filtro por ${caso.diaEsperado}: la trae.`);
+      }
     }
-    if (dia_local !== DIA_LOCAL_ESPERADO) {
-      fallar(`el día local dio ${dia_local} y tenía que dar ${DIA_LOCAL_ESPERADO}`);
-    }
-
-    // ── Agrupado por día del reporte ──────────────────────────────────────
-    const rep = await c.query(
-      `select to_char(fecha at time zone $2, 'YYYY-MM-DD') as dia, sum(total) as total
-         from ${S}.ventas where id = $1 group by 1`,
-      [ventaId, TZ]
-    );
-    if (rep.rows[0].dia !== DIA_LOCAL_ESPERADO) {
-      fallar(`el reporte agrupó la venta en ${rep.rows[0].dia}`);
-    } else {
-      console.log(`Reporte: la venta cae en ${rep.rows[0].dia}, como corresponde.`);
-    }
-
-    // ── Filtro por rango: pedir sólo el 28 tiene que traerla ──────────────
-    const filtro = await c.query(
-      `select count(*)::int as n from ${S}.ventas
-        where id = $1
-          and fecha >= ($2::date at time zone $4)
-          and fecha <  (($3::date + interval '1 day') at time zone $4)`,
-      [ventaId, DIA_LOCAL_ESPERADO, DIA_LOCAL_ESPERADO, TZ]
-    );
-    if (filtro.rows[0].n !== 1) {
-      fallar("filtrando por el 28 la venta no aparece");
-    } else {
-      console.log("Filtro: pidiendo el 28, la venta del 28 aparece.");
-    }
-
-    // Y con el filtro viejo (medianoche UTC) no aparecía: eso es lo que veía
-    // el dueño cuando el reporte del día le daba de menos.
-    const viejo = await c.query(
-      `select count(*)::int as n from ${S}.ventas
-        where id = $1 and fecha >= $2::date and fecha < ($3::date + interval '1 day')`,
-      [ventaId, DIA_LOCAL_ESPERADO, DIA_LOCAL_ESPERADO]
-    );
-    console.log(`Con el filtro viejo la venta ${viejo.rows[0].n === 1 ? "aparecía" : "NO aparecía"} en el día 28.`);
 
     console.log(`\n${fallos === 0 ? "FECHA EN HORA DE PARAGUAY OK" : `${fallos} FALLO(S)`}`);
     if (fallos > 0) process.exitCode = 1;
