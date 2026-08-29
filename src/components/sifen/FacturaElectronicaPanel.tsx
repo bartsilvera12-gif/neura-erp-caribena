@@ -1212,6 +1212,20 @@ export function FacturaElectronicaPanel({
                 </a>
               </div>
             )}
+            {/* Sin configurar el envío no se esconde el bloque: si no, no hay
+                forma de distinguir "está apagado" de "está roto". */}
+            {fe && estado === "aprobado" && mail && !mail.configurado && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mt-2">
+                <p className="text-xs font-semibold text-amber-900">
+                  El envío por correo está apagado
+                </p>
+                <p className="text-[11px] text-amber-800 mt-1">
+                  Faltan los datos del servidor de correo en la configuración del
+                  servidor (SMTP_HOST, SMTP_PORT, SMTP_USER y SMTP_PASSWORD).
+                  Mientras tanto la factura no se manda sola ni se puede reenviar.
+                </p>
+              </div>
+            )}
             {fe && estado === "aprobado" && mail?.configurado && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mt-2 space-y-2">
                 <p className="text-xs font-semibold text-slate-700">Mandar la factura por correo</p>
