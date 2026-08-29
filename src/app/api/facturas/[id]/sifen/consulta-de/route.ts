@@ -6,6 +6,7 @@ import { downloadSifenCertificadoObject } from "@/lib/sifen/sifen-certificados-s
 import { decryptSecret } from "@/lib/sifen/security";
 import { consultarDePorCdc } from "@/lib/sifen/consulta-de-por-cdc";
 import type { AmbienteSifen } from "@/lib/sifen/types";
+import { enviarFacturaMail } from "@/lib/facturacion/server/enviar-factura-mail";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
@@ -169,6 +170,24 @@ export async function POST(request: NextRequest, { params }: RouteCtx) {
         errorResponse(`SET respondió ${resp.dEstRes}, pero no se pudo actualizar: ${errUp.message}`),
         { status: 500 }
       );
+    }
+
+    // La otra puerta por la que un DE pasa a aprobado (la principal es
+    // consulta-lote). Si el cliente dejó su correo, acá también se le manda.
+    if (estadoNuevo === "aprobado" && previo !== "aprobado") {
+      try {
+        await enviarFacturaMail({
+          supabase,
+          empresaId: auth.empresa_id,
+          facturaId: id,
+          origen: "automatico",
+        });
+      } catch (e) {
+        console.warn("[sifen] excepcion al mandar la factura por correo", {
+          factura_id: id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
 
     return NextResponse.json(

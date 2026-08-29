@@ -11,6 +11,7 @@ import {
 import { downloadSifenCertificadoObject } from "@/lib/sifen/sifen-certificados-storage";
 import { toFacturaElectronicaDto } from "@/lib/sifen/to-factura-electronica-dto";
 import { isExplicitSifenTestOverrideEnabled } from "@/lib/env/allow-test-mode";
+import { enviarFacturaMail } from "@/lib/facturacion/server/enviar-factura-mail";
 import type {
   AmbienteSifen,
   SifenApiConsultaLoteTestDetalle,
@@ -309,6 +310,39 @@ export async function handleSifenConsultaLotePost(
       errorResponse(`No se pudo registrar el evento; se revirtió el estado: ${errEvento.message}`),
       { status: 500 }
     );
+  }
+
+  // Recién aprobada: se le manda la factura al cliente si dejó su correo.
+  //
+  // Va acá y no antes porque el KUDE se arma del XML firmado y sólo vale como
+  // comprobante una vez que la SET lo aprobó. Y va después de registrar el
+  // evento porque ese insert puede revertir la aprobación: mandar el correo
+  // antes sería avisarle al cliente de una factura que quedó sin aprobar.
+  //
+  // El resultado no cambia la respuesta: la factura ya está aprobada, y que el
+  // correo falle no puede hacer que el cajero crea lo contrario. Queda el
+  // registro en `factura_email_envios` y el botón de reenviar en el detalle.
+  if (marcaAprobacion != null) {
+    try {
+      const envio = await enviarFacturaMail({
+        supabase,
+        empresaId: auth.empresa_id,
+        facturaId: fid,
+        origen: "automatico",
+      });
+      if (!envio.ok && envio.codigo !== "sin_destinatario" && envio.codigo !== "no_configurado") {
+        console.warn("[sifen] no se pudo mandar la factura por correo", {
+          factura_id: fid,
+          codigo: envio.codigo,
+          message: envio.message,
+        });
+      }
+    } catch (e) {
+      console.warn("[sifen] excepcion al mandar la factura por correo", {
+        factura_id: fid,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   const dto = toFacturaElectronicaDto(updatedRow as Record<string, unknown>);

@@ -241,6 +241,55 @@ export function FacturaElectronicaPanel({
   const [cancelModal, setCancelModal] = useState<"cancelar" | "reemitir" | null>(null);
   const [motivoCancel, setMotivoCancel] = useState("");
 
+  /**
+   * Envío de la factura por correo. Se manda solo al aprobar el DE; esto es
+   * para ver qué pasó y reintentar — el caso frecuente es que el correo se haya
+   * tipeado mal al cobrar, así que se puede corregir sin tocar la ficha.
+   */
+  const [mail, setMail] = useState<{
+    configurado: boolean;
+    destinatario: string | null;
+    envios: { destinatario: string; origen: string; ok: boolean; error: string | null; created_at: string }[];
+  } | null>(null);
+  const [mailDestino, setMailDestino] = useState("");
+  const [mailEnviando, setMailEnviando] = useState(false);
+
+  const refreshMail = useCallback(async () => {
+    try {
+      const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/enviar-mail`);
+      const j = (await res.json()) as { success?: boolean; data?: typeof mail };
+      if (res.ok && j.success && j.data) {
+        setMail(j.data);
+        setMailDestino((prev) => prev || j.data?.destinatario || "");
+      }
+    } catch {
+      /* el bloque de correo simplemente no se muestra */
+    }
+  }, [facturaId]);
+
+  const enviarPorMail = useCallback(async () => {
+    setMailEnviando(true);
+    setFlash(null);
+    try {
+      const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/enviar-mail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: mailDestino.trim() || undefined }),
+      });
+      const j = (await res.json()) as { success?: boolean; data?: { message?: string }; error?: string };
+      if (!res.ok || !j.success) {
+        setFlash({ kind: "err", text: j.error ?? `Error ${res.status}` });
+      } else {
+        setFlash({ kind: "ok", text: j.data?.message ?? "Factura enviada." });
+      }
+    } catch (e) {
+      setFlash({ kind: "err", text: e instanceof Error ? e.message : "Error de red" });
+    } finally {
+      setMailEnviando(false);
+      await refreshMail();
+    }
+  }, [facturaId, mailDestino, refreshMail]);
+
   const refresh = useCallback(async (): Promise<Resumen | null> => {
     const res = await fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/resumen`, {
       cache: "no-store",
@@ -817,6 +866,13 @@ export function FacturaElectronicaPanel({
     }
   }, [estado, facturaId]);
 
+  // El envío por correo sólo existe con el DE aprobado, así que el estado se
+  // consulta recién ahí.
+  useEffect(() => {
+    if (estado !== "aprobado") return;
+    void refreshMail();
+  }, [estado, refreshMail]);
+
   const puedeBorrador = Boolean(resumen?.sifen_config_activa) && !fe;
   const puedeGenerarXml =
     Boolean(resumen?.sifen_config_activa) && fe != null && !XML_BLOQUEADOS.has(String(estado));
@@ -1154,6 +1210,46 @@ export function FacturaElectronicaPanel({
                 >
                   Descargar XML
                 </a>
+              </div>
+            )}
+            {fe && estado === "aprobado" && mail?.configurado && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mt-2 space-y-2">
+                <p className="text-xs font-semibold text-slate-700">Mandar la factura por correo</p>
+                <p className="text-[11px] text-slate-500">
+                  Se manda sola al aprobarse, con el KUDE en PDF y el XML firmado.
+                  Si el correo quedó mal escrito, corregilo acá y reenviala.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="email"
+                    value={mailDestino}
+                    onChange={(e) => setMailDestino(e.target.value)}
+                    placeholder="correo del cliente"
+                    className="flex-1 min-w-[200px] px-2 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    disabled={mailEnviando || mailDestino.trim() === ""}
+                    onClick={() => void enviarPorMail()}
+                    className="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-900"
+                  >
+                    {mailEnviando ? "Enviando…" : "Enviar"}
+                  </button>
+                </div>
+                {mail.envios.length > 0 && (
+                  <ul className="text-[11px] text-slate-600 space-y-0.5 pt-1">
+                    {mail.envios.map((e, i) => (
+                      <li key={i} className="break-all">
+                        <span className={e.ok ? "text-emerald-700" : "text-rose-700"}>
+                          {e.ok ? "Enviada" : "Falló"}
+                        </span>{" "}
+                        a {e.destinatario}
+                        {e.origen === "automatico" ? " (automático)" : ""}
+                        {e.error ? ` — ${e.error}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
             {fe && estado === "aprobado" && resumen.cancelacion && (
