@@ -5,6 +5,7 @@ import { AlertTriangle, Pizza } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { confirmar } from "@/components/ui/ConfirmDialog";
 import ProductPickerModal, { type AgregarVentaPayload } from "@/components/inventario/ProductPickerModal";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
 import MontoInput from "@/components/ui/MontoInput";
@@ -16,7 +17,7 @@ import CobroRepartido, {
   totalCobrado,
   type LineaCobro,
 } from "@/components/ventas/CobroRepartido";
-import { facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
+import { enviarComandaSesion, facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
 import { abrirCaja, getCajaAbierta } from "@/lib/caja/storage";
 import SelectorComprobante, {
   comprobanteListo,
@@ -70,6 +71,8 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
   const [montoApertura, setMontoApertura] = useState(0);
   const [abriendoCaja, setAbriendoCaja] = useState(false);
+  const [comandando, setComandando] = useState(false);
+  const [okComanda, setOkComanda] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mitadOpen, setMitadOpen] = useState(false);
@@ -105,6 +108,8 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   useEffect(() => { getCajaAbierta().then((c) => setSinCaja(!c)); }, []);
 
   const items = detalle?.items ?? [];
+  /** Productos cargados que todavia no salieron a cocina. */
+  const pendientes = items.filter((i) => i.estado === "pendiente").length;
   const mesaNumero = detalle?.mesa.numero ?? null;
 
   // ── Totales (IVA INCLUIDO 10% — misma fórmula que facturarSesionPg) ──────────
@@ -159,6 +164,35 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     reload();
   }
 
+  /**
+   * Manda a cocina lo que se agregó en esta pantalla.
+   *
+   * Es explícito y no automático: al cobrar se agrega y se corrige, y la cocina
+   * tiene que recibir sólo lo que alguien decidió mandar. Un plato que salió a
+   * la parrilla por un tipeo no vuelve.
+   */
+  async function onEnviarACocina() {
+    setComandando(true);
+    setError(null);
+    setOkComanda(null);
+    const r = await enviarComandaSesion(sesionId);
+    setComandando(false);
+    if (!r.success) {
+      setError(r.error);
+      return;
+    }
+    if (r.sin_produccion || r.comandas.length === 0) {
+      setOkComanda("No había productos que requieran cocina.");
+    } else {
+      const partes = r.comandas.map(
+        (c) => `${c.sector === "pizzeria" ? "Pizzería" : "Plancha"} N°${c.numero}`
+      );
+      setOkComanda(`Enviado a cocina: ${partes.join(" · ")}.`);
+    }
+    await reload();
+    setTimeout(() => setOkComanda(null), 4000);
+  }
+
   /** Abre la caja del turno sin salir de la cuenta que se está cobrando. */
   async function onAbrirCaja() {
     const monto = Number.isFinite(montoApertura) ? montoApertura : 0;
@@ -174,6 +208,16 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   async function facturar() {
     if (!detalle || items.length === 0 || sinCaja) return;
     if (!comprobanteListo(comprobante, receptor)) return;
+
+    // Cobrar algo que la cocina nunca recibió es cobrarle al cliente comida que
+    // no se va a preparar. Se avisa antes, no después.
+    if (pendientes > 0) {
+      const seguir = await confirmar(
+        `Hay ${pendientes} producto(s) que no se enviaron a cocina. Si cobrás ahora, la cocina no los va a recibir.`,
+        { confirmLabel: "Cobrar igual", cancelLabel: "Volver" }
+      );
+      if (!seguir) return;
+    }
     if (!cobroValido(lineasCobro, total)) {
       setError(
         `El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(total)}.`
@@ -357,6 +401,30 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
       {/* ── SECCIÓN 2: Carrito + totales + cobro ────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6">
         <SectionTitle>Productos en esta cuenta</SectionTitle>
+
+        {/* Lo que se agrega acá no sale a cocina solo: sale cuando alguien lo
+            manda. Un producto que se está corrigiendo no puede aparecer en la
+            parrilla por haberlo tipeado. */}
+        {pendientes > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <p className="text-xs text-amber-800">
+              <strong>{pendientes} producto(s)</strong> sin enviar a cocina.
+            </p>
+            <button
+              type="button"
+              disabled={comandando}
+              onClick={() => void onEnviarACocina()}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-40"
+            >
+              {comandando ? "Enviando…" : "Enviar a cocina"}
+            </button>
+          </div>
+        )}
+        {okComanda && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-medium text-emerald-800">
+            {okComanda}
+          </div>
+        )}
 
         {items.length === 0 ? (
           <div className="py-10 text-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">

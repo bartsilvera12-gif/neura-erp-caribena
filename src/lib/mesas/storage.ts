@@ -94,6 +94,16 @@ export function actualizarItemMesa(
   return call<{ item: MesaSesionItem }>(`/api/mesas/items/${encodeURIComponent(itemId)}`, "PATCH", payload);
 }
 
+/**
+ * Manda a cocina los pendientes de una cuenta, por id de sesión.
+ *
+ * La pantalla de cobro trabaja con la sesión y no con la mesa, y necesita poder
+ * comandar lo que se agrega ahí sin volver al salón.
+ */
+export function enviarComandaSesion(sesionId: string) {
+  return call<ComandaEnvioResult>(`/api/mesas/sesiones/${encodeURIComponent(sesionId)}/comanda`, "POST", {});
+}
+
 /** Envía los ítems pendientes a producción (comandas por sector). La mesa sigue ocupada. */
 export function enviarComandaMesa(mesaId: string) {
   return call<ComandaEnvioResult>(`/api/mesas/${encodeURIComponent(mesaId)}/comanda`, "POST", {});

@@ -1345,11 +1345,22 @@ export async function enviarComandaSesionPg(
   usuarioId: string | null
 ): Promise<ComandaEnvioResult> {
   const sb = createServiceRoleClientWithDbSchema(schema);
+  // También se comanda con la cuenta ya en caja ('por_cobrar'). Al cobrar se
+  // pueden agregar productos —el cliente pide una gaseosa más mientras pagan— y
+  // esos tienen que poder salir a cocina. Antes había que volver a la mesa para
+  // mandarlos, que era justamente el ida y vuelta que se quiere sacar.
+  //
+  // Lo que no se toca es la cuenta ya facturada: ahí la venta está cerrada y
+  // mandar algo a la parrilla sería regalar comida.
   const sQ = await sb
-    .from("mesa_sesiones").select("id, estado")
-    .eq("empresa_id", empresaId).eq("id", sesionId).eq("estado", "abierta").maybeSingle();
+    .from("mesa_sesiones").select("id, estado, venta_id")
+    .eq("empresa_id", empresaId).eq("id", sesionId)
+    .in("estado", ["abierta", "por_cobrar"]).maybeSingle();
   if (sQ.error) throw new Error(sQ.error.message);
   if (!sQ.data) throw new Error("La cuenta no está abierta.");
+  if ((sQ.data as { venta_id: string | null }).venta_id) {
+    throw new Error("La cuenta ya fue facturada; no se puede enviar a cocina.");
+  }
 
   const result = await enviarProduccionDeSesion(sb, empresaId, sesionId, usuarioId);
   if (result.total_pendientes === 0) throw new Error("No hay productos nuevos para enviar a comanda.");
