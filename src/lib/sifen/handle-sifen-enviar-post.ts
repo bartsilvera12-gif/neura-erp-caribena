@@ -192,10 +192,16 @@ export async function handleSifenEnviarPost(
   // al SET por el CDC, porque mandar dos veces el mismo documento lo haría
   // rechazar por duplicado.
   //
-  // `SIFEN_ENVIO_SINCRONICO=0` lo apaga sin tocar código, por si hubiera que
-  // volver al lote en medio de un servicio.
+  // Viene apagado. El SET habilita la recepción sincrónica por separado de la
+  // de lote, y si el RUC no la tiene, contesta 1264 («no está habilitado para
+  // utilizar este tipo de servicio») a cada intento. Medido: el envío pasaba de
+  // ~3s a ~9s, porque se pagaba el sincrónico rechazado y después el lote.
+  //
+  // Cuando el contador habilite el servicio en Marangatú, se prende con
+  // `SIFEN_ENVIO_SINCRONICO=1` y la factura resuelve en una sola llamada, sin
+  // la consulta de lote que hoy agrega unos 6 segundos.
   const cdcActual = feRow.cdc == null ? "" : String(feRow.cdc).trim();
-  if (process.env.SIFEN_ENVIO_SINCRONICO !== "0" && cdcActual.length === 44) {
+  if (process.env.SIFEN_ENVIO_SINCRONICO === "1" && cdcActual.length === 44) {
     const rapido = await enviarDeSincronico({
       xmlFirmadoRde: xmlDl.data.toString("utf8"),
       cdc: cdcActual,
