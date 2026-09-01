@@ -71,6 +71,18 @@ function etiquetaProgresoJob(job: SifenJobDTO | null, estadoSifen: string | null
 function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
   if (!resumen.sifen_config_activa) return "Activá SIFEN en configuración para emitir el documento electrónico.";
   const fe = resumen.factura_electronica;
+
+  // Con un trabajo en curso el documento se está emitiendo solo, aunque su
+  // estado todavía diga "borrador". Decir "pendiente" ahí invita al cajero a
+  // apretar "Generar y enviar" creyendo que la pantalla se quedó trabada — y
+  // eso es exactamente lo que hacía.
+  const trabajoEnCurso =
+    resumen.sifen_job != null &&
+    (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
+  if (trabajoEnCurso && String(fe?.estado_sifen ?? "") !== "aprobado") {
+    return "Emitiendo el documento. La pantalla se actualiza sola.";
+  }
+
   if (!fe) return "Aún no hay documento electrónico.";
   if (debugUi) {
     switch (String(fe.estado_sifen)) {

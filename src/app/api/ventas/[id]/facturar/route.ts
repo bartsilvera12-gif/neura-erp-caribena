@@ -4,6 +4,7 @@ import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema"
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { API_ERRORS } from "@/lib/api/errors";
 import { facturarVentaPg, FacturarVentaError } from "@/lib/facturacion/server/facturar-venta-pg";
+import { encolarEmisionSifen } from "@/lib/sifen/jobs/encolar-emision";
 
 /**
  * POST /api/ventas/[id]/facturar
@@ -53,6 +54,26 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       clienteId: texto(body.cliente_id),
       guardarCliente: body.guardar_cliente === true,
     });
+
+    // Se arranca a emitir acá y no cuando el navegador termine de abrir la
+    // pantalla de la factura. Entre confirmar la venta, navegar y montar el
+    // panel se perdían varios segundos con el cliente esperando, y parecía que
+    // el trámite empezaba de nuevo después de cobrar.
+    //
+    // Si falla, la factura igual quedó creada y el panel la encola al abrirse,
+    // que es lo que hacía antes. Por eso no altera la respuesta.
+    const arranque = await encolarEmisionSifen(
+      request,
+      out.facturaId,
+      tenant.auth,
+      tenant.supabase
+    );
+    if (!arranque.encolado) {
+      console.info("[facturar] no se pudo arrancar la emisión; la abre el panel", {
+        factura_id: out.facturaId,
+        motivo: arranque.motivo,
+      });
+    }
 
     return NextResponse.json(successResponse(out));
   } catch (err) {
