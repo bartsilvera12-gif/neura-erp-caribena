@@ -50,6 +50,36 @@ export interface EnvioSincronicoParams {
   certificadoPassword: string;
 }
 
+/**
+ * Rechazos del SET que en la práctica no son definitivos.
+ *
+ * El 1264 («RUC del emisor no está habilitado para este tipo de servicio») va y
+ * viene: el 1 de septiembre, con el mismo emisor y el mismo receptor, el SET
+ * rechazó a las 13:03, aprobó a las 13:17 y a las 13:19, y volvió a rechazar a
+ * las 13:30. No es un problema de los datos.
+ *
+ * El camino de lote ya sabía esto y lo reintenta. Acá no se puede dar por
+ * cerrado: se devuelve al lote, que tiene esa maquinaria de reintento.
+ */
+const RECHAZOS_INTERMITENTES = new Set(["1264"]);
+
+function esRechazoIntermitente(gResProc: { dCodRes: string; dMsgRes: string }[]): boolean {
+  return gResProc.some((g) => {
+    if (RECHAZOS_INTERMITENTES.has(String(g.dCodRes).trim())) return true;
+    // El código también aparece entre corchetes dentro del mensaje.
+    return [...RECHAZOS_INTERMITENTES].some((c) => g.dMsgRes.includes(`[${c}]`));
+  });
+}
+
+/** Deja el texto del SET legible: viene con entidades XML tipo `&#225;`. */
+function legible(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(String(n), 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
 /** Mismo criterio que se usa al leer la respuesta de la consulta de lote. */
 function veredictoDe(dEstRes: string | null): "aprobado" | "rechazado" | null {
   const est = String(dEstRes ?? "").toLowerCase();
@@ -121,7 +151,7 @@ async function averiguarPorCdc(
         tipo: "resuelto",
         estado: veredicto,
         dProtAut: r.dProtAut ?? null,
-        mensaje: r.dMsgRes ?? null,
+        mensaje: r.dMsgRes ? legible(r.dMsgRes) : null,
         persistible: persistir({
           cdc: p.cdc,
           dEstRes: r.dEstRes ?? veredicto,
@@ -181,8 +211,18 @@ export async function enviarDeSincronico(
     return averiguarPorCdc(p);
   }
 
+  // Un rechazo que el SET suele revertir al reintentar no se da por cerrado:
+  // se devuelve al camino de lote, que ya sabe reintentarlo. Un documento
+  // rechazado no queda registrado en el SET, así que reenviarlo no lo duplica.
+  if (veredicto === "rechazado" && esRechazoIntermitente(sync.gResProc)) {
+    return {
+      tipo: "usar_lote",
+      motivo: "el SET rechazó con un código que suele resolverse al reintentar",
+    };
+  }
+
   const mensaje = sync.gResProc[0]
-    ? `[${sync.gResProc[0].dCodRes}] ${sync.gResProc[0].dMsgRes}`
+    ? legible(`[${sync.gResProc[0].dCodRes}] ${sync.gResProc[0].dMsgRes}`)
     : null;
 
   return {
