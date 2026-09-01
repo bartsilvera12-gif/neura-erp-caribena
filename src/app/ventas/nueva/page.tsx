@@ -7,7 +7,11 @@ import MontoInput from "@/components/ui/MontoInput";
 import ProductPickerModal, { type ProductoPickerItem, type AgregarVentaPayload } from "@/components/inventario/ProductPickerModal";
 import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
-import ReceptorFactura, {
+import SelectorComprobante, {
+  comprobanteListo,
+  type TipoComprobante,
+} from "@/components/ventas/SelectorComprobante";
+import {
   RECEPTOR_VACIO,
   receptorAPayload,
   validarReceptor,
@@ -79,7 +83,7 @@ export default function NuevaVentaPage() {
   // Pedidos (gastronomía): modalidad obligatoria en instancia Caribeña
   type Modalidad = "local" | "delivery" | "carry_out";
   const [modalidad, setModalidad] = useState<Modalidad | "">("");
-  const [comprobante, setComprobante] = useState<"ticket" | "factura">("ticket");
+  const [comprobante, setComprobante] = useState<TipoComprobante>("ticket");
   const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
   const [pedidoMesa, setPedidoMesa] = useState("");
   const [pedidoClienteNombre, setPedidoClienteNombre] = useState("");
@@ -241,7 +245,7 @@ export default function NuevaVentaPage() {
    * la enorme mayoría de las ventas no lleva factura; la factura se emite sólo
    * cuando la piden, con los datos del receptor que exige el SET.
    */
-  const comprobanteValido = comprobante === "ticket" || validarReceptor(receptor) === null;
+  const comprobanteValido = comprobanteListo(comprobante, receptor);
   const pedidoValido = modalidad !== "" && comprobanteValido;
   const cobroCierra = tipoVenta !== "CONTADO" || cobroValido(lineasCobro, totalGeneral);
   const ventaValida   = items.length > 0 && pedidoValido && !sinCaja && cobroCierra;
@@ -678,43 +682,12 @@ export default function NuevaVentaPage() {
               <p className="mb-3 text-sm font-semibold text-slate-800">
                 Comprobante <span className="text-red-500">*</span>
               </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {([
-                  { v: "ticket" as const, label: "Ticket", nota: "Sin datos del cliente" },
-                  { v: "factura" as const, label: "Factura", nota: "Necesita RUC" },
-                ]).map((opt) => (
-                  <label
-                    key={opt.v}
-                    className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
-                      comprobante === opt.v
-                        ? "border-amber-500 bg-white font-medium text-amber-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="comprobante"
-                      value={opt.v}
-                      checked={comprobante === opt.v}
-                      onChange={() => setComprobante(opt.v)}
-                      className="h-4 w-4 text-amber-600 focus:ring-amber-500"
-                    />
-                    <span>
-                      {opt.label}
-                      <span className="ml-1.5 text-xs font-normal text-slate-400">{opt.nota}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              {comprobante === "factura" && (
-                <div className="mt-4">
-                  <ReceptorFactura valor={receptor} onChange={setReceptor} />
-                  {validarReceptor(receptor) && (
-                    <p className="mt-2 text-xs text-amber-700">{validarReceptor(receptor)}</p>
-                  )}
-                </div>
-              )}
+              <SelectorComprobante
+                valor={comprobante}
+                onChange={setComprobante}
+                receptor={receptor}
+                onReceptorChange={setReceptor}
+              />
             </div>
           </div>
         </div>

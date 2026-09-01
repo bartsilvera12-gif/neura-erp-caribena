@@ -17,7 +17,13 @@ import CobroRepartido, {
   type LineaCobro,
 } from "@/components/ventas/CobroRepartido";
 import { facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
-import { getCajaAbierta } from "@/lib/caja/storage";
+import { abrirCaja, getCajaAbierta } from "@/lib/caja/storage";
+import SelectorComprobante, {
+  comprobanteListo,
+  type TipoComprobante,
+} from "@/components/ventas/SelectorComprobante";
+import { RECEPTOR_VACIO, receptorAPayload, type DatosReceptor } from "@/components/ventas/ReceptorFactura";
+import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { getCuentasBancarias } from "@/lib/conciliacion/storage";
 import type { MesaDetalle } from "@/lib/mesas/types";
 import type { CuentaBancaria } from "@/lib/conciliacion/types";
@@ -55,6 +61,15 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sinCaja, setSinCaja] = useState(false);
+  /**
+   * Ticket o factura, decidido acá mismo. Antes había que cobrar, salir, buscar
+   * la venta y recién ahí facturarla: cuatro pantallas para algo que el cliente
+   * pide en una frase.
+   */
+  const [comprobante, setComprobante] = useState<TipoComprobante>("ticket");
+  const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
+  const [montoApertura, setMontoApertura] = useState(0);
+  const [abriendoCaja, setAbriendoCaja] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mitadOpen, setMitadOpen] = useState(false);
@@ -144,9 +159,21 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     reload();
   }
 
+  /** Abre la caja del turno sin salir de la cuenta que se está cobrando. */
+  async function onAbrirCaja() {
+    const monto = Number.isFinite(montoApertura) ? montoApertura : 0;
+    setAbriendoCaja(true);
+    setError(null);
+    const r = await abrirCaja(monto, null);
+    setAbriendoCaja(false);
+    if (!r.success) { setError(r.error); return; }
+    setSinCaja(false);
+  }
+
   // ── Confirmar venta ──────────────────────────────────────────────────────────
   async function facturar() {
     if (!detalle || items.length === 0 || sinCaja) return;
+    if (!comprobanteListo(comprobante, receptor)) return;
     if (!cobroValido(lineasCobro, total)) {
       setError(
         `El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(total)}.`
@@ -180,6 +207,36 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
       setError(r.error);
       return;
     }
+    // Con factura el comprobante es el KUDE, no el ticket: se emite acá mismo y
+    // la pantalla del documento lo abre sola al aprobarse. Es el mismo camino
+    // que usa la caja, para que una mesa y un mostrador no facturen distinto.
+    if (comprobante === "factura") {
+      try { ticketWin?.close(); } catch { /* la pestaña ya no hace falta */ }
+      try {
+        const res = await fetchWithSupabaseSession(`/api/ventas/${r.ventaId}/facturar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(receptorAPayload(receptor)),
+        });
+        const body = await res.json();
+        if (res.ok && body?.success !== false && body?.data?.facturaId) {
+          router.push(`/facturas/${body.data.facturaId}?kude=1&auto=1`);
+          return;
+        }
+        // La venta ya se cobró; sólo falló la factura. Se avisa sin volver
+        // atrás: el dinero entró y la mesa quedó liberada.
+        setError(
+          `La mesa se cobró, pero no se pudo emitir la factura: ${body?.error ?? `error ${res.status}`}. Emitila desde el listado de ventas.`
+        );
+        return;
+      } catch (e) {
+        setError(
+          `La mesa se cobró, pero no se pudo emitir la factura: ${e instanceof Error ? e.message : "error de red"}. Emitila desde el listado de ventas.`
+        );
+        return;
+      }
+    }
+
     // Apuntar la pestaña al ticket de venta (mismo ticket de Caja, auto-impresión).
     const href = `/api/ventas/${r.ventaId}/ticket?copia=cliente&auto=1`;
     try {
@@ -240,12 +297,29 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
         </p>
       </div>
 
+      {/* La caja se abre acá mismo. Mandar al cajero a otra pantalla con el
+          cliente esperando —y hacerle volver a buscar la mesa— era el paso más
+          absurdo del recorrido: abrir caja es escribir un número. */}
       {sinCaja && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-medium text-amber-800"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> No hay caja abierta. Para facturar primero abrí caja.</p>
-          <button onClick={() => router.push("/ventas")} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
-            Ir a abrir caja
-          </button>
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-medium text-amber-800">
+            <AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> No hay caja abierta.
+            Abrila acá con el efectivo con el que arrancás el turno.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="w-44">
+              <label className="mb-1 block text-xs font-medium text-amber-900">Monto de apertura</label>
+              <MontoInput value={montoApertura} onChange={setMontoApertura} placeholder="Ej: 100.000" />
+            </div>
+            <button
+              type="button"
+              disabled={abriendoCaja}
+              onClick={() => void onAbrirCaja()}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40"
+            >
+              {abriendoCaja ? "Abriendo…" : "Abrir caja"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -419,6 +493,17 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
           </div>
         </div>
 
+        {/* Comprobante: se decide antes de cobrar, no después */}
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <SectionTitle>Comprobante</SectionTitle>
+          <SelectorComprobante
+            valor={comprobante}
+            onChange={setComprobante}
+            receptor={receptor}
+            onReceptorChange={setReceptor}
+          />
+        </div>
+
         {/* Acciones */}
         <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
           <button
@@ -431,10 +516,10 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
           <button
             type="button"
             onClick={facturar}
-            disabled={busy || items.length === 0 || sinCaja}
+            disabled={busy || items.length === 0 || sinCaja || !comprobanteListo(comprobante, receptor)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 min-h-[48px] w-full sm:w-auto"
           >
-            {busy ? "Facturando…" : "Confirmar venta"}
+            {busy ? "Facturando…" : comprobante === "factura" ? "Cobrar y facturar" : "Confirmar venta"}
           </button>
         </div>
       </div>
