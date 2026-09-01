@@ -35,6 +35,14 @@ type Resumen = {
  * momento, no solo el estado persistido tras cada etapa).
  */
 function etiquetaProgresoJob(job: SifenJobDTO | null, estadoSifen: string | null): string | null {
+  // Si el documento ya llegó a un estado definitivo, no se muestra progreso:
+  // manda el documento, no el trabajo que lo produjo. El trabajo tarda un
+  // instante más en marcarse terminado, y en ese hueco la pantalla mostraba
+  // "Aprobado" y "Esperando respuesta SET…" al mismo tiempo, que se contradicen
+  // y hacen dudar de si la factura salió o no.
+  const stDoc = String(estadoSifen ?? "");
+  if (stDoc === "aprobado" || stDoc === "rechazado" || stDoc === "cancelado") return null;
+
   if (job) {
     if (job.estado === "pendiente") return "En cola…";
     if (job.estado === "procesando") {
