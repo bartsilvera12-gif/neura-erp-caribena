@@ -186,3 +186,13 @@ export function enviarComandaPL(sesionId: string) {
 export function cancelarPL(sesionId: string) {
   return call<{ ok: boolean }>(`/api/mesas/pl/${encodeURIComponent(sesionId)}/cancelar`, "POST", {});
 }
+
+/**
+ * Cancela la cuenta viva de una mesa y la deja libre. No factura ni cobra.
+ *
+ * Va por mesa y no por sesión porque el endpoint busca la cuenta abierta de esa
+ * mesa; una mesa tiene una sola cuenta viva a la vez.
+ */
+export function cancelarMesa(mesaId: string) {
+  return call<{ ok: boolean }>(`/api/mesas/${encodeURIComponent(mesaId)}/cancelar`, "POST", {});
+}
