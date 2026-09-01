@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTenantSupabaseFromAuth } from "@/lib/supabase/tenant-api";
+import { downloadSifenObject } from "@/lib/sifen/sifen-storage";
 import {
   normalizeComandaData,
   buildComandaTicketText,
@@ -166,6 +167,8 @@ function renderCopia(opts: {
   fontPx: number;
   isLast: boolean;
   showTotalCocina?: boolean;
+  /** Logo del local en data URI. Null cuando no hay ninguno configurado. */
+  logoUrl?: string | null;
 }): string {
   const { tipo, venta, items, brief, fontPx, isLast } = opts;
   // Cliente y COPIA PIZZERÍA llevan precios (la pizzería es copia completa, "igualita").
@@ -251,7 +254,7 @@ function renderCopia(opts: {
     : `<div class="footer-cocina">${formatFecha(venta.fecha)}</div>`;
 
   return `<section class="paper ${isLast ? "last" : ""}">
-    ${headerCocina || `<h1>${NEGOCIO}</h1>`}
+    ${headerCocina || (opts.logoUrl ? `<div class="logo"><img src="${opts.logoUrl}" alt="${NEGOCIO}"></div>` : `<h1>${NEGOCIO}</h1>`)}
     <div class="meta">
       ${escapeHtml(venta.numero_control)}<br>
       ${formatFecha(venta.fecha)}
@@ -452,6 +455,25 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
     });
   }
 
+  // Logo del local, el mismo que ya usa el KUDE. Si no hay o falla la descarga,
+  // el ticket sale con el nombre en texto como toda la vida: el comprobante no
+  // puede depender de una imagen.
+  let logoUrl: string | null = null;
+  try {
+    const { data: cfgLogo } = await ctx.supabase
+      .from("empresa_sifen_config")
+      .select("kude_logo_path")
+      .eq("empresa_id", empresaId)
+      .maybeSingle();
+    const path = String((cfgLogo as { kude_logo_path?: string | null } | null)?.kude_logo_path ?? "").trim();
+    if (path) {
+      const dl = await downloadSifenObject(ctx.supabase, path);
+      if (dl.ok) logoUrl = `data:image/png;base64,${dl.data.toString("base64")}`;
+    }
+  } catch {
+    /* sin logo: el encabezado cae al nombre en texto */
+  }
+
   const seccionesHtml = copias
     .map((tipo, idx) =>
       renderCopia({
@@ -462,6 +484,7 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
         fontPx,
         isLast: idx === copias.length - 1,
         showTotalCocina,
+        logoUrl,
       })
     )
     .join("");
@@ -479,6 +502,10 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   .paper { background: #fff; width: ${widthMm}mm; margin: 0 auto 12mm; padding: 6mm 4mm; box-shadow: 0 1px 4px rgba(0,0,0,0.1); page-break-after: always; break-after: page; }
   .paper.last { page-break-after: auto; break-after: auto; margin-bottom: 0; }
   h1 { font-size: ${fontPx + 4}px; text-align: center; margin: 0 0 2mm; letter-spacing: 1px; }
+  /* El logo reemplaza al nombre en texto. Se limita en alto para no comerse
+     el papel: en una tickeadora cada milímetro es plata. */
+  .logo { text-align: center; margin: 0 0 2mm; }
+  .logo img { max-width: ${widthMm === 58 ? 44 : 58}mm; max-height: ${widthMm === 58 ? 18 : 24}mm; object-fit: contain; }
   .sector-banner { font-size: ${fontPx + 6}px; font-weight: 800; text-align: center; padding: 2mm; border: 2px solid #000; margin: 0 0 3mm; letter-spacing: 1px; }
   .meta { font-size: ${fontPx - 1}px; text-align: center; margin: 1mm 0 2mm; }
   hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
