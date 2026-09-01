@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
 import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
+import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
 import CobroCuenta from "@/components/ventas/CobroCuenta";
 import {
   actualizarItemMesa, agregarItemMesa, cancelarCuentaMesa,
-  enviarComandaMesa, enviarMesaACaja, getMesaDetalle,
+  enviarComandaMesa, getMesaDetalle,
 } from "@/lib/mesas/storage";
 import type { EstadoMesa, MesaSesionItem } from "@/lib/mesas/types";
 
@@ -220,29 +221,19 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     } else {
       const partes = r.comandas.map((c) => `${c.sector === "pizzeria" ? "Pizzería" : "Plancha"} N°${c.numero}`);
       setOkMsg(`Enviado a producción: ${partes.join(" · ")}.`);
-    }
-    setTimeout(() => setOkMsg(null), 3000);
-  }
-
-  async function onPedirCuenta() {
-    setError(null);
-    const hayPendientes = items.some((i) => i.estado === "pendiente");
-    if (hayPendientes) {
-      const enviar = await confirmar("Hay productos sin enviar a comanda. ¿Querés enviarlos a cocina antes de pedir la cuenta?");
-      if (enviar) {
-        const c = await enviarComandaMesa(id);
-        if (!c.success) { setError(c.error); return; }
+      // Se abre la impresión de cada sector en el acto. Antes la comanda quedaba
+      // registrada y alguien tenía que ir al tablero de Comandas a imprimirla:
+      // el mozo se iba creyendo que la cocina ya la tenía en papel.
+      for (const c of r.comandas) {
+        try {
+          void imprimirComanda(c.id);
+          window.open(comandaPrintUrl(c.id), "_blank", "noopener");
+        } catch {
+          /* si el navegador bloquea la ventana, la comanda igual está en el tablero */
+        }
       }
     }
-    setBusy(true);
-    const r = await enviarMesaACaja(id);
-    setBusy(false);
-    if (!r.success) { setError(r.error); return; }
-    // Se va derecho a cobrar. Volver al salón obligaba a salir a Caja, buscar la
-    // mesa entre las pendientes y recién ahí cobrar: tres pasos para seguir con
-    // la misma cuenta que ya se tenía en la mano.
-    if (sesionId) router.push(`/ventas/mesas-por-cobrar/${sesionId}`);
-    else router.push("/mesas");
+    setTimeout(() => setOkMsg(null), 3000);
   }
 
   async function onCancelarCuenta() {
@@ -276,14 +267,16 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
           entre las pendientes de Caja. */}
       {porCobrar && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5">
-          <p className="text-sm font-medium text-rose-700">Esta cuenta ya está en caja para cobrar.</p>
+          <p className="text-sm font-medium text-rose-700">
+            Esta cuenta está marcada para cobrar. El pedido ya no se edita.
+          </p>
           {sesionId && (
             <button
               type="button"
-              onClick={() => router.push(`/ventas/mesas-por-cobrar/${sesionId}`)}
+              onClick={() => setCobrando(true)}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Cobrar ahora →
+              Cobrar ahora
             </button>
           )}
         </div>
@@ -464,14 +457,6 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                 className="rounded-xl bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
               >
                 Cobrar la mesa
-              </button>
-            )}
-            {/* Para cuando el que cobra no es el que atiende: deja la cuenta en
-                la lista de pendientes de Caja en vez de cobrarla acá. */}
-            {hayItems && (
-              <button type="button" onClick={onPedirCuenta} disabled={busy}
-                className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
-                Pasar a caja
               </button>
             )}
             {hayItems && (
