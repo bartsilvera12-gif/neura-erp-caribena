@@ -63,11 +63,22 @@ const seg = (ms) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
     console.log(`  total:    ${seg(prom("tiempo_total_ms"))}`);
   }
 
+  // Se cuentan DOCUMENTOS distintos y separando aprobados de rechazados. Contar
+  // eventos engañaba: un mismo documento reintentado tres veces aparecía como
+  // "3 resueltos por el sincrónico" cuando en realidad eran tres rechazos del
+  // mismo, y el canal no había aprobado ninguno.
   const via = await c.query(`
-    SELECT count(*) FILTER (WHERE detalle->>'origen' = 'api_enviar_sincronico')::int AS sincronico,
-           count(*) FILTER (WHERE detalle->>'origen' IN ('api_enviar','api_consulta_lote'))::int AS por_lote
+    SELECT count(DISTINCT factura_electronica_id) FILTER (
+             WHERE detalle->>'origen' = 'api_enviar_sincronico'
+               AND detalle->>'estado_sifen_nuevo' = 'aprobado')::int AS sinc_ok,
+           count(DISTINCT factura_electronica_id) FILTER (
+             WHERE detalle->>'origen' = 'api_enviar_sincronico'
+               AND detalle->>'estado_sifen_nuevo' = 'rechazado')::int AS sinc_rechazo
       FROM ${S}.factura_electronica_evento`);
-  console.log(`\nDocumentos resueltos por canal sincrónico: ${via.rows[0].sincronico} · por lote: ${via.rows[0].por_lote}`);
+  console.log(
+    `\nDocumentos APROBADOS por el canal sincrónico: ${via.rows[0].sinc_ok}` +
+      ` · rechazados por ese canal: ${via.rows[0].sinc_rechazo}`
+  );
 
   await c.end();
 })().catch((e) => {
