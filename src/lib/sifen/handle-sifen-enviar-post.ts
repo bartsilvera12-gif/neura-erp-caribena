@@ -166,6 +166,9 @@ export async function handleSifenEnviarPost(
     return NextResponse.json(errorResponse(m), { status: 500 });
   }
 
+  // Cronometrado por tramo para poder responder con datos, y no con
+  // impresiones, qué parte del envío es nuestra y cuál es del SET.
+  const tDescargas = Date.now();
   const xmlDl = await downloadSifenObject(supabase, signedPath);
   if (!xmlDl.ok) {
     return NextResponse.json(
@@ -174,6 +177,8 @@ export async function handleSifenEnviarPost(
     );
   }
 
+  const msXml = Date.now() - tDescargas;
+  const tCert = Date.now();
   const p12Dl = await downloadSifenCertificadoObject(supabase, certPath);
   if (!p12Dl.ok) {
     return NextResponse.json(
@@ -315,8 +320,11 @@ export async function handleSifenEnviarPost(
     console.log("[sifen-sync] se sigue por lote", { factura_id: fid, motivo: rapido.motivo });
   }
 
+  const msCert = Date.now() - tCert;
+  let tSoap = Date.now();
   let resp: RecibeLoteRespuestaParsed;
   try {
+    tSoap = Date.now();
     resp = await enviarLoteSifen({
       xmlFirmado: xmlDl.data.toString("utf8"),
       empresaConfig: {
@@ -344,6 +352,7 @@ export async function handleSifenEnviarPost(
     });
   }
 
+  const msSoap = Date.now() - tSoap;
   const respuestaJson = respuestaRecibeLoteJson(resp);
 
   const previousEstado = String(feRow.estado_sifen ?? "firmado");

@@ -80,6 +80,29 @@ const seg = (ms) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
       ` · rechazados por ese canal: ${via.rows[0].sinc_rechazo}`
   );
 
+  // Desglose del tramo de envío, si el documento ya se emitió con la versión
+  // que lo registra. Responde si el envío se va en el storage o en el SET.
+  const det = await c.query(`
+    SELECT f.numero_factura,
+           (e.detalle->>'ms_descarga_xml')::int         AS xml_ms,
+           (e.detalle->>'ms_descarga_certificado')::int AS cert_ms,
+           (e.detalle->>'ms_llamada_set')::int         AS set_ms
+      FROM ${S}.factura_electronica_evento e
+      JOIN ${S}.factura_electronica fe ON fe.id = e.factura_electronica_id
+      JOIN ${S}.facturas f ON f.id = fe.factura_id
+     WHERE e.detalle->>'ms_llamada_set' IS NOT NULL
+     ORDER BY e.created_at DESC LIMIT 8`);
+  if (det.rows.length > 0) {
+    console.log(`
+Dentro del envío (descargas nuestras vs llamada al SET):`);
+    console.table(det.rows.map((r) => ({
+      factura: r.numero_factura,
+      'descarga XML': seg(r.xml_ms),
+      'descarga cert.': seg(r.cert_ms),
+      'llamada al SET': seg(r.set_ms),
+    })));
+  }
+
   await c.end();
 })().catch((e) => {
   console.error("ERROR:", e.message);
