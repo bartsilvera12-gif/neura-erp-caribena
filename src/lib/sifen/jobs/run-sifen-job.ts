@@ -26,8 +26,20 @@ import type {
 const LABEL = "[sifen-worker]";
 
 /** Config de polling interno de consulta-lote antes de re-encolar. */
-const CONSULTA_INTENTOS_INLINE = 4;
-const CONSULTA_DELAYS_MS = [1_000, 2_000, 4_000, 8_000]; // ~15s total
+/**
+ * Cada cuánto se le vuelve a preguntar al SET si ya resolvió el lote.
+ *
+ * Antes eran 4 intentos con esperas de 1s, 2s, 4s y 8s. El problema no es el
+ * total sino el arranque: si el SET ya tenía la respuesta al segundo 2, no nos
+ * enterábamos hasta el 3, y si la tenía al 4 no nos enterábamos hasta el 7. Ese
+ * hueco es tiempo muerto con el cliente esperando.
+ *
+ * Ahora se pregunta más seguido al principio, que es cuando la mayoría
+ * resuelve, y se va espaciando. La ventana total queda parecida, así que no se
+ * golpea más al SET en los casos lentos; sólo se llega antes en los rápidos.
+ */
+const CONSULTA_DELAYS_MS = [700, 800, 1_000, 1_500, 2_500, 4_000, 5_000]; // ~15.5s
+const CONSULTA_INTENTOS_INLINE = CONSULTA_DELAYS_MS.length;
 /**
  * Cuántas veces se puede re-encolar el Job por "SET sigue en proceso" antes
  * de rendirse.
@@ -592,7 +604,7 @@ export async function runSifenJob(job: SifenJobDTO): Promise<void> {
 
       for (let i = 0; i < CONSULTA_INTENTOS_INLINE; i++) {
         // Delay antes de cada intento (SET necesita tiempo para procesar).
-        await sleep(CONSULTA_DELAYS_MS[i] ?? 8_000);
+        await sleep(CONSULTA_DELAYS_MS[i] ?? 5_000);
 
         const r = await medir(() => invokeSifenConsultaLote(auth, supabase, fid));
         if (!r.ok) {
