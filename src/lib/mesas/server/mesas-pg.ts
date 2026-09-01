@@ -956,7 +956,21 @@ export async function cancelarSesionPg(schema: string, empresaId: string, mesaId
     .from("mesa_sesiones").select("id, venta_id")
     .eq("empresa_id", empresaId).eq("mesa_id", mesaId).in("estado", ["abierta", "por_cobrar"]).maybeSingle();
   if (sQ.error) throw new Error(sQ.error.message);
-  if (!sQ.data) throw new Error("La mesa no tiene una cuenta para cancelar.");
+
+  // Sin cuenta viva pero la mesa figura ocupada: es un estado inconsistente,
+  // normalmente de una cuenta que se cerró dejando la mesa marcada. Se libera y
+  // listo. Antes esto tiraba "la mesa no tiene una cuenta para cancelar" y la
+  // mesa quedaba ocupada para siempre, sin forma de devolverla al salón.
+  if (!sQ.data) {
+    const libre = await sb
+      .from("mesas").update({ estado: "libre" })
+      .eq("empresa_id", empresaId).eq("id", mesaId).neq("estado", "libre")
+      .select("id").maybeSingle();
+    if (libre.error) throw new Error(libre.error.message);
+    if (!libre.data) throw new Error("La mesa no tiene una cuenta para cancelar.");
+    return;
+  }
+
   if ((sQ.data as { venta_id: string | null }).venta_id) throw new Error("La cuenta ya fue facturada; no se puede cancelar.");
   const sesionId = (sQ.data as { id: string }).id;
 

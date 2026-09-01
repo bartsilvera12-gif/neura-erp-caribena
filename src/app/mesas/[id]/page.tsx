@@ -237,7 +237,15 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   }
 
   async function onCancelarCuenta() {
-    if (!(await confirmar(`¿Cancelar la cuenta de la mesa ${numero}? Esto no factura ni cobra nada.`))) return;
+    // Una mesa sin nada cargado no tiene cuenta que perder: liberarla no
+    // descarta consumo, sólo la devuelve al salón. Preguntar ahí es ruido.
+    const vacia = items.length === 0;
+    if (
+      !vacia &&
+      !(await confirmar(`¿Cancelar la cuenta de la mesa ${numero}? Esto no factura ni cobra nada.`))
+    ) {
+      return;
+    }
     setBusy(true);
     const r = await cancelarCuentaMesa(id);
     setBusy(false);
@@ -459,12 +467,18 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                 Cobrar la mesa
               </button>
             )}
-            {hayItems && (
-              <button type="button" onClick={onCancelarCuenta} disabled={busy}
-                className="rounded-xl border border-rose-300 px-5 py-4 text-base font-semibold text-rose-600 hover:bg-rose-50 active:scale-95 disabled:opacity-50">
-                Cancelar cuenta
-              </button>
-            )}
+            {/* Con productos es "cancelar la cuenta" y se descarta consumo; sin
+                productos es sólo devolver la mesa al salón. Antes este botón
+                sólo existía con productos, así que una mesa abierta por error
+                quedaba ocupada sin forma de liberarla. */}
+            <button type="button" onClick={onCancelarCuenta} disabled={busy}
+              className={`rounded-xl border px-5 py-4 text-base font-semibold active:scale-95 disabled:opacity-50 ${
+                hayItems
+                  ? "border-rose-300 text-rose-600 hover:bg-rose-50"
+                  : "border-slate-300 text-slate-700 hover:bg-slate-50"
+              }`}>
+              {hayItems ? "Cancelar cuenta" : "Liberar mesa"}
+            </button>
           </div>
         </div>
       )}
