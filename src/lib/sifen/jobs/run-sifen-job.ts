@@ -546,6 +546,43 @@ export async function runSifenJob(job: SifenJobDTO): Promise<void> {
       }
     }
 
+    // El envío por el canal sincrónico ya trae el veredicto del SET, así que no
+    // queda lote que consultar. Sin esto el Job se quedaría preguntando por un
+    // protocolo que nunca existió y el trámite tardaría lo mismo que antes.
+    {
+      const feTrasEnvio = await leerEstadoActual(supabase, job.empresa_id, fid);
+      const stTrasEnvio = extraerEstadoSifen(feTrasEnvio);
+      if (stTrasEnvio === "aprobado") {
+        await completeSifenJobAprobado(supabase, job.id, {
+          cdc: feTrasEnvio?.cdc ?? null,
+          protocoloLote: feTrasEnvio?.sifen_d_prot_cons_lote ?? null,
+          respuestaConsultaLote:
+            (feTrasEnvio?.sifen_ultima_respuesta_consulta_lote as unknown as Record<string, unknown> | null) ?? null,
+          respuestaRecibeLote:
+            (feTrasEnvio?.sifen_ultima_respuesta_recibe_lote as unknown as Record<string, unknown> | null) ?? null,
+          tiempoTotalMs: Date.now() - totalStart,
+        });
+        console.log(
+          `${label} DE aprobado en el envío sincrónico — total=${Date.now() - totalStart}ms cdc=${feTrasEnvio?.cdc ?? "-"}`
+        );
+        return;
+      }
+      if (stTrasEnvio === "rechazado") {
+        await completeSifenJobRechazado(supabase, job.id, {
+          etapa: "enviar",
+          codigoErrorSet: null,
+          codigoSubErrorSet: null,
+          mensajeSet: feTrasEnvio?.error ?? "SET rechazó el documento.",
+          respuestaRecibeLote: null,
+          respuestaConsultaLote:
+            (feTrasEnvio?.sifen_ultima_respuesta_consulta_lote as unknown as Record<string, unknown> | null) ?? null,
+          tiempoTotalMs: Date.now() - totalStart,
+        });
+        console.log(`${label} DE rechazado en el envío sincrónico — cerrando Job`);
+        return;
+      }
+    }
+
     // === CONSULTA-LOTE (polling inline) ===
     {
       await setSifenJobEtapa(supabase, job.id, "consulta_lote");

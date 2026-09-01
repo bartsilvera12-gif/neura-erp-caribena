@@ -10,6 +10,8 @@ import { downloadSifenCertificadoObject } from "@/lib/sifen/sifen-certificados-s
 import { toFacturaElectronicaDto } from "@/lib/sifen/to-factura-electronica-dto";
 import type { AmbienteSifen, SifenApiEnviarTestDetalle, SifenEnviarTestResponseData } from "@/lib/sifen/types";
 import { isExplicitSifenTestOverrideEnabled } from "@/lib/env/allow-test-mode";
+import { enviarDeSincronico } from "@/lib/sifen/envio-sincronico";
+import { enviarFacturaMail } from "@/lib/facturacion/server/enviar-factura-mail";
 
 function parseAmbiente(raw: string): AmbienteSifen | null {
   if (raw === "test" || raw === "produccion") return raw;
@@ -68,7 +70,7 @@ export async function handleSifenEnviarPost(
   const { data: feRow, error: errFe } = await supabase
     .from("factura_electronica")
     .select(
-      "id, factura_id, estado_sifen, xml_firmado_path, error, sifen_d_prot_cons_lote, sifen_ultima_respuesta_recibe_lote, sifen_ultima_respuesta_consulta_lote"
+      "id, factura_id, estado_sifen, cdc, xml_firmado_path, error, sifen_d_prot_cons_lote, sifen_ultima_respuesta_recibe_lote, sifen_ultima_respuesta_consulta_lote"
     )
     .eq("factura_id", fid)
     .eq("empresa_id", auth.empresa_id)
@@ -178,6 +180,105 @@ export async function handleSifenEnviarPost(
       errorResponse(`No se pudo descargar el certificado .p12: ${p12Dl.message}`),
       { status: 500 }
     );
+  }
+
+  // ── Vía rápida: el canal sincrónico del SET ────────────────────────────────
+  //
+  // Contesta aprobado o rechazado en la misma llamada, así que la factura queda
+  // resuelta en segundos en vez de esperar la escalera de consultas del lote.
+  //
+  // Si no puede resolver, cae al camino de lote de siempre, que queda intacto
+  // más abajo. Nunca reintenta a ciegas: ante una respuesta ambigua le pregunta
+  // al SET por el CDC, porque mandar dos veces el mismo documento lo haría
+  // rechazar por duplicado.
+  //
+  // `SIFEN_ENVIO_SINCRONICO=0` lo apaga sin tocar código, por si hubiera que
+  // volver al lote en medio de un servicio.
+  const cdcActual = feRow.cdc == null ? "" : String(feRow.cdc).trim();
+  if (process.env.SIFEN_ENVIO_SINCRONICO !== "0" && cdcActual.length === 44) {
+    const rapido = await enviarDeSincronico({
+      xmlFirmadoRde: xmlDl.data.toString("utf8"),
+      cdc: cdcActual,
+      ambiente: ambienteSoap,
+      certificadoP12: p12Dl.data,
+      certificadoPassword: p12Password,
+    });
+
+    if (rapido.tipo === "resuelto") {
+      const aprobado = rapido.estado === "aprobado";
+      const { data: filaSync, error: errSync } = await supabase
+        .from("factura_electronica")
+        .update({
+          estado_sifen: rapido.estado,
+          error: aprobado ? null : rapido.mensaje ?? "SET rechazó el documento.",
+          // Sin lote no hay protocolo de lote; el número de autorización va en
+          // el detalle por CDC, que es de donde lo lee el KUDE.
+          sifen_d_prot_cons_lote: null,
+          sifen_ultima_respuesta_consulta_lote: rapido.persistible,
+          ...(aprobado ? { sifen_aprobado_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", feRow.id)
+        .eq("empresa_id", auth.empresa_id)
+        .select()
+        .single();
+
+      if (!errSync && filaSync) {
+        await supabase.from("factura_electronica_evento").insert({
+          empresa_id: auth.empresa_id,
+          factura_electronica_id: feRow.id,
+          tipo: "respuesta",
+          detalle: {
+            origen: "api_enviar_sincronico",
+            factura_id: fid,
+            estado_sifen_anterior: String(feRow.estado_sifen ?? ""),
+            estado_sifen_nuevo: rapido.estado,
+            dProtAut: rapido.dProtAut,
+            mensaje: rapido.mensaje,
+          },
+        });
+
+        if (aprobado) {
+          // Igual que en el camino de lote: si el cliente dejó su correo, se le
+          // manda la factura apenas queda aprobada.
+          try {
+            await enviarFacturaMail({
+              supabase,
+              empresaId: auth.empresa_id,
+              facturaId: fid,
+              origen: "automatico",
+            });
+          } catch (e) {
+            console.warn("[sifen-sync] no se pudo mandar la factura por correo", {
+              factura_id: fid,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+
+        return NextResponse.json(
+          successResponse({
+            factura_electronica: toFacturaElectronicaDto(filaSync as Record<string, unknown>),
+            via: "sincronico",
+            estado_sifen: rapido.estado,
+          })
+        );
+      }
+
+      // No se pudo guardar el veredicto. No se reenvía por lote: el documento ya
+      // está en el SET y duplicarlo sería peor. Queda para «Consultar lote».
+      console.error("[sifen-sync] veredicto obtenido pero no se pudo guardar", {
+        factura_id: fid,
+        error: errSync?.message,
+      });
+      return NextResponse.json(
+        errorResponse(
+          `El SET resolvió el documento como ${rapido.estado}, pero no se pudo guardar: ${errSync?.message ?? "error"}. Usá «Consultar lote» para sincronizar.`
+        ),
+        { status: 500 }
+      );
+    }
+
+    console.log("[sifen-sync] se sigue por lote", { factura_id: fid, motivo: rapido.motivo });
   }
 
   let resp: RecibeLoteRespuestaParsed;
