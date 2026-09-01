@@ -48,7 +48,6 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   /** Sesión viva de la mesa: es la que identifica la cuenta en la pantalla de cobro. */
   const [sesionId, setSesionId] = useState<string | null>(null);
   /** Panel de cobro desplegado. Arranca cerrado para no tapar el pedido. */
-  const [cobrando, setCobrando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const tmpCounter = useRef(0);
@@ -271,22 +270,13 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
         </h1>
       </div>
 
-      {/* Ya pidió la cuenta: desde acá se sigue cobrando, sin volver a buscarla
-          entre las pendientes de Caja. */}
+      {/* El cobro está más abajo en esta misma pantalla, así que sólo hace falta
+          avisar que el pedido ya no se edita. */}
       {porCobrar && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5">
           <p className="text-sm font-medium text-rose-700">
             Esta cuenta está marcada para cobrar. El pedido ya no se edita.
           </p>
-          {sesionId && (
-            <button
-              type="button"
-              onClick={() => setCobrando(true)}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Cobrar ahora
-            </button>
-          )}
         </div>
       )}
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
@@ -401,30 +391,20 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       {/* El cobro vive acá, en la misma pantalla de la mesa. Tener que salir a
           Caja para cobrar la cuenta que ya se tenía abierta era pedirle al
           cajero que recorriera el sistema para terminar donde ya estaba. */}
+      {/* El cobro va siempre a la vista, sin desplegar. Estaba detrás de un
+          botón que lo abría más abajo, fuera de la pantalla: se apretaba y
+          parecía que no pasaba nada. Un cobro escondido no sirve de nada. */}
       {hayItems && sesionId && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <button
-            type="button"
-            onClick={() => setCobrando((v) => !v)}
-            className="flex w-full items-center justify-between text-left"
-          >
-            <span className="text-sm font-semibold text-slate-800">
-              Cobrar esta mesa
-            </span>
-            <span className="text-xs font-medium text-[#0EA5E9]">{cobrando ? "Ocultar" : "Abrir"}</span>
-          </button>
-          {cobrando && (
-            <div className="mt-4">
-              <CobroCuenta
-                sesionId={sesionId}
-                total={total}
-                pendientes={items.filter((i) => i.estado === "pendiente").length}
-                habilitado={hayItems}
-                volverA="/mesas"
-                onError={setError}
-              />
-            </div>
-          )}
+          <p className="mb-4 text-sm font-semibold text-slate-800">Cobrar esta mesa</p>
+          <CobroCuenta
+            sesionId={sesionId}
+            total={total}
+            pendientes={items.filter((i) => i.estado === "pendiente").length}
+            habilitado={hayItems}
+            volverA="/mesas"
+            onError={setError}
+          />
         </div>
       )}
 
@@ -444,27 +424,6 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
               <button type="button" onClick={onEnviarComanda} disabled={busy}
                 className="rounded-xl bg-[#4FAEB2] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95 disabled:opacity-50">
                 Enviar comanda
-              </button>
-            )}
-            {/* Abre el cobro en esta misma pantalla. Antes mandaba la cuenta a
-                caja y devolvía al salón, y había que volver a buscarla desde
-                otro lado para terminar de cobrarla. */}
-            {hayItems && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCobrando(true);
-                  // El panel está más abajo; sin esto en el celular queda fuera
-                  // de la pantalla y parece que el botón no hizo nada.
-                  setTimeout(
-                    () => document.getElementById("cobro-mesa")?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                    50
-                  );
-                }}
-                disabled={busy}
-                className="rounded-xl bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-              >
-                Cobrar la mesa
               </button>
             )}
             {/* Con productos es "cancelar la cuenta" y se descarta consumo; sin
