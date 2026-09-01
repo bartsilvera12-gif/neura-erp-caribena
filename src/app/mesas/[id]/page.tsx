@@ -11,7 +11,7 @@ import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
 import CobroCuenta from "@/components/ventas/CobroCuenta";
 import {
   actualizarItemMesa, agregarItemMesa, cancelarCuentaMesa,
-  enviarComandaMesa, getMesaDetalle,
+  enviarComandaMesa, enviarMesaACaja, getMesaDetalle,
 } from "@/lib/mesas/storage";
 import type { EstadoMesa, MesaSesionItem } from "@/lib/mesas/types";
 
@@ -240,6 +240,33 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     setTimeout(() => setOkMsg(null), 3000);
   }
 
+  /**
+   * Deja la cuenta en la lista de pendientes de Caja.
+   *
+   * Hace falta porque el mozo no cobra: su usuario tiene mesas y comandas, no
+   * ventas. Sin esto no tendría forma de pasarle la mesa al que sí cobra.
+   * Quien cobra en el salón no lo necesita — tiene el cobro acá abajo.
+   */
+  async function onPasarACaja() {
+    setError(null);
+    const hayPend = items.some((i) => i.estado === "pendiente");
+    if (hayPend) {
+      const enviar = await confirmar(
+        "Hay productos sin enviar a cocina. ¿Querés mandarlos antes de pasar la mesa a caja?",
+        { confirmLabel: "Enviar y pasar", cancelLabel: "Pasar sin enviar", destructivo: false }
+      );
+      if (enviar) {
+        const c = await enviarComandaMesa(id);
+        if (!c.success) { setError(c.error); return; }
+      }
+    }
+    setBusy(true);
+    const r = await enviarMesaACaja(id);
+    setBusy(false);
+    if (!r.success) { setError(r.error); return; }
+    router.push("/mesas");
+  }
+
   async function onCancelarCuenta() {
     // Una mesa sin nada cargado no tiene cuenta que perder: liberarla no
     // descarta consumo, sólo la devuelve al salón. Preguntar ahí es ruido.
@@ -439,6 +466,12 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
               <button type="button" onClick={onEnviarComanda} disabled={busy}
                 className="rounded-xl bg-[#4FAEB2] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95 disabled:opacity-50">
                 Enviar comanda
+              </button>
+            )}
+            {hayItems && (
+              <button type="button" onClick={onPasarACaja} disabled={busy}
+                className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
+                Pasar a caja
               </button>
             )}
             {/* Con productos es "cancelar la cuenta" y se descarta consumo; sin
