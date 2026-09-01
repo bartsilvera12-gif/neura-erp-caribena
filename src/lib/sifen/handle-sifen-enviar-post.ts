@@ -182,6 +182,34 @@ export async function handleSifenEnviarPost(
     );
   }
 
+  // ── Candado: un solo envío por documento ───────────────────────────────────
+  //
+  // La comprobación de "estado = firmado" de más arriba no alcanza cuando dos
+  // llamadas entran a la vez: las dos leen "firmado" y las dos salen a enviar.
+  // Pasó de verdad — el primer envío entró y el segundo volvió como «lote no
+  // encolado», que en pantalla se ve como un rechazo del SET aunque la factura
+  // estuviera perfecta.
+  //
+  // El paso a "enviado" se hace acá, condicionado a que siga en "firmado". Si
+  // no actualiza ninguna fila es porque otro ya está enviando, y entonces este
+  // se retira sin tocar al SET. La condición la resuelve la base sobre la fila
+  // bloqueada, así que no hay ventana entre leer y escribir.
+  const { data: claim } = await supabase
+    .from("factura_electronica")
+    .update({ estado_sifen: "enviado" })
+    .eq("id", feRow.id)
+    .eq("empresa_id", auth.empresa_id)
+    .eq("estado_sifen", "firmado")
+    .select("id")
+    .maybeSingle();
+
+  if (!claim) {
+    return NextResponse.json(
+      errorResponse("Este documento ya se está enviando al SET. Esperá el resultado."),
+      { status: 409 }
+    );
+  }
+
   // ── Vía rápida: el canal sincrónico del SET ────────────────────────────────
   //
   // Contesta aprobado o rechazado en la misma llamada, así que la factura queda
@@ -302,6 +330,15 @@ export async function handleSifenEnviarPost(
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e);
     const label = ambienteSoap === "produccion" ? "SIFEN producción" : "SIFEN TEST";
+    // No se llegó a hablar con el SET, así que el documento sigue sin enviar:
+    // se suelta el candado para que se pueda reintentar. Dejarlo en "enviado"
+    // lo trabaría esperando una respuesta que nunca va a llegar.
+    await supabase
+      .from("factura_electronica")
+      .update({ estado_sifen: "firmado" })
+      .eq("id", feRow.id)
+      .eq("empresa_id", auth.empresa_id)
+      .eq("estado_sifen", "enviado");
     return NextResponse.json(errorResponse(`Fallo al llamar a ${label} (recibe-lote): ${m}`), {
       status: 502,
     });
