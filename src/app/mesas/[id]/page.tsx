@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
 import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
+import CobroCuenta from "@/components/ventas/CobroCuenta";
 import {
   actualizarItemMesa, agregarItemMesa, cancelarCuentaMesa,
   enviarComandaMesa, enviarMesaACaja, getMesaDetalle,
@@ -45,6 +46,8 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   const [busy, setBusy] = useState(false);
   /** Sesión viva de la mesa: es la que identifica la cuenta en la pantalla de cobro. */
   const [sesionId, setSesionId] = useState<string | null>(null);
+  /** Panel de cobro desplegado. Arranca cerrado para no tapar el pedido. */
+  const [cobrando, setCobrando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const tmpCounter = useRef(0);
@@ -394,6 +397,36 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
+      {/* El cobro vive acá, en la misma pantalla de la mesa. Tener que salir a
+          Caja para cobrar la cuenta que ya se tenía abierta era pedirle al
+          cajero que recorriera el sistema para terminar donde ya estaba. */}
+      {hayItems && sesionId && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setCobrando((v) => !v)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="text-sm font-semibold text-slate-800">
+              Cobrar esta mesa
+            </span>
+            <span className="text-xs font-medium text-[#0EA5E9]">{cobrando ? "Ocultar" : "Abrir"}</span>
+          </button>
+          {cobrando && (
+            <div className="mt-4">
+              <CobroCuenta
+                sesionId={sesionId}
+                total={total}
+                pendientes={items.filter((i) => i.estado === "pendiente").length}
+                habilitado={hayItems}
+                volverA="/mesas"
+                onError={setError}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Acciones (sticky abajo) — solo si la cuenta sigue en mano del mozo */}
       {!porCobrar && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
@@ -412,10 +445,33 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                 Enviar comanda
               </button>
             )}
+            {/* Abre el cobro en esta misma pantalla. Antes mandaba la cuenta a
+                caja y devolvía al salón, y había que volver a buscarla desde
+                otro lado para terminar de cobrarla. */}
+            {hayItems && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCobrando(true);
+                  // El panel está más abajo; sin esto en el celular queda fuera
+                  // de la pantalla y parece que el botón no hizo nada.
+                  setTimeout(
+                    () => document.getElementById("cobro-mesa")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                    50
+                  );
+                }}
+                disabled={busy}
+                className="rounded-xl bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+              >
+                Cobrar la mesa
+              </button>
+            )}
+            {/* Para cuando el que cobra no es el que atiende: deja la cuenta en
+                la lista de pendientes de Caja en vez de cobrarla acá. */}
             {hayItems && (
               <button type="button" onClick={onPedirCuenta} disabled={busy}
-                className="rounded-xl bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-50">
-                Cobrar la mesa →
+                className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
+                Pasar a caja
               </button>
             )}
             {hayItems && (
