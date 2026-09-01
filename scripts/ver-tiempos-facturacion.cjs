@@ -1,0 +1,76 @@
+/**
+ * Cuánto tarda una factura electrónica, etapa por etapa.
+ *
+ * Sirve para discutir la velocidad con números en vez de impresiones, y para
+ * ver qué parte del tiempo es nuestra y cuál es del SET:
+ *
+ *   cola / xml / firmar  → nuestro
+ *   enviar / consulta    → del SET
+ *
+ * `consulta` en cero o vacío significa que el documento se resolvió por el
+ * canal sincrónico, que es lo que se busca. Si aparece con valores altos, el
+ * envío está cayendo al camino de lote.
+ *
+ * Sólo lee.
+ */
+const { Client } = require("pg");
+
+const CONN = process.env.PG_URL || "postgresql://postgres:NeuraDB2026@187.77.247.54:6432/postgres?sslmode=disable";
+const S = "caribenaerp";
+const LIMITE = Number(process.argv.find((a) => /^\d+$/.test(a)) || 20);
+
+const seg = (ms) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
+
+(async () => {
+  const c = new Client({ connectionString: CONN });
+  await c.connect();
+
+  const { rows } = await c.query(`
+    SELECT f.numero_factura, j.estado,
+           round(extract(epoch from (j.started_at - j.created_at)) * 1000)::int AS cola,
+           j.tiempo_xml_ms, j.tiempo_firmar_ms, j.tiempo_enviar_ms,
+           j.tiempo_consulta_ms, j.tiempo_total_ms
+      FROM ${S}.sifen_jobs j
+      LEFT JOIN ${S}.facturas f ON f.id = j.factura_id
+     ORDER BY j.created_at DESC
+     LIMIT ${LIMITE}`);
+
+  if (rows.length === 0) {
+    console.log("Todavía no hay trabajos registrados.");
+    await c.end();
+    return;
+  }
+
+  console.table(rows.map((r) => ({
+    factura: r.numero_factura,
+    estado: r.estado,
+    cola: seg(r.cola),
+    xml: seg(r.tiempo_xml_ms),
+    firmar: seg(r.tiempo_firmar_ms),
+    enviar: seg(r.tiempo_enviar_ms),
+    consulta: seg(r.tiempo_consulta_ms),
+    total: seg(r.tiempo_total_ms),
+  })));
+
+  const ok = rows.filter((r) => r.estado === "aprobado" && r.tiempo_total_ms != null);
+  if (ok.length > 0) {
+    const prom = (k) => Math.round(ok.reduce((a, b) => a + (b[k] || 0), 0) / ok.length);
+    const nuestro = prom("cola") + prom("tiempo_xml_ms") + prom("tiempo_firmar_ms");
+    const delSet = prom("tiempo_enviar_ms") + prom("tiempo_consulta_ms");
+    console.log(`\nSobre ${ok.length} factura(s) aprobada(s):`);
+    console.log(`  nuestro:  cola ${seg(prom("cola"))} + xml ${seg(prom("tiempo_xml_ms"))} + firmar ${seg(prom("tiempo_firmar_ms"))} = ${seg(nuestro)}`);
+    console.log(`  del SET:  enviar ${seg(prom("tiempo_enviar_ms"))} + consulta ${seg(prom("tiempo_consulta_ms"))} = ${seg(delSet)}`);
+    console.log(`  total:    ${seg(prom("tiempo_total_ms"))}`);
+  }
+
+  const via = await c.query(`
+    SELECT count(*) FILTER (WHERE detalle->>'origen' = 'api_enviar_sincronico')::int AS sincronico,
+           count(*) FILTER (WHERE detalle->>'origen' IN ('api_enviar','api_consulta_lote'))::int AS por_lote
+      FROM ${S}.factura_electronica_evento`);
+  console.log(`\nDocumentos resueltos por canal sincrónico: ${via.rows[0].sincronico} · por lote: ${via.rows[0].por_lote}`);
+
+  await c.end();
+})().catch((e) => {
+  console.error("ERROR:", e.message);
+  process.exit(1);
+});

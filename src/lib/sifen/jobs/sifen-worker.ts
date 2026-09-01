@@ -39,8 +39,19 @@ function buildLockOwner(): string {
 }
 
 const LOCK_OWNER = buildLockOwner();
-const TICK_ACTIVO_MS = 2_000;
-const TICK_IDLE_MS = 5_000;
+/**
+ * Cada cuánto el worker mira si hay trabajo.
+ *
+ * Medido sobre facturas reales, un documento pasaba unos 2 segundos esperando a
+ * que alguien lo levantara: tiempo muerto, con la factura ya lista para salir y
+ * el cliente esperando en el mostrador.
+ *
+ * Bajar el tick lo recorta casi por completo. El costo es una consulta más
+ * seguida a la base cuando no hay nada que hacer, que para un solo local es
+ * despreciable: es un SELECT sobre un índice.
+ */
+const TICK_ACTIVO_MS = 300;
+const TICK_IDLE_MS = 1_000;
 const RECLAIM_INTERVAL_MS = 60_000;
 
 interface WorkerState {
