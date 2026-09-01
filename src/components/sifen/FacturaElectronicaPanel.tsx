@@ -661,6 +661,18 @@ export function FacturaElectronicaPanel({
         return;
       }
 
+      // Si el servidor ya está emitiendo este documento, la pantalla no vuelve
+      // a hacerlo. Los dos corriendo a la vez regeneraban el XML dos veces y
+      // llegaban juntos al envío: el segundo volvía como «lote no encolado» y
+      // en pantalla parecía un rechazo del SET sobre una factura correcta.
+      const jobVivo =
+        cur.sifen_job &&
+        (cur.sifen_job.estado === "pendiente" || cur.sifen_job.estado === "procesando");
+      if (jobVivo) {
+        setFlash({ kind: "ok", text: "El documento ya se está emitiendo. Esperá el resultado." });
+        return;
+      }
+
       if (!cur.factura_electronica) {
         if (!(await post(`/api/facturas/${facturaId}/sifen/borrador`))) return;
         cur = (await refresh()) ?? cur;
@@ -911,13 +923,16 @@ export function FacturaElectronicaPanel({
     Boolean(resumen?.sifen_config_activa) &&
     !primaryConsultarLote &&
     (!fe || ["borrador", "generado", "firmado", "error_envio"].includes(stStr));
-  // El worker en background puede estar procesando esta misma factura
-  // (etapa xml/firmar/enviar) al mismo tiempo que el operador aprieta un botón
-  // manual — sin esto, ambos pueden disparar el mismo POST /sifen/enviar casi
-  // simultáneo (el handler no tiene compare-and-swap por estado en el UPDATE
-  // final), dos envíos reales a SET, y el que escribe último en la BD pisa el
-  // resultado del otro aunque haya sido aceptado. Bloqueamos los botones
-  // mientras el job async está activo; el panel igual se refresca solo.
+  // El worker puede estar procesando esta misma factura mientras el operador
+  // aprieta un botón. Los botones se bloquean mientras hay un trabajo activo;
+  // el panel se refresca solo.
+  //
+  // Esto es la primera de tres barreras, y sola no alcanza: se apoya en el
+  // último refresco, así que entre que el trabajo se encola y la pantalla se
+  // entera hay una ventana. Las otras dos son la comprobación con datos
+  // frescos dentro de ejecutarGenerarYEnviar, y el candado en el propio
+  // endpoint de envío, que es el único lugar donde se puede garantizar que al
+  // SET no le llegue el documento dos veces.
   const jobActivo =
     resumen?.sifen_job != null &&
     (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
