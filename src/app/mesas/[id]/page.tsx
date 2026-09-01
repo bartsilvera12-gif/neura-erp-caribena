@@ -94,6 +94,10 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       return false;
     }
     setItems((prev) => prev.map((i) => (i.id === tmpId ? r.item : i))); // reconciliar
+    // La cuenta se crea en el servidor recién al cargar el primer producto. Sin
+    // esto la pantalla nunca se enteraba de su id, y el cobro —que depende de
+    // ese id— no aparecía en toda la visita: había que salir y volver a entrar.
+    if (!sesionId && r.item.sesion_id) setSesionId(r.item.sesion_id);
     markPending(tmpId, false);
     return true;
   }
@@ -136,6 +140,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       return;
     }
     setItems((prev) => prev.map((i) => (i.id === tmpId ? res.item : i)));
+    if (!sesionId && res.item.sesion_id) setSesionId(res.item.sesion_id);
     markPending(tmpId, false);
   }
 
@@ -256,6 +261,16 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
 
   const total = items.reduce((s, i) => s + i.total, 0);
   const hayItems = items.length > 0;
+  /**
+   * Id de la cuenta, con los propios productos como respaldo.
+   *
+   * El estado se llena al cargar la pantalla y al crear la cuenta, pero si por
+   * cualquier camino quedara vacío, el cobro desaparecería sin explicación.
+   * Cualquier producto ya guardado sabe a qué cuenta pertenece, así que sirve
+   * de red: mientras haya algo cargado, hay con qué cobrar.
+   */
+  const cuentaId =
+    sesionId ?? items.find((i) => !i.id.startsWith("tmp-") && i.sesion_id)?.sesion_id ?? null;
   const hayPendientes = items.some((i) => i.estado === "pendiente");
 
   return (
@@ -394,11 +409,11 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       {/* El cobro va siempre a la vista, sin desplegar. Estaba detrás de un
           botón que lo abría más abajo, fuera de la pantalla: se apretaba y
           parecía que no pasaba nada. Un cobro escondido no sirve de nada. */}
-      {hayItems && sesionId && (
+      {hayItems && cuentaId && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="mb-4 text-sm font-semibold text-slate-800">Cobrar esta mesa</p>
           <CobroCuenta
-            sesionId={sesionId}
+            sesionId={cuentaId}
             total={total}
             pendientes={items.filter((i) => i.estado === "pendiente").length}
             habilitado={hayItems}
