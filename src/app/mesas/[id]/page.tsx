@@ -43,6 +43,8 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   const [cambiandoItem, setCambiandoItem] = useState<MesaSesionItem | null>(null);
   const [mitadOpen, setMitadOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Sesión viva de la mesa: es la que identifica la cuenta en la pantalla de cobro. */
+  const [sesionId, setSesionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const tmpCounter = useRef(0);
@@ -53,6 +55,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       setNumero(d.mesa.numero);
       setMesaEstado(d.mesa.estado);
       setPorCobrar(d.sesion?.estado === "por_cobrar");
+      setSesionId(d.sesion?.id ?? null);
       setItems(d.items);
     }
     setLoading(false);
@@ -232,7 +235,11 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     const r = await enviarMesaACaja(id);
     setBusy(false);
     if (!r.success) { setError(r.error); return; }
-    router.push("/mesas");
+    // Se va derecho a cobrar. Volver al salón obligaba a salir a Caja, buscar la
+    // mesa entre las pendientes y recién ahí cobrar: tres pasos para seguir con
+    // la misma cuenta que ya se tenía en la mano.
+    if (sesionId) router.push(`/ventas/mesas-por-cobrar/${sesionId}`);
+    else router.push("/mesas");
   }
 
   async function onCancelarCuenta() {
@@ -262,9 +269,20 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
         </h1>
       </div>
 
+      {/* Ya pidió la cuenta: desde acá se sigue cobrando, sin volver a buscarla
+          entre las pendientes de Caja. */}
       {porCobrar && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
-          Esta cuenta fue enviada a caja. La cobra/factura el cajero.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5">
+          <p className="text-sm font-medium text-rose-700">Esta cuenta ya está en caja para cobrar.</p>
+          {sesionId && (
+            <button
+              type="button"
+              onClick={() => router.push(`/ventas/mesas-por-cobrar/${sesionId}`)}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Cobrar ahora →
+            </button>
+          )}
         </div>
       )}
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
@@ -397,7 +415,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
             {hayItems && (
               <button type="button" onClick={onPedirCuenta} disabled={busy}
                 className="rounded-xl bg-emerald-600 px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-50">
-                Pedir cuenta
+                Cobrar la mesa →
               </button>
             )}
             {hayItems && (
