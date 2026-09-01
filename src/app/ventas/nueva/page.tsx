@@ -463,7 +463,13 @@ export default function NuevaVentaPage() {
         if (res.ok && body?.success !== false && body?.data?.facturaId) {
           // El comprobante de una factura es el KUDE: la pantalla lo abre sola
           // apenas el documento queda aprobado por el SET.
-          router.push(`/facturas/${body.data.facturaId}?kude=1`);
+          //
+          // `auto=1` encola el trámite en el servidor en vez de hacerlo desde
+          // el navegador paso a paso. Antes el cajero tenía que apretar
+          // "Generar y enviar" y quedarse mirando unos 20 segundos; ahora el
+          // worker lo resuelve solo y la pantalla se entera sola. El tiempo del
+          // SET sigue siendo el que es, pero deja de ser cola en el mostrador.
+          router.push(`/facturas/${body.data.facturaId}?kude=1&auto=1`);
           return;
         }
         setErrorVenta(
