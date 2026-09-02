@@ -58,4 +58,11 @@ export const reimprimirComanda = (id: string) => postComanda(id, "reimprimir");
 export const cancelarComanda = (id: string) => postComanda(id, "cancelar");
 
 /** URL del ticket imprimible (HTML, sin precio, auto-print). */
-export const comandaPrintUrl = (id: string) => `/api/comandas/${encodeURIComponent(id)}/print`;
+/**
+ * Ticket de cocina listo para imprimir.
+ *
+ * Va con `auto=1`: se llega acá desde el botón "Imprimir", así que abrir la
+ * ventana y esperar un segundo clic no agrega nada — sólo hace perder tiempo en
+ * cocina. Con Chrome en `--kiosk-printing` esto sale directo al papel.
+ */
+export const comandaPrintUrl = (id: string) => `/api/comandas/${encodeURIComponent(id)}/print?auto=1`;
