@@ -3,7 +3,8 @@
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import { getGastos, deleteGasto } from "@/lib/gastos/actions";
 import {
   avisoError, badgeMarca, badgeNeutro, btnIcono, btnIconoPeligro, btnPrimario,
@@ -30,6 +31,7 @@ function formatFecha(fecha: string) {
 
 export default function GastosPage() {
   const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
   const [eliminando, setEliminando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,14 @@ export default function GastosPage() {
     }
   }
 
-  const total = gastos.reduce((s, g) => s + (Number(g.monto) || 0), 0);
+  /** Lo que se ve con el buscador puesto. */
+  const visibles = useMemo(
+    () => gastos.filter((g) => coincideBusqueda(busqueda, g.descripcion, g.categoria, g.monto)),
+    [gastos, busqueda]
+  );
+  // El total acompaña a lo que se está viendo: si el filtro muestra tres gastos
+  // y el total sigue siendo el de todos, el número no dice nada.
+  const total = visibles.reduce((s, g) => s + (Number(g.monto) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -89,6 +98,16 @@ export default function GastosPage() {
           )}
         </div>
 
+        <div className="border-b border-slate-100 px-5 py-3">
+          <BuscadorLista
+            valor={busqueda}
+            onChange={setBusqueda}
+            placeholder="Buscar por descripción, categoría o monto…"
+            mostrando={visibles.length}
+            total={gastos.length}
+          />
+        </div>
+
         {/* Categoría y Tipo se ocultan en pantallas chicas; min-w fuerza el
             scroll horizontal en mobile. */}
         <div className="overflow-x-auto">
@@ -106,7 +125,7 @@ export default function GastosPage() {
             <tbody className={tbody}>
               {cargando ? (
                 <tr><td colSpan={6} className={celdaVacia}>Cargando…</td></tr>
-              ) : gastos.length === 0 ? (
+              ) : visibles.length === 0 ? (
                 <tr>
                   <td colSpan={6} className={celdaVacia}>
                     Todavía no registraste gastos.{" "}
@@ -116,7 +135,7 @@ export default function GastosPage() {
                   </td>
                 </tr>
               ) : (
-                gastos.map((g) => (
+                visibles.map((g) => (
                   <tr key={g.id} className={tr}>
                     <td className={`${td} whitespace-nowrap tabular-nums`}>{formatFecha(g.fecha)}</td>
                     <td className={`${tdFuerte} hidden md:table-cell`}>{g.categoria || "—"}</td>

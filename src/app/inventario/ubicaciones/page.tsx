@@ -2,7 +2,8 @@
 
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
@@ -21,6 +22,7 @@ const TIPOS = ["deposito","salon","pasillo","gondola","estante","zona","otro"] a
 export default function UbicacionesPage() {
   const { isAdmin } = useIsAdmin();
   const [items, setItems] = useState<Ubicacion[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +90,12 @@ export default function UbicacionesPage() {
     if (r.ok && j?.success) load();
     else setError(j?.error ?? "No se pudo actualizar.");
   }
+
+  /** Ubicaciones que coinciden con la búsqueda. */
+  const visibles = useMemo(
+    () => items.filter((u) => coincideBusqueda(busqueda, u.nombre, u.tipo, u.codigo)),
+    [items, busqueda]
+  );
 
   return (
     <div className="space-y-8">
@@ -193,7 +201,7 @@ export default function UbicacionesPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((u) => {
+              {visibles.map((u) => {
                 const parent = items.find((i) => i.id === u.parent_id);
                 return (
                   <tr key={u.id} className="border-t border-slate-100">

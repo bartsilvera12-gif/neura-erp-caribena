@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import { cancelarMesa, cancelarPL, getMesasPorCobrar } from "@/lib/mesas/storage";
 import type { MesaConResumen } from "@/lib/mesas/types";
@@ -29,6 +30,7 @@ export default function MesasPorCobrarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
 
   const load = useCallback(async () => {
     const d = await getMesasPorCobrar();
@@ -78,6 +80,22 @@ export default function MesasPorCobrarPage() {
     void load();
   }
 
+  /** Cuentas que coinciden con la búsqueda: mesas y Para llevar. */
+  const visibles = useMemo(
+    () =>
+      mesas.filter((m) =>
+        coincideBusqueda(
+          busqueda,
+          m.mesa.numero,
+          m.mesa.nombre,
+          m.sesion?.numero_pl,
+          m.sesion?.nombre_cliente,
+          m.mozo_nombre
+        )
+      ),
+    [mesas, busqueda]
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -94,13 +112,23 @@ export default function MesasPorCobrarPage() {
         </div>
       )}
 
+      <BuscadorLista
+        valor={busqueda}
+        onChange={setBusqueda}
+        placeholder="Buscar por mesa, N° de pedido, cliente o mozo…"
+        mostrando={visibles.length}
+        total={mesas.length}
+      />
+
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando…</p>
-      ) : mesas.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-slate-400">No hay nada por cobrar.</div>
+      ) : visibles.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-slate-400">
+          {busqueda.trim() ? "Nada coincide con la búsqueda." : "No hay nada por cobrar."}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {mesas.map((m) => m.sesion && (
+          {visibles.map((m) => m.sesion && (
             <div
               key={m.sesion.id}
               className="rounded-xl border border-rose-200 bg-white p-4 shadow-sm"

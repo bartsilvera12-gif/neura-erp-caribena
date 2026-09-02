@@ -2,7 +2,8 @@
 
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import { useRouter } from "next/navigation";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
@@ -43,6 +44,7 @@ export default function PedidosParaLlevarPage() {
   const router = useRouter();
   const [pendientes, setPendientes] = useState<ComandaCard[]>([]);
   const [activos, setActivos] = useState<ParaLlevarConResumen[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -138,6 +140,15 @@ export default function PedidosParaLlevarPage() {
     void load();
   }
 
+  /** Pedidos abiertos que coinciden con la búsqueda. */
+  const activosVisibles = useMemo(
+    () =>
+      activos.filter((pl) =>
+        coincideBusqueda(busqueda, pl.sesion.numero_pl, pl.sesion.nombre_cliente, pl.mozo_nombre)
+      ),
+    [activos, busqueda]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -156,6 +167,16 @@ export default function PedidosParaLlevarPage() {
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
 
+      {/* En el mostrador se busca por el nombre del cliente —"el pedido de
+          Ramón"— tanto como por el número. */}
+      <BuscadorLista
+        valor={busqueda}
+        onChange={setBusqueda}
+        placeholder="Buscar por N° de pedido, cliente o mozo…"
+        mostrando={activosVisibles.length}
+        total={activos.length}
+      />
+
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando…</p>
       ) : (
@@ -166,11 +187,11 @@ export default function PedidosParaLlevarPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">En preparación</h2>
               <span className="text-xs text-slate-500">{activos.length} activo(s)</span>
             </div>
-            {activos.length === 0 ? (
-              <p className="py-3 text-center text-sm text-slate-400">No hay pedidos abiertos.</p>
+            {activosVisibles.length === 0 ? (
+              <p className="py-3 text-center text-sm text-slate-400">{busqueda.trim() ? "Ningún pedido coincide con la búsqueda." : "No hay pedidos abiertos."}</p>
             ) : (
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {activos.map((pl) => {
+                {activosVisibles.map((pl) => {
                   const { sesion, total, items_count, mozo_nombre } = pl;
                   return (
                     <li

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import {
   getCategoriasProveedor,
   createCategoriaProveedor,
@@ -14,6 +15,7 @@ const inputClass =
 
 export default function ProveedorCategoriasPage() {
   const [lista, setLista] = useState<ProveedorCategoria[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,12 @@ export default function ProveedorCategoriasPage() {
     else await reload();
   }
 
+  /** Categorías que coinciden con la búsqueda. */
+  const visibles = useMemo(
+    () => lista.filter((c) => coincideBusqueda(busqueda, c.nombre, c.descripcion)),
+    [lista, busqueda]
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -117,6 +125,14 @@ export default function ProveedorCategoriasPage() {
         </button>
       </form>
 
+      <BuscadorLista
+        valor={busqueda}
+        onChange={setBusqueda}
+        placeholder="Buscar categoría por nombre o descripción…"
+        mostrando={visibles.length}
+        total={lista.length}
+      />
+
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
@@ -128,7 +144,7 @@ export default function ProveedorCategoriasPage() {
             </tr>
           </thead>
           <tbody>
-            {lista.map((c) => (
+            {visibles.map((c) => (
               <tr key={c.id} className="border-b border-slate-50 last:border-0">
                 <td className="py-3 pr-4">
                   {editingId === c.id ? (

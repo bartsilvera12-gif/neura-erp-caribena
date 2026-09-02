@@ -3,7 +3,8 @@
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import {
   cancelarComanda, comandaPrintUrl, getComandas, getComandasHistorial, imprimirComanda,
 } from "@/lib/comandas/storage";
@@ -18,6 +19,7 @@ function formatHora(iso: string | null) {
 
 export default function ComandasPage() {
   const [pendientes, setPendientes] = useState<ComandaCard[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [ultimasImpresas, setUltimasImpresas] = useState<ComandaCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +156,28 @@ export default function ComandasPage() {
     );
   }
 
+  /**
+   * Comandas pendientes que coinciden con la búsqueda.
+   *
+   * Se busca también dentro de los productos: en la cocina la pregunta es
+   * "¿dónde está la hamburguesa?", no el número de comanda.
+   */
+  const pendientesVisibles = useMemo(
+    () =>
+      pendientes.filter((c) =>
+        coincideBusqueda(
+          busqueda,
+          c.numero,
+          c.mesa_numero,
+          c.mozo_nombre,
+          c.nombre_cliente,
+          c.numero_pl,
+          c.items.map((i) => i.producto_nombre).join(" ")
+        )
+      ),
+    [pendientes, busqueda]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -169,6 +193,16 @@ export default function ComandasPage() {
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {error}</div>}
 
+      {/* Busca también por producto: en la cocina se pregunta "¿dónde está la
+          hamburguesa?", no "¿dónde está la comanda 47?". */}
+      <BuscadorLista
+        valor={busqueda}
+        onChange={setBusqueda}
+        placeholder="Buscar por mesa, mozo, N° de comanda o producto…"
+        mostrando={pendientesVisibles.length}
+        total={pendientes.length}
+      />
+
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando comandas…</p>
       ) : (
@@ -181,7 +215,7 @@ export default function ComandasPage() {
               <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">No hay comandas pendientes de imprimir.</p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {pendientes.map((c) => <Card key={c.id} c={c} />)}
+                {pendientesVisibles.map((c) => <Card key={c.id} c={c} />)}
               </div>
             )}
           </section>

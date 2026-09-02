@@ -2,7 +2,8 @@
 
 import SelectField from "@/components/ui/SelectField";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import { ArrowLeft, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
@@ -26,6 +27,7 @@ interface Categoria {
 export default function CategoriasProductosPage() {
   const { isAdmin } = useIsAdmin();
   const [items, setItems] = useState<Categoria[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,6 +182,12 @@ export default function CategoriasProductosPage() {
   }
 
   const activas = items.filter((i) => i.activo);
+  // El selector de categoría padre sigue mostrando todas: filtrar la tabla no
+  // debería quitarte opciones al editar.
+  const visibles = useMemo(
+    () => items.filter((c) => coincideBusqueda(busqueda, c.nombre, c.codigo)),
+    [items, busqueda]
+  );
 
   return (
     <div className="space-y-6">
@@ -267,6 +275,15 @@ export default function CategoriasProductosPage() {
             </p>
           </div>
         </div>
+        <div className="border-b border-slate-100 px-5 py-3">
+          <BuscadorLista
+            valor={busqueda}
+            onChange={setBusqueda}
+            placeholder="Buscar categoría por nombre o código…"
+            mostrando={visibles.length}
+            total={items.length}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className={tabla}>
             <thead className={thead}>
@@ -281,10 +298,10 @@ export default function CategoriasProductosPage() {
             <tbody className={tbody}>
               {loading ? (
                 <tr><td colSpan={5} className={celdaVacia}>Cargando…</td></tr>
-              ) : items.length === 0 ? (
-                <tr><td colSpan={5} className={celdaVacia}>Todavía no cargaste categorías.</td></tr>
+              ) : visibles.length === 0 ? (
+                <tr><td colSpan={5} className={celdaVacia}>{busqueda.trim() ? "Ninguna categoría coincide con la búsqueda." : "Todavía no cargaste categorías."}</td></tr>
               ) : (
-                items.map((c) => {
+                visibles.map((c) => {
                   const parent = items.find((i) => i.id === c.parent_id);
                   const enEdicion = editId === c.id;
 

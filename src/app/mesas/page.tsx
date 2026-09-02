@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/ui/ConfirmDialog";
@@ -33,6 +34,7 @@ export default function MesasPage() {
   const router = useRouter();
   const { isAdmin } = useIsAdmin();
   const [mesas, setMesas] = useState<MesaConResumen[]>([]);
+  const [busqueda, setBusqueda] = useState("");
   const [ultimoNumero, setUltimoNumero] = useState(0);
   const [loading, setLoading] = useState(true);
   /** Falló el último refresco: se muestra sin borrar lo que ya estaba. */
@@ -262,6 +264,15 @@ export default function MesasPage() {
     setModalAbierto(false);
   }
 
+  /** Mesas que coinciden con la búsqueda. */
+  const mesasVisibles = useMemo(
+    () =>
+      mesas.filter((m) =>
+        coincideBusqueda(busqueda, m.mesa.numero, m.mesa.nombre, m.mozo_nombre)
+      ),
+    [mesas, busqueda]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -278,6 +289,17 @@ export default function MesasPage() {
           Crear mesas
         </button>
       </div>
+
+      {/* Se busca por número, por nombre de la mesa y por mozo: con el salón
+          lleno, encontrar "la 14" a ojo entre veinte tarjetas cuesta más que
+          escribir 14. */}
+      <BuscadorLista
+        valor={busqueda}
+        onChange={setBusqueda}
+        placeholder="Buscar por número de mesa, nombre o mozo…"
+        mostrando={mesasVisibles.length}
+        total={mesas.length}
+      />
 
       {/* Leyenda */}
       <div className="flex flex-wrap gap-2 text-xs">
@@ -319,7 +341,7 @@ export default function MesasPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {mesas.map((m) => {
+          {mesasVisibles.map((m) => {
             const st = ESTADO_STYLE[m.mesa.estado];
             const activa = !!m.sesion;
             const dadaDeBaja = m.mesa.activo === false;
