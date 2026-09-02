@@ -1,4 +1,5 @@
 import type { MitadMitadInput } from "@/lib/mesas/server/mesas-pg";
+import { porcionesDeNombre } from "@/lib/ventas/pizza-porciones";
 
 export interface MitadPayload {
   precioUnitario: number | null;
@@ -29,6 +30,18 @@ export function parseMitadFromBody(o: Record<string, unknown>): MitadPayload {
       nombre1: str(r.nombre1),
       nombre2: str(r.nombre2),
     };
+
+    // Las dos mitades tienen que ser de la misma medida. La pantalla ya lo
+    // impide, pero el precio y los nombres llegan desde el navegador: si acá no
+    // se revisa, una petición armada a mano deja en cocina una pizza que no se
+    // puede armar y con el precio del sabor más caro, que puede ser el chico.
+    const n1 = porcionesDeNombre(mitad.nombre1);
+    const n2 = porcionesDeNombre(mitad.nombre2);
+    if (n1 != null && n2 != null && n1 !== n2) {
+      throw new Error(
+        `Las dos mitades tienen que ser de la misma medida: vinieron ${n1} y ${n2} porciones.`
+      );
+    }
   }
   return { precioUnitario, displayName, mitad };
 }

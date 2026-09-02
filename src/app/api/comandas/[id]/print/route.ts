@@ -3,6 +3,7 @@ import { requireModule } from "@/lib/middleware/require-module";
 import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
 import { getComandaDetallePg } from "@/lib/comandas/server/comandas-pg";
 import { wrapTicketDocument } from "@/lib/printing/thermal-ticket";
+import { etiquetaPorciones, porcionesDeNombre, saborCorto } from "@/lib/ventas/pizza-porciones";
 
 const NEGOCIO = "CARIBEÑA";
 
@@ -77,16 +78,26 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
   const vigentes = c.items.filter((it) => !it.cancelado);
   const itemsHtml = esAviso ? avisoHtml : vigentes
     .map((it) => {
-      const mitad = it.es_mitad_mitad && it.mitad_1_nombre && it.mitad_2_nombre
-        ? `<tr class="sub"><td></td><td colspan="2">½ ${escapeHtml(it.mitad_1_nombre)} + ½ ${escapeHtml(it.mitad_2_nombre)}</td></tr>` : "";
+      const esMitad = it.es_mitad_mitad && it.mitad_1_nombre && it.mitad_2_nombre;
+      const mitad = esMitad
+        ? `<tr class="sub"><td></td><td colspan="2">½ ${escapeHtml(saborCorto(it.mitad_1_nombre))} + ½ ${escapeHtml(saborCorto(it.mitad_2_nombre))}</td></tr>` : "";
       const obs = (it.observacion ? `<tr class="sub"><td></td><td colspan="2">&gt;&gt; ${escapeHtml(it.observacion)}</td></tr>` : "") + mitad;
+
+      // La medida es lo primero que necesita el pizzero: define el disco que
+      // saca del freezer. En una mitad y mitad no está en el nombre del ítem
+      // ("Pizza mitad y mitad"), sino en el de cada sabor. Los ítems cargados
+      // antes de que el nombre la incluyera se resuelven leyéndola de la mitad.
+      const nombre = esMitad && porcionesDeNombre(it.producto_nombre) == null
+        ? `${it.producto_nombre} ${etiquetaPorciones(porcionesDeNombre(it.mitad_1_nombre))}`.trim()
+        : it.producto_nombre;
+
       if (conPrecios) {
         return `
-          <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name">${escapeHtml(it.producto_nombre)}</td><td class="amt">${formatGs(it.total)}</td></tr>
+          <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name">${escapeHtml(nombre)}</td><td class="amt">${formatGs(it.total)}</td></tr>
           <tr class="sub"><td></td><td colspan="2">${it.cantidad} × ${formatGs(it.precio_unitario)}</td></tr>${obs}`;
       }
       return `
-        <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name" colspan="2"><strong>${escapeHtml(it.producto_nombre)}</strong></td></tr>${obs}`;
+        <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name" colspan="2"><strong>${escapeHtml(nombre)}</strong></td></tr>${obs}`;
     })
     .join("");
 
