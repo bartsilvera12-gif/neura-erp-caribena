@@ -4,10 +4,25 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { cancelarMesa, getMesasPorCobrar } from "@/lib/mesas/storage";
+import { cancelarMesa, cancelarPL, getMesasPorCobrar } from "@/lib/mesas/storage";
 import type { MesaConResumen } from "@/lib/mesas/types";
 
 function formatGs(v: number) { return `Gs. ${Math.round(v).toLocaleString("es-PY")}`; }
+
+/**
+ * Cómo se llama la cuenta en la lista.
+ *
+ * Acá ahora conviven mesas y pedidos Para llevar. Un Para llevar no tiene mesa,
+ * así que mostrarlo como "Mesa 0" —lo que pasaba— no le dice nada al cajero:
+ * lleva su número de pedido y, si lo dieron, el nombre del cliente.
+ */
+function titulo(m: MesaConResumen): string {
+  if (m.sesion?.tipo === "para_llevar") {
+    const nro = `PL-${String(m.sesion.numero_pl ?? 0).padStart(3, "0")}`;
+    return m.sesion.nombre_cliente ? `${nro} · ${m.sesion.nombre_cliente}` : nro;
+  }
+  return `Mesa ${m.mesa.numero}`;
+}
 
 export default function MesasPorCobrarPage() {
   const [mesas, setMesas] = useState<MesaConResumen[]>([]);
@@ -45,19 +60,21 @@ export default function MesasPorCobrarPage() {
         ? " Si ya se envió comanda, lo que esté en cocina no se cancela solo: avisá al sector."
         : "";
 
+    const esPL = m.sesion?.tipo === "para_llevar";
     const ok = await confirmar(
-      `¿Cancelar la cuenta de la Mesa ${m.mesa.numero}?${conItems}${enCocina} La mesa queda libre y sale de esta lista; no se puede reabrir.`,
+      `¿Cancelar ${esPL ? `el pedido ${titulo(m)}` : `la cuenta de la Mesa ${m.mesa.numero}`}?${conItems}${enCocina} Sale de esta lista y no se puede reabrir.`,
       { confirmLabel: "Cancelar cuenta", cancelLabel: "Volver" }
     );
     if (!ok) return;
 
     setError(null);
-    setBusy(m.mesa.id);
-    const r = await cancelarMesa(m.mesa.id);
+    setBusy(m.sesion!.id);
+    // Un Para llevar no tiene mesa que liberar, así que se cancela por sesión.
+    const r = esPL ? await cancelarPL(m.sesion!.id) : await cancelarMesa(m.mesa.id);
     setBusy(null);
     if (!r.success) { setError(r.error); return; }
     // Sale de la lista en el momento, sin esperar la recarga.
-    setMesas((prev) => prev.filter((x) => x.mesa.id !== m.mesa.id));
+    setMesas((prev) => prev.filter((x) => x.sesion?.id !== m.sesion?.id));
     void load();
   }
 
@@ -65,9 +82,9 @@ export default function MesasPorCobrarPage() {
     <div className="space-y-6">
       <div>
         <Link href="/ventas" className="text-xs text-[#0EA5E9] hover:underline">← Caja</Link>
-        <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Mesas por cobrar</h1>
+        <h1 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Por cobrar</h1>
         <p className="mt-0.5 text-xs text-slate-500">
-          Tocá una mesa para facturarla con la misma pantalla de Nueva venta: buscador de productos, edición de la cuenta y cobro.
+          Mesas y pedidos Para llevar esperando cobro. Tocá uno para cobrarlo: buscador de productos, edición de la cuenta y cobro en la misma pantalla.
         </p>
       </div>
 
@@ -80,7 +97,7 @@ export default function MesasPorCobrarPage() {
       {loading ? (
         <p className="py-10 text-center text-slate-400">Cargando…</p>
       ) : mesas.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-slate-400">No hay mesas por cobrar.</div>
+        <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-slate-400">No hay nada por cobrar.</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {mesas.map((m) => m.sesion && (
@@ -90,7 +107,7 @@ export default function MesasPorCobrarPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-2xl font-extrabold text-slate-800">Mesa {m.mesa.numero}</p>
+                  <p className="text-2xl font-extrabold text-slate-800">{titulo(m)}</p>
                   <p className="text-xs text-slate-500">Mozo: {m.mozo_nombre ?? "—"} · {m.items_count} ítem(s)</p>
                 </div>
                 <div className="flex items-start gap-2">
@@ -100,9 +117,9 @@ export default function MesasPorCobrarPage() {
                   <button
                     type="button"
                     onClick={() => void onCancelar(m)}
-                    disabled={busy === m.mesa.id}
-                    title={`Cancelar la cuenta de la Mesa ${m.mesa.numero}`}
-                    aria-label={`Cancelar la cuenta de la Mesa ${m.mesa.numero}`}
+                    disabled={busy === m.sesion.id}
+                    title={`Cancelar ${titulo(m)}`}
+                    aria-label={`Cancelar ${titulo(m)}`}
                     className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 active:scale-95 disabled:opacity-40"
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
@@ -114,7 +131,7 @@ export default function MesasPorCobrarPage() {
                   href={`/ventas/mesas-por-cobrar/${m.sesion.id}`}
                   className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
                 >
-                  Facturar mesa →
+                  Cobrar →
                 </Link>
               </div>
             </div>

@@ -7,8 +7,10 @@ import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
 import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
+import CobroCuenta from "@/components/ventas/CobroCuenta";
+import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import {
-  actualizarItemMesa, agregarItemPL, cancelarPL,
+  actualizarItemMesa, agregarItemPL, cancelarPL, enviarPLACaja,
   enviarComandaPL, getParaLlevarDetalle,
 } from "@/lib/mesas/storage";
 import type { MesaSesion, MesaSesionItem } from "@/lib/mesas/types";
@@ -28,6 +30,8 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
   const [sesion, setSesion] = useState<MesaSesion | null>(null);
   const [porCobrar, setPorCobrar] = useState(false);
   const [items, setItems] = useState<MesaSesionItem[]>([]);
+  /** Si este usuario puede cobrar. El mozo no: tiene mesas y comandas, no ventas. */
+  const [puedeCobrar, setPuedeCobrar] = useState<boolean | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
   /**
@@ -53,6 +57,37 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
   }, [sesionId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    let vivo = true;
+    void getModuleAccessCached().then((r) => {
+      if (!vivo) return;
+      const slugs = r.data.slugs ?? [];
+      setPuedeCobrar(Boolean(r.data.superAdmin) || slugs.includes("ventas"));
+    });
+    return () => { vivo = false; };
+  }, []);
+
+  /** Deja el pedido en la lista de pendientes de caja, para que lo cobre el cajero. */
+  async function onPasarACaja() {
+    setError(null);
+    const hayPend = items.some((i) => i.estado === "pendiente");
+    if (hayPend) {
+      const enviar = await confirmar(
+        "Hay productos sin enviar a cocina. ¿Querés mandarlos antes de pasar el pedido a caja?",
+        { confirmLabel: "Enviar y pasar", cancelLabel: "Pasar sin enviar", destructivo: false }
+      );
+      if (enviar) {
+        const c = await enviarComandaPL(sesionId);
+        if (!c.success) { setError(c.error); return; }
+      }
+    }
+    setBusy(true);
+    const r = await enviarPLACaja(sesionId);
+    setBusy(false);
+    if (!r.success) { setError(r.error); return; }
+    router.push("/pedidos-para-llevar");
+  }
 
   const markPending = (tmpId: string, on: boolean) =>
     setPendingIds((prev) => { const n = new Set(prev); if (on) n.add(tmpId); else n.delete(tmpId); return n; });
@@ -307,6 +342,24 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
         </div>
       </div>
 
+      {/* Mismo criterio que en la mesa: quien puede cobrar lo hace acá mismo, y
+          el mozo —que no tiene permiso de ventas— lo pasa a caja. Hasta ahora un
+          Para llevar no llegaba nunca a la caja y había que volver a cargarlo a
+          mano en Nueva venta: una vez para la cocina y otra para cobrar. */}
+      {hayItems && puedeCobrar === true && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-4 text-sm font-semibold text-slate-800">Cobrar este pedido</p>
+          <CobroCuenta
+            sesionId={sesionId}
+            total={total}
+            pendientes={items.filter((i) => i.estado === "pendiente").length}
+            habilitado={hayItems}
+            volverA="/pedidos-para-llevar"
+            onError={setError}
+          />
+        </div>
+      )}
+
       {!porCobrar && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
           <div className="mx-auto grid max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
@@ -322,6 +375,14 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
               <button type="button" onClick={onEnviarComanda} disabled={busy}
                 className="rounded-xl bg-[#4FAEB2] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95 disabled:opacity-50">
                 Enviar comanda
+              </button>
+            )}
+            {/* Sólo para quien no puede cobrar: el mozo suelta el pedido y lo
+                toma el cajero. */}
+            {hayItems && puedeCobrar === false && (
+              <button type="button" onClick={onPasarACaja} disabled={busy}
+                className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
+                Pasar a caja
               </button>
             )}
             {hayItems && (

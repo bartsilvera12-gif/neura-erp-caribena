@@ -193,6 +193,11 @@ export function enviarComandaPL(sesionId: string) {
   return call<ComandaEnvioResult>(`/api/mesas/pl/${encodeURIComponent(sesionId)}/comanda`, "POST", {});
 }
 
+/** Deja el pedido Para llevar en la lista de pendientes de caja. */
+export function enviarPLACaja(sesionId: string) {
+  return call<{ sesion: MesaSesion }>(`/api/mesas/pl/${encodeURIComponent(sesionId)}/enviar-caja`, "POST", {});
+}
+
 export function cancelarPL(sesionId: string) {
   return call<{ ok: boolean }>(`/api/mesas/pl/${encodeURIComponent(sesionId)}/cancelar`, "POST", {});
 }

@@ -111,6 +111,14 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   /** Productos cargados que todavia no salieron a cocina. */
   const pendientes = items.filter((i) => i.estado === "pendiente").length;
   const mesaNumero = detalle?.mesa.numero ?? null;
+  /**
+   * Cómo se llama esta cuenta. Acá también se cobran pedidos Para llevar, que
+   * no tienen mesa: decirles "Mesa 0" no le sirve a nadie.
+   */
+  const tituloCuenta =
+    detalle?.sesion?.tipo === "para_llevar"
+      ? `PL-${String(detalle.sesion.numero_pl ?? 0).padStart(3, "0")}${detalle.sesion.nombre_cliente ? ` · ${detalle.sesion.nombre_cliente}` : ""}`
+      : `Mesa ${mesaNumero ?? ""}`;
 
   // ── Totales (IVA INCLUIDO 10% — misma fórmula que facturarSesionPg) ──────────
   let subtotal = 0, ivaTotal = 0, total = 0;
@@ -310,7 +318,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
         <Link href="/ventas/mesas-por-cobrar" className="text-xs text-[#0EA5E9] hover:underline">← Mesas por cobrar</Link>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
           <p className="text-sm font-semibold text-emerald-800">
-            Mesa {mesaNumero ?? ""} ya fue facturada.
+            {tituloCuenta} ya fue facturada.
           </p>
           {detalle?.sesion?.venta_id && (
             <a
@@ -333,7 +341,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
       <div>
         <Link href="/ventas/mesas-por-cobrar" className="text-xs text-[#0EA5E9] hover:underline">← Mesas por cobrar</Link>
         <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-gray-800">
-          Facturar Mesa {mesaNumero ?? ""}
+          Cobrar {tituloCuenta}
         </h1>
         <p className="text-gray-600">
           {detalle?.sesion?.mozo_id ? "" : ""}

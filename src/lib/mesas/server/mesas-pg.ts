@@ -298,7 +298,10 @@ export async function listarPorCobrarPg(schema: string, empresaId: string): Prom
     .from("mesa_sesiones")
     .select(SESION_COLS)
     .eq("empresa_id", empresaId)
-    .eq("tipo", "mesa")
+    // Van las mesas y también los pedidos Para llevar. Antes sólo las mesas, y
+    // un Para llevar no llegaba nunca a la caja: había que volver a cargarlo a
+    // mano en Nueva venta, una vez para la cocina y otra para cobrar.
+    .in("tipo", ["mesa", "para_llevar"])
     .eq("estado", "por_cobrar")
     .order("enviada_caja_at", { ascending: true });
   if (sQ.error) throw new Error(sQ.error.message);
@@ -840,6 +843,46 @@ export async function enviarACajaPg(schema: string, empresaId: string, mesaId: s
     .select(SESION_COLS).single();
   if (upd.error) throw new Error(upd.error.message);
   await sb.from("mesas").update({ estado: "por_cobrar" }).eq("empresa_id", empresaId).eq("id", mesaId);
+  return mapSesion(upd.data as Record<string, unknown>);
+}
+
+/**
+ * Deja un pedido Para llevar en la lista de pendientes de caja.
+ *
+ * Va por sesión y no por mesa porque un Para llevar no tiene mesa que marcar.
+ * Lo usa el mozo, que no puede cobrar: es su forma de pasarle el pedido a quien
+ * sí cobra.
+ */
+export async function enviarSesionACajaPg(
+  schema: string,
+  empresaId: string,
+  sesionId: string
+): Promise<MesaSesion> {
+  const sb = createServiceRoleClientWithDbSchema(schema);
+  const sQ = await sb
+    .from("mesa_sesiones").select(SESION_COLS)
+    .eq("empresa_id", empresaId).eq("id", sesionId).eq("estado", "abierta").maybeSingle();
+  if (sQ.error) throw new Error(sQ.error.message);
+  if (!sQ.data) throw new Error("El pedido no está abierto.");
+  const sesion = mapSesion(sQ.data as Record<string, unknown>);
+
+  const cnt = await sb
+    .from("mesa_sesion_items").select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId).eq("sesion_id", sesion.id).in("estado", ITEM_VIGENTES);
+  if ((cnt.count ?? 0) === 0) throw new Error("El pedido no tiene productos.");
+
+  const upd = await sb
+    .from("mesa_sesiones")
+    .update({ estado: "por_cobrar", enviada_caja_at: new Date().toISOString() })
+    .eq("empresa_id", empresaId).eq("id", sesion.id).eq("estado", "abierta")
+    .select(SESION_COLS).single();
+  if (upd.error) throw new Error(upd.error.message);
+
+  // Si fuera una mesa, además se la marca; un Para llevar no tiene ninguna.
+  if (sesion.mesa_id) {
+    await sb.from("mesas").update({ estado: "por_cobrar" })
+      .eq("empresa_id", empresaId).eq("id", sesion.mesa_id);
+  }
   return mapSesion(upd.data as Record<string, unknown>);
 }
 
