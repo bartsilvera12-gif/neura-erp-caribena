@@ -480,10 +480,9 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                 Enviar comanda
               </button>
             )}
-            {/* Sólo para quien no puede cobrar: el mozo suelta la mesa y la
-                toma quien cobra. El cajero no lo necesita —tiene el cobro acá
-                mismo— y verlo sólo lo tienta a dar un rodeo. */}
-            {hayItems && puedeCobrar === false && (
+            {/* Disponible para todos: el mozo lo usa para soltar la cuenta, y quien
+                cobra también, cuando prefiere que la tome la caja. */}
+            {hayItems && (
               <button type="button" onClick={onPasarACaja} disabled={busy}
                 className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
                 Pasar a caja

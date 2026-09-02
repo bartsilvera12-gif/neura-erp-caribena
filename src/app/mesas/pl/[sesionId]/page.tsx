@@ -377,9 +377,9 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
                 Enviar comanda
               </button>
             )}
-            {/* Sólo para quien no puede cobrar: el mozo suelta el pedido y lo
-                toma el cajero. */}
-            {hayItems && puedeCobrar === false && (
+            {/* Disponible para todos: el mozo lo usa para soltar el pedido, y quien
+                cobra también, cuando prefiere que lo tome la caja. */}
+            {hayItems && (
               <button type="button" onClick={onPasarACaja} disabled={busy}
                 className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
                 Pasar a caja

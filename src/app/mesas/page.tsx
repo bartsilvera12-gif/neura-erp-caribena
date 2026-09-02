@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
+import NuevoParaLlevarModal from "@/components/mesas/NuevoParaLlevarModal";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { confirmar } from "@/components/ui/ConfirmDialog";
@@ -35,6 +36,8 @@ export default function MesasPage() {
   const { isAdmin } = useIsAdmin();
   const [mesas, setMesas] = useState<MesaConResumen[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  /** Alta de un pedido Para llevar sin salir del salón. */
+  const [plAbierto, setPlAbierto] = useState(false);
   const [ultimoNumero, setUltimoNumero] = useState(0);
   const [loading, setLoading] = useState(true);
   /** Falló el último refresco: se muestra sin borrar lo que ya estaba. */
@@ -286,7 +289,7 @@ export default function MesasPage() {
               salir del salón para algo que pasa acá. */}
           <button
             type="button"
-            onClick={() => router.push("/pedidos-para-llevar")}
+            onClick={() => setPlAbierto(true)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91]"
           >
             <Plus className="h-4 w-4" aria-hidden />
@@ -404,6 +407,19 @@ export default function MesasPage() {
             );
           })}
         </div>
+      )}
+
+      {/* El pedido Para llevar se crea desde el salón: es el mismo momento en
+          que se abre una mesa, alguien llegó. Mandarlo a otro módulo para
+          escribir un nombre era un rodeo con el cliente enfrente. */}
+      {plAbierto && (
+        <NuevoParaLlevarModal
+          onCerrar={() => setPlAbierto(false)}
+          onCreado={(sesionId) => {
+            setPlAbierto(false);
+            router.push(`/mesas/pl/${sesionId}`);
+          }}
+        />
       )}
 
       {modalAbierto && (
