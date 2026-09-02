@@ -273,6 +273,11 @@ function CerrarCajaModal({
   const [obs, setObs] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // El turno ya se cerró: se queda mostrando el botón del arqueo en vez de
+  // cerrar el modal. La impresión automática se abre en una pestaña y el
+  // navegador de la caja puede bloquearla; si eso pasaba, el arqueo no salía y
+  // no quedaba forma de pedirlo desde acá.
+  const [cerrada, setCerrada] = useState(false);
 
   // ── Derivados (NO cambian la fórmula del backend) ──────────────────────────
   const apertura = caja.monto_apertura;
@@ -324,9 +329,40 @@ function CerrarCajaModal({
     try {
       if (arqueoWin) arqueoWin.location.href = href;
       else window.open(href, "_blank", "noopener");
-    } catch { /* queda disponible desde el detalle del cierre */ }
+    } catch { /* queda disponible desde el botón de abajo */ }
 
-    onDone();
+    setCerrada(true);
+  }
+
+  if (cerrada) {
+    return (
+      <ModalShell title={`Caja N° ${caja.numero_caja} cerrada`} onClose={onDone}>
+        <p className="text-sm text-slate-600">
+          El turno quedó cerrado. El arqueo se abre en una pestaña nueva para imprimir; si el
+          navegador la bloqueó, usá el botón.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <a
+            href={`/api/caja/${caja.id}/arqueo?auto=1`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+          >
+            Imprimir arqueo
+          </a>
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50"
+          >
+            Listo
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] leading-snug text-slate-400">
+          Después también lo podés reimprimir desde Reportes → Cierres de caja.
+        </p>
+      </ModalShell>
+    );
   }
 
   return (
