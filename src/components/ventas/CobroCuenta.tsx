@@ -259,54 +259,55 @@ export default function CobroCuenta({
         </div>
 
         {lineasCobro.some((l) => l.metodo === "efectivo") && (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">Monto recibido</label>
-              <MontoInput value={montoRecibido} onChange={(v) => setMontoRecibido(String(v))} placeholder="Ej: 100.000" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">Vuelto</label>
-              <p className={`px-3 py-2 text-sm font-semibold tabular-nums ${vuelto < 0 ? "text-red-600" : "text-emerald-700"}`}>
-                {montoRecibidoNum > 0 ? formatGs(vuelto) : "—"}
-              </p>
-            </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-600">
+              {lineasCobro.length > 1 ? "Efectivo recibido (Gs.)" : "Monto recibido (Gs.)"}
+            </label>
+            <MontoInput value={montoRecibido} onChange={(n) => setMontoRecibido(String(n))} placeholder="Ej: 100.000" className={inputClass} decimals={false} />
+            {montoRecibidoNum > 0 && (
+              <div className="flex justify-between pt-2 text-sm">
+                {vuelto >= 0 ? (
+                  <><span className="text-gray-600">Vuelto</span><span className="font-bold tabular-nums text-emerald-600">{formatGs(vuelto)}</span></>
+                ) : (
+                  <><span className="text-gray-600">Falta</span><span className="font-bold tabular-nums text-red-600">{formatGs(Math.abs(vuelto))}</span></>
+                )}
+              </div>
+            )}
+            <p className="mt-1 text-[11px] text-gray-400">Cálculo solo informativo — no se guarda en la venta.</p>
           </div>
         )}
 
-        {(metodo === "transferencia" || metodo === "qr") && cuentas.length > 0 && (
-          <div>
-            <label className="mb-1 block text-xs text-gray-600">Cuenta que recibe</label>
-            <SelectField
-              value={pago.cuenta_bancaria_id ?? ""}
-              onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))}
-              className={inputClass}
-            >
-              <option value="">Cuenta destino…</option>
-              {cuentas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                  {c.banco ? ` (${c.banco})` : ""}
-                </option>
-              ))}
-            </SelectField>
+        {/* Transferencia y QR → cuenta destino + titular + N° de comprobante. */}
+        {(metodo === "transferencia" || metodo === "qr") && (
+          <div className="space-y-2">
+            {cuentas.length > 0 ? (
+              <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
+                <option value="">Cuenta destino…</option>
+                {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.banco ? ` (${c.banco})` : ""}</option>)}
+              </SelectField>
+            ) : (
+              <p className="text-[11px] text-amber-600">No hay cuentas configuradas; se registra sin cuenta.</p>
+            )}
+            <input value={pago.entidad ?? ""} onChange={(e) => setPago((p) => ({ ...p, entidad: e.target.value }))} placeholder="Titular de la transferencia" className={inputClass} />
+            <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de comprobante" className={inputClass} />
+          </div>
+        )}
+
+        {/* Tarjeta → POS/banco + N° de operación. */}
+        {metodo === "tarjeta" && (
+          <div className="space-y-2">
+            {cuentas.length > 0 && (
+              <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
+                <option value="">POS / banco…</option>
+                {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.tipo ? ` (${c.tipo})` : ""}</option>)}
+              </SelectField>
+            )}
+            <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de operación" className={inputClass} />
           </div>
         )}
 
         {(metodo === "tarjeta" || metodo === "transferencia" || metodo === "qr") && (
-          <>
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">Referencia</label>
-              <input
-                value={pago.referencia ?? ""}
-                onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))}
-                placeholder="N° de operación"
-                className={inputClass}
-              />
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Queda como conciliación <strong>pendiente</strong>. No suma al efectivo esperado.
-            </p>
-          </>
+          <p className="text-[11px] text-slate-400">Queda como conciliación <strong>pendiente</strong>. No suma al efectivo esperado.</p>
         )}
       </div>
 

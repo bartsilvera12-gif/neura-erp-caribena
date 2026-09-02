@@ -1,6 +1,5 @@
 "use client";
 
-import SelectField from "@/components/ui/SelectField";
 import { AlertTriangle, Pizza } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -8,33 +7,14 @@ import { useRouter } from "next/navigation";
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import ProductPickerModal, { type AgregarVentaPayload } from "@/components/inventario/ProductPickerModal";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
-import MontoInput from "@/components/ui/MontoInput";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
 import { actualizarItemCaja, agregarItemCaja, getSesionPorCobrar } from "@/lib/ventas/por-cobrar";
-import CobroRepartido, {
-  cobroValido,
-  montoDeLinea,
-  totalCobrado,
-  type LineaCobro,
-} from "@/components/ventas/CobroRepartido";
-import { enviarComandaSesion, facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
-import { abrirCaja, getCajaAbierta } from "@/lib/caja/storage";
-import SelectorComprobante, {
-  comprobanteListo,
-  type TipoComprobante,
-} from "@/components/ventas/SelectorComprobante";
-import { RECEPTOR_VACIO, receptorAPayload, type DatosReceptor } from "@/components/ventas/ReceptorFactura";
-import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
-import { getCuentasBancarias } from "@/lib/conciliacion/storage";
+import { enviarComandaSesion } from "@/lib/mesas/storage";
+import CobroCuenta from "@/components/ventas/CobroCuenta";
 import type { MesaDetalle } from "@/lib/mesas/types";
-import type { CuentaBancaria } from "@/lib/conciliacion/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatGs(v: number) { return `Gs. ${Math.round(v).toLocaleString("es-PY")}`; }
-type Metodo = "efectivo" | "tarjeta" | "transferencia" | "qr";
-
-const inputClass =
-  "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none bg-white text-sm";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{children}</p>;
@@ -61,36 +41,12 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   const [yaFacturada, setYaFacturada] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sinCaja, setSinCaja] = useState(false);
-  /**
-   * Ticket o factura, decidido acá mismo. Antes había que cobrar, salir, buscar
-   * la venta y recién ahí facturarla: cuatro pantallas para algo que el cliente
-   * pide en una frase.
-   */
-  const [comprobante, setComprobante] = useState<TipoComprobante>("ticket");
-  const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
-  const [montoApertura, setMontoApertura] = useState(0);
-  const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [comandando, setComandando] = useState(false);
   const [okComanda, setOkComanda] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mitadOpen, setMitadOpen] = useState(false);
-  const [cuentas, setCuentas] = useState<CuentaBancaria[]>([]);
 
-  // Cobro
-  /**
-   * Formas de pago del cobro. Arranca en una sola —efectivo— porque así se
-   * cobra casi siempre; el monto de esa única línea lo cubre el total.
-   */
-  const [lineasCobro, setLineasCobro] = useState<LineaCobro[]>([
-    { key: "p0", metodo: "efectivo", monto: "" },
-  ]);
-  const metodo: Metodo = lineasCobro[0]?.metodo ?? "efectivo";
-  const setMetodo = (m: Metodo) =>
-    setLineasCobro((prev) => (prev.length ? [{ ...prev[0], metodo: m }, ...prev.slice(1)] : prev));
-  const [montoRecibido, setMontoRecibido] = useState("");
-  const [pago, setPago] = useState<PagoConciliacionInput>({});
 
   const reload = useCallback(async () => {
     const d = await getSesionPorCobrar(sesionId);
@@ -104,8 +60,6 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
   }, [sesionId]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { getCuentasBancarias().then(setCuentas); }, []);
-  useEffect(() => { getCajaAbierta().then((c) => setSinCaja(!c)); }, []);
 
   const items = detalle?.items ?? [];
   /** Productos cargados que todavia no salieron a cocina. */
@@ -126,12 +80,6 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     const d = calcularLineaVenta(it.precio_unitario, it.cantidad, "10%");
     subtotal += d.subtotal; ivaTotal += d.monto_iva; total += d.total_linea;
   }
-  const montoRecibidoNum = parseFloat(montoRecibido) || 0;
-  const aPagarEnEfectivo =
-    lineasCobro.length > 1
-      ? totalCobrado(lineasCobro.filter((l) => l.metodo === "efectivo"))
-      : total;
-  const vuelto = montoRecibidoNum - aPagarEnEfectivo;
 
   // ── Operaciones sobre el carrito (persistidas en la sesión) ──────────────────
   function handleAgregarDesdePicker(payload: AgregarVentaPayload): boolean {
@@ -201,102 +149,7 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
     setTimeout(() => setOkComanda(null), 4000);
   }
 
-  /** Abre la caja del turno sin salir de la cuenta que se está cobrando. */
-  async function onAbrirCaja() {
-    const monto = Number.isFinite(montoApertura) ? montoApertura : 0;
-    setAbriendoCaja(true);
-    setError(null);
-    const r = await abrirCaja(monto, null);
-    setAbriendoCaja(false);
-    if (!r.success) { setError(r.error); return; }
-    setSinCaja(false);
-  }
 
-  // ── Confirmar venta ──────────────────────────────────────────────────────────
-  async function facturar() {
-    if (!detalle || items.length === 0 || sinCaja) return;
-    if (!comprobanteListo(comprobante, receptor)) return;
-
-    // Cobrar algo que la cocina nunca recibió es cobrarle al cliente comida que
-    // no se va a preparar. Se avisa antes, no después.
-    if (pendientes > 0) {
-      const seguir = await confirmar(
-        `Hay ${pendientes} producto(s) que no se enviaron a cocina. Si cobrás ahora, la cocina no los va a recibir.`,
-        { confirmLabel: "Cobrar igual", cancelLabel: "Volver" }
-      );
-      if (!seguir) return;
-    }
-    if (!cobroValido(lineasCobro, total)) {
-      setError(
-        `El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(total)}.`
-      );
-      return;
-    }
-    setError(null); setBusy(true);
-
-    // Pre-abrir la pestaña del ticket dentro del gesto del usuario (evita bloqueo de pop-ups).
-    let ticketWin: Window | null = null;
-    try { ticketWin = window.open("about:blank", "_blank"); } catch { ticketWin = null; }
-
-    const repartido = lineasCobro.length > 1;
-    // Con cobro repartido los datos de conciliación se cargan igual: aplican a
-    // las líneas que no son efectivo, que es donde hay algo que contrastar.
-    const hayNoEfectivo = lineasCobro.some((l) => l.metodo !== "efectivo");
-    const r = await facturarMesa(
-      sesionId,
-      metodo,
-      hayNoEfectivo ? { ...pago, fecha_pago: pago.fecha_pago || new Date().toISOString() } : null,
-      repartido
-        ? lineasCobro
-            .filter((l) => montoDeLinea(l) > 0)
-            .map((l) => ({ metodo_pago: l.metodo, monto: montoDeLinea(l) }))
-        : []
-    );
-    setBusy(false);
-
-    if (!r.success) {
-      try { ticketWin?.close(); } catch {}
-      setError(r.error);
-      return;
-    }
-    // Con factura el comprobante es el KUDE, no el ticket: se emite acá mismo y
-    // la pantalla del documento lo abre sola al aprobarse. Es el mismo camino
-    // que usa la caja, para que una mesa y un mostrador no facturen distinto.
-    if (comprobante === "factura") {
-      try { ticketWin?.close(); } catch { /* la pestaña ya no hace falta */ }
-      try {
-        const res = await fetchWithSupabaseSession(`/api/ventas/${r.ventaId}/facturar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(receptorAPayload(receptor)),
-        });
-        const body = await res.json();
-        if (res.ok && body?.success !== false && body?.data?.facturaId) {
-          router.push(`/facturas/${body.data.facturaId}?kude=1&auto=1`);
-          return;
-        }
-        // La venta ya se cobró; sólo falló la factura. Se avisa sin volver
-        // atrás: el dinero entró y la mesa quedó liberada.
-        setError(
-          `La mesa se cobró, pero no se pudo emitir la factura: ${body?.error ?? `error ${res.status}`}. Emitila desde el listado de ventas.`
-        );
-        return;
-      } catch (e) {
-        setError(
-          `La mesa se cobró, pero no se pudo emitir la factura: ${e instanceof Error ? e.message : "error de red"}. Emitila desde el listado de ventas.`
-        );
-        return;
-      }
-    }
-
-    // Apuntar la pestaña al ticket de venta (mismo ticket de Caja, auto-impresión).
-    const href = `/api/ventas/${r.ventaId}/ticket?copia=cliente&auto=1`;
-    try {
-      if (ticketWin) ticketWin.location.href = href;
-      else window.open(href, "_blank", "noopener");
-    } catch {}
-    router.push("/ventas/mesas-por-cobrar");
-  }
 
   // ── Estados de carga / error ─────────────────────────────────────────────────
   if (loading) return <p className="py-16 text-center text-slate-400">Cargando cuenta…</p>;
@@ -349,31 +202,6 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
         </p>
       </div>
 
-      {/* La caja se abre acá mismo. Mandar al cajero a otra pantalla con el
-          cliente esperando —y hacerle volver a buscar la mesa— era el paso más
-          absurdo del recorrido: abrir caja es escribir un número. */}
-      {sinCaja && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-medium text-amber-800">
-            <AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> No hay caja abierta.
-            Abrila acá con el efectivo con el que arrancás el turno.
-          </p>
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <div className="w-44">
-              <label className="mb-1 block text-xs font-medium text-amber-900">Monto de apertura</label>
-              <MontoInput value={montoApertura} onChange={setMontoApertura} placeholder="Ej: 100.000" />
-            </div>
-            <button
-              type="button"
-              disabled={abriendoCaja}
-              onClick={() => void onAbrirCaja()}
-              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40"
-            >
-              {abriendoCaja ? "Abriendo…" : "Abrir caja"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -489,7 +317,10 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
           </div>
         )}
 
-        {/* Totales + Cobro */}
+        {/* Totales + Cobro
+            El cobro es el mismo componente que usan la mesa y el Para llevar.
+            Antes esta pantalla tenía su propia copia, y por eso le faltaba el
+            descuento: un mismo acto no puede tener dos implementaciones. */}
         <div className="mt-5 flex justify-end">
           <div className="w-full space-y-3 lg:w-96">
             <div className="space-y-1.5">
@@ -504,99 +335,15 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
               </div>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cobro</p>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Método de pago</label>
-                <CobroRepartido
-                  lineas={lineasCobro}
-                  onChange={(l) => { setLineasCobro(l); setPago({}); }}
-                  total={total}
-                  inputClass={inputClass}
-                />
-              </div>
-
-              {lineasCobro.some((l) => l.metodo === "efectivo") && (
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">
-                    {lineasCobro.length > 1 ? "Efectivo recibido (Gs.)" : "Monto recibido (Gs.)"}
-                  </label>
-                  <MontoInput value={montoRecibido} onChange={(n) => setMontoRecibido(String(n))} placeholder="Ej: 100.000" className={inputClass} decimals={false} />
-                  {montoRecibidoNum > 0 && (
-                    <div className="flex justify-between text-sm pt-2">
-                      {vuelto >= 0 ? (
-                        <><span className="text-gray-600">Vuelto</span><span className="font-bold text-emerald-600 tabular-nums">{formatGs(vuelto)}</span></>
-                      ) : (
-                        <><span className="text-gray-600">Falta</span><span className="font-bold text-red-600 tabular-nums">{formatGs(Math.abs(vuelto))}</span></>
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-1 text-[11px] text-gray-400">Cálculo solo informativo — no se guarda en la venta.</p>
-                </div>
-              )}
-
-              {/* Transferencia → cuenta destino + titular + N° de comprobante. */}
-              {(metodo === "transferencia" || metodo === "qr") && (
-                <div className="space-y-2">
-                  {cuentas.length > 0 ? (
-                    <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
-                      <option value="">Cuenta destino…</option>
-                      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.banco ? ` (${c.banco})` : ""}</option>)}
-                    </SelectField>
-                  ) : (
-                    <p className="text-[11px] text-amber-600">No hay cuentas configuradas; se registra sin cuenta.</p>
-                  )}
-                  <input value={pago.entidad ?? ""} onChange={(e) => setPago((p) => ({ ...p, entidad: e.target.value }))} placeholder="Titular de la transferencia" className={inputClass} />
-                  <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de comprobante" className={inputClass} />
-                </div>
-              )}
-              {/* Tarjeta → cuenta/banco + N° de operación. */}
-              {metodo === "tarjeta" && (
-                <div className="space-y-2">
-                  {cuentas.length > 0 && (
-                    <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
-                      <option value="">POS / banco…</option>
-                      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.tipo ? ` (${c.tipo})` : ""}</option>)}
-                    </SelectField>
-                  )}
-                  <input value={pago.referencia ?? ""} onChange={(e) => setPago((p) => ({ ...p, referencia: e.target.value }))} placeholder="N° de operación" className={inputClass} />
-                </div>
-              )}
-              {(metodo === "tarjeta" || metodo === "transferencia" || metodo === "qr") && (
-                <p className="text-[11px] text-slate-400">Queda como conciliación <strong>pendiente</strong>. No suma al efectivo esperado.</p>
-              )}
-            </div>
+            <CobroCuenta
+              sesionId={sesionId}
+              total={total}
+              pendientes={pendientes}
+              habilitado={items.length > 0}
+              volverA="/ventas/mesas-por-cobrar"
+              onError={setError}
+            />
           </div>
-        </div>
-
-        {/* Comprobante: se decide antes de cobrar, no después */}
-        <div className="mt-6 border-t border-slate-100 pt-5">
-          <SectionTitle>Comprobante</SectionTitle>
-          <SelectorComprobante
-            valor={comprobante}
-            onChange={setComprobante}
-            receptor={receptor}
-            onReceptorChange={setReceptor}
-          />
-        </div>
-
-        {/* Acciones */}
-        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/ventas/mesas-por-cobrar")}
-            className="border border-slate-200 px-6 py-3 rounded-lg text-sm hover:bg-slate-50 transition-colors min-h-[48px] w-full sm:w-auto"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={facturar}
-            disabled={busy || items.length === 0 || sinCaja || !comprobanteListo(comprobante, receptor)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 min-h-[48px] w-full sm:w-auto"
-          >
-            {busy ? "Facturando…" : comprobante === "factura" ? "Cobrar y facturar" : "Confirmar venta"}
-          </button>
         </div>
       </div>
 
