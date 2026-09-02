@@ -1,5 +1,6 @@
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
 import { calcularLineaVenta } from "@/lib/ventas/iva";
+import { repartirDescuento } from "@/lib/ventas/descuento";
 
 export interface CreateVentaItemInput {
   producto_id: string;
@@ -55,6 +56,15 @@ export interface CreateVentaPgParams {
   pedidoCocina?: CreateVentaPedidoCocinaInput | null;
   /** Caja (turno) a la que se asocia la venta. Obligatoria en Caribeña. */
   cajaId: string;
+  /**
+   * Descuento ya autorizado, en guaraníes sobre el total.
+   *
+   * Llega después de validar la clave: acá no se vuelve a preguntar, pero sí se
+   * reparte entre las líneas y se recalculan los totales. Los totales que
+   * declara la pantalla son SIN descuento, y se validan como siempre — el
+   * descuento lo aplica el servidor, que es el único que decide cuánto se cobra.
+   */
+  descuento?: { monto: number; motivo: string | null; autorizadoPor: string | null } | null;
 }
 
 export interface CreateVentaPagoInput {
@@ -147,17 +157,41 @@ export async function createVentaTransaccionalPg(
     };
   });
 
-  const calc = recalcTotals(items);
+  const calcSinDescuento = recalcTotals(items);
   if (
-    Math.abs(calc.subtotal - params.subtotalDeclarado) > TOL ||
-    Math.abs(calc.montoIva - params.montoIvaDeclarado) > TOL ||
-    Math.abs(calc.total - params.totalDeclarado) > TOL
+    Math.abs(calcSinDescuento.subtotal - params.subtotalDeclarado) > TOL ||
+    Math.abs(calcSinDescuento.montoIva - params.montoIvaDeclarado) > TOL ||
+    Math.abs(calcSinDescuento.total - params.totalDeclarado) > TOL
   ) {
     throw new Error("Los totales no coinciden con los ítems; revisá el carrito.");
   }
 
+  // Descuento: baja el precio de cada línea en vez de restarse al final. Así el
+  // IVA se sigue calculando línea por línea y la factura electrónica —que copia
+  // esas líneas— cierra sola. Un descuento sólo en la cabecera haría que la
+  // suma de los ítems no diera el total, y el SET rechaza el documento por eso.
+  const descuentoPedido = Math.round(Number(params.descuento?.monto) || 0);
+  const descuentoAplicado =
+    descuentoPedido > 0 && descuentoPedido < calcSinDescuento.total ? descuentoPedido : 0;
+
+  const itemsFinales: CreateVentaItemInput[] =
+    descuentoAplicado > 0
+      ? repartirDescuento(items, descuentoAplicado).map(({ linea, precioFinal }) => {
+          const d = calcularLineaVenta(precioFinal, linea.cantidad, linea.tipo_iva);
+          return {
+            ...linea,
+            precio_venta: precioFinal,
+            subtotal: d.subtotal,
+            monto_iva: d.monto_iva,
+            total_linea: d.total_linea,
+          };
+        })
+      : items;
+
+  const calc = recalcTotals(itemsFinales);
+
   const qtyByProduct = new Map<string, number>();
-  for (const it of items) {
+  for (const it of itemsFinales) {
     qtyByProduct.set(it.producto_id, (qtyByProduct.get(it.producto_id) ?? 0) + it.cantidad);
   }
 
@@ -264,6 +298,11 @@ export async function createVentaTransaccionalPg(
       subtotal: calc.subtotal,
       monto_iva: calc.montoIva,
       total: calc.total,
+      // Queda registrado cuánto se descontó y por qué: sin esto el arqueo no
+      // cuadra y no hay forma de distinguir un descuento de un faltante.
+      descuento: descuentoAplicado,
+      descuento_motivo: descuentoAplicado > 0 ? params.descuento?.motivo ?? null : null,
+      descuento_autorizado_por: descuentoAplicado > 0 ? params.descuento?.autorizadoPor ?? null : null,
       estado: "completada",
       tipo_venta: params.tipoVenta,
       plazo_dias: params.plazoDias,
@@ -320,7 +359,7 @@ export async function createVentaTransaccionalPg(
 
   try {
     // 6) Insertar items (bulk)
-    const itemsRows = items.map((line) => ({
+    const itemsRows = itemsFinales.map((line) => ({
       empresa_id: params.empresaId,
       venta_id: ventaId,
       producto_id: line.producto_id,
@@ -344,7 +383,7 @@ export async function createVentaTransaccionalPg(
     if (insItems.error) throw new Error(insItems.error.message);
 
     // 7) Descuento de stock + movimientos solo para productos con controla_stock=true.
-    for (const line of items) {
+    for (const line of itemsFinales) {
       const p = stockMap.get(line.producto_id)!;
       if (!p.controlaStock) continue;
       const nuevoStock = p.stock - line.cantidad;
@@ -398,7 +437,7 @@ export async function createVentaTransaccionalPg(
       if (!estadoQ.data) throw new Error("Estado 'nuevo' no configurado para esta empresa.");
       const estadoId = (estadoQ.data as { id: string }).id;
 
-      const itemsSnapshot = items.map((it) => ({
+      const itemsSnapshot = itemsFinales.map((it) => ({
         producto_id: it.producto_id,
         producto_nombre: it.producto_nombre,
         sku: it.sku,

@@ -1056,6 +1056,8 @@ export async function facturarSesionPg(params: {
     fecha_pago?: string | null;
     observacion?: string | null;
   } | null;
+  /** Descuento ya autorizado con clave. El reparto entre líneas lo hace la venta. */
+  descuento?: { monto: number; motivo: string | null; autorizadoPor: string | null } | null;
 }): Promise<{ ventaId: string; numeroControl: string | null; yaFacturada: boolean }> {
   const sb = createServiceRoleClientWithDbSchema(params.schema);
 
@@ -1183,6 +1185,7 @@ export async function facturarSesionPg(params: {
       totalDeclarado: tot,
       pedidoCocina: null, // la comida ya fue preparada/servida: no se crea comanda de cocina
       cajaId: caja.id,
+      descuento: params.descuento ?? null,
     });
 
     // Persistir venta_id + liberar mesa (solo si tipo='mesa').

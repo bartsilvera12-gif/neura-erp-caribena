@@ -23,6 +23,7 @@ import {
 } from "@/components/ventas/ReceptorFactura";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { facturarMesa, type PagoConciliacionInput } from "@/lib/mesas/storage";
+import AplicarDescuento, { type DescuentoAplicado } from "@/components/ventas/AplicarDescuento";
 import { abrirCaja, getCajaAbierta } from "@/lib/caja/storage";
 import { getCuentasBancarias } from "@/lib/conciliacion/storage";
 import type { CuentaBancaria } from "@/lib/conciliacion/types";
@@ -46,6 +47,7 @@ function formatGs(v: number) {
 
 export interface CobroCuentaProps {
   sesionId: string;
+  /** Total de la cuenta ANTES del descuento. */
   total: number;
   /** Productos cargados que todavía no salieron a cocina. */
   pendientes: number;
@@ -72,6 +74,8 @@ export default function CobroCuenta({
   const [abriendoCaja, setAbriendoCaja] = useState(false);
   const [cuentas, setCuentas] = useState<CuentaBancaria[]>([]);
 
+  /** Descuento autorizado con clave. Null = se cobra el total. */
+  const [descuento, setDescuento] = useState<DescuentoAplicado | null>(null);
   const [comprobante, setComprobante] = useState<TipoComprobante>("ticket");
   const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
 
@@ -89,11 +93,14 @@ export default function CobroCuenta({
   useEffect(() => { getCuentasBancarias().then(setCuentas); }, []);
   useEffect(() => { getCajaAbierta().then((c) => setSinCaja(!c)); }, []);
 
+  /** Lo que realmente hay que cobrar. Todo lo de abajo trabaja sobre esto. */
+  const totalACobrar = Math.max(0, total - (descuento?.monto ?? 0));
+
   const montoRecibidoNum = parseFloat(montoRecibido) || 0;
   const aPagarEnEfectivo =
     lineasCobro.length > 1
       ? totalCobrado(lineasCobro.filter((l) => l.metodo === "efectivo"))
-      : total;
+      : totalACobrar;
   const vuelto = montoRecibidoNum - aPagarEnEfectivo;
 
   /** Abre la caja del turno sin salir de la cuenta que se está cobrando. */
@@ -119,8 +126,8 @@ export default function CobroCuenta({
       );
       if (!seguir) return;
     }
-    if (!cobroValido(lineasCobro, total)) {
-      onError(`El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(total)}.`);
+    if (!cobroValido(lineasCobro, totalACobrar)) {
+      onError(`El cobro suma ${formatGs(totalCobrado(lineasCobro))} y la cuenta es de ${formatGs(totalACobrar)}.`);
       return;
     }
 
@@ -140,7 +147,8 @@ export default function CobroCuenta({
       hayNoEfectivo ? { ...pago, fecha_pago: pago.fecha_pago || new Date().toISOString() } : null,
       repartido
         ? lineasCobro.filter((l) => montoDeLinea(l) > 0).map((l) => ({ metodo_pago: l.metodo, monto: montoDeLinea(l) }))
-        : []
+        : [],
+      descuento ? { monto: descuento.monto, motivo: descuento.motivo, clave: descuento.clave } : null
     );
     setBusy(false);
 
@@ -216,6 +224,27 @@ export default function CobroCuenta({
         </div>
       )}
 
+      {/* El descuento va antes de las formas de pago: cambia el monto que hay
+          que repartir, así que decidirlo después obligaría a rehacer el cobro. */}
+      <AplicarDescuento total={total} valor={descuento} onChange={setDescuento} />
+
+      {descuento && (
+        <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <div className="flex justify-between text-slate-600">
+            <span>Subtotal</span>
+            <span className="tabular-nums">{formatGs(total)}</span>
+          </div>
+          <div className="flex justify-between text-emerald-700">
+            <span>Descuento</span>
+            <span className="tabular-nums">− {formatGs(descuento.monto)}</span>
+          </div>
+          <div className="mt-1 flex justify-between border-t border-slate-200 pt-1 text-base font-bold text-slate-900">
+            <span>Total a cobrar</span>
+            <span className="tabular-nums">{formatGs(totalACobrar)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Cobro</p>
 
@@ -224,7 +253,7 @@ export default function CobroCuenta({
           <CobroRepartido
             lineas={lineasCobro}
             onChange={(l) => { setLineasCobro(l); setPago({}); }}
-            total={total}
+            total={totalACobrar}
             inputClass={inputClass}
           />
         </div>

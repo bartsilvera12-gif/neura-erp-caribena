@@ -140,17 +140,26 @@ export interface PagoMesaInput {
   cuenta_bancaria_id?: string | null;
 }
 
+/** Descuento autorizado que viaja con el cobro. */
+export interface DescuentoCobroInput {
+  monto: number;
+  motivo: string | null;
+  /** La clave va para que el servidor la revalide: no confía en la pantalla. */
+  clave: string;
+}
+
 export function facturarMesa(
   sesionId: string,
   metodoPago: "efectivo" | "tarjeta" | "transferencia" | "qr",
   pago?: PagoConciliacionInput | null,
   /** Cobro repartido. Vacío = una sola forma de pago por el total. */
-  pagos?: PagoMesaInput[]
+  pagos?: PagoMesaInput[],
+  descuento?: DescuentoCobroInput | null
 ) {
   return call<{ ventaId: string; numeroControl: string | null; yaFacturada: boolean }>(
     `/api/mesas/sesiones/${encodeURIComponent(sesionId)}/facturar`,
     "POST",
-    { metodo_pago: metodoPago, pago: pago ?? null, pagos: pagos ?? [] }
+    { metodo_pago: metodoPago, pago: pago ?? null, pagos: pagos ?? [], descuento: descuento ?? null }
   );
 }
 

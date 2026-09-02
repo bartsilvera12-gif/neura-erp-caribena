@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/middleware/require-module";
 import { fetchDataSchemaForEmpresaId } from "@/lib/supabase/empresa-data-schema";
 import { facturarSesionPg } from "@/lib/mesas/server/mesas-pg";
+import { verificarClaveDescuentoPg } from "@/lib/ventas/server/descuento-clave-pg";
 import { successResponse, errorResponse } from "@/lib/api/response";
 
 /**
