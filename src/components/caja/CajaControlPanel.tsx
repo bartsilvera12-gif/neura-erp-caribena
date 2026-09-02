@@ -278,6 +278,11 @@ function CerrarCajaModal({
   const apertura = caja.monto_apertura;
   const transf = resumen.total_transferencia;
   const tarjeta = resumen.total_tarjeta;
+  // El QR se cobra como los otros medios electrónicos y hasta ahora quedaba
+  // fuera del cierre: una venta por QR no aparecía en el total esperado, así que
+  // el turno cerraba con una diferencia que no existía y el cajero la buscaba en
+  // el cajón. Es dinero real, y va donde van transferencias y tarjetas.
+  const qr = resumen.total_qr;
   const ajustes = resumen.ajustes_efectivo;
   // Efectivo FÍSICO esperado (fuente de verdad del backend): apertura + ventas
   // efectivo + ingresos − egresos − retiros (+ ajustes). Vuelto NO cuenta: las
@@ -287,11 +292,11 @@ function CerrarCajaModal({
   const manualNet = resumen.ingresos_efectivo - resumen.egresos_efectivo - resumen.retiros_efectivo + ajustes;
   // Cierre TOTAL esperado del turno = efectivo físico + transferencias + tarjetas
   //                                  = apertura + total vendido (+ movs. manuales).
-  const cierreTotalEsperado = efectivoEsperado + transf + tarjeta;
+  const cierreTotalEsperado = efectivoEsperado + transf + tarjeta + qr;
 
   const contado = parseFloat(monto) || 0;            // efectivo FÍSICO contado
   const difEfectivo = contado - efectivoEsperado;    // diferencia de efectivo físico
-  const totalDeclarado = contado + transf + tarjeta; // efectivo contado + medios electrónicos
+  const totalDeclarado = contado + transf + tarjeta + qr; // efectivo contado + medios electrónicos
   const difTotal = totalDeclarado - cierreTotalEsperado;
 
   async function submit() {
@@ -313,6 +318,7 @@ function CerrarCajaModal({
         <Row label="Ventas en efectivo" value={formatGs(resumen.total_efectivo)} />
         <Row label="Ventas por transferencia" value={formatGs(transf)} />
         <Row label="Ventas con tarjeta" value={formatGs(tarjeta)} />
+        <Row label="Ventas por QR" value={formatGs(qr)} />
         <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-900">
           <span>Total vendido</span><span className="tabular-nums">{formatGs(resumen.total_vendido)}</span>
         </div>
@@ -340,13 +346,14 @@ function CerrarCajaModal({
         <Row label="Efectivo físico esperado" value={formatGs(efectivoEsperado)} />
         <Row label="Transferencias registradas" value={`+ ${formatGs(transf)}`} />
         <Row label="Tarjetas registradas" value={`+ ${formatGs(tarjeta)}`} />
+        <Row label="QR registrados" value={`+ ${formatGs(qr)}`} />
         <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-900">
           <span>Total cierre esperado</span><span className="tabular-nums">{formatGs(cierreTotalEsperado)}</span>
         </div>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
         El <strong>efectivo físico esperado</strong> es apertura + ventas en efectivo + ingresos − egresos − retiros.
-        Transferencias y tarjetas suman al cierre total, pero <strong>no</strong> al efectivo físico.
+        Transferencias, tarjetas y QR suman al cierre total, pero <strong>no</strong> al efectivo físico.
       </p>
 
       {/* 4 · Cierre: solo efectivo físico contado */}
@@ -354,7 +361,7 @@ function CerrarCajaModal({
       <label className="mb-1.5 block text-sm font-medium text-slate-700">Efectivo físico contado en caja (Gs.)</label>
       <MontoInput value={monto} onChange={(n) => setMonto(String(n))} placeholder="Ej: 160.000" className={inputClass} decimals={false} />
       <p className="mt-1 text-[11px] leading-snug text-slate-400">
-        Ingresá solo el dinero físico disponible en caja. Transferencias y tarjetas ya se toman desde las ventas registradas.
+        Ingresá solo el dinero físico disponible en caja. Transferencias, tarjetas y QR ya se toman desde las ventas registradas.
       </p>
 
       {/* 5 · Diferencias */}
@@ -362,7 +369,7 @@ function CerrarCajaModal({
         <div className="mt-3 space-y-2">
           <DiffRow label="Diferencia de efectivo físico" hint={`contado − esperado (${formatGs(efectivoEsperado)})`} value={difEfectivo} />
           <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            <span>Total declarado (efectivo + transferencias + tarjetas)</span>
+            <span>Total declarado (efectivo + transferencias + tarjetas + QR)</span>
             <span className="tabular-nums font-medium text-slate-700">{formatGs(totalDeclarado)}</span>
           </div>
           <DiffRow label="Diferencia total del turno" hint={`declarado − cierre total (${formatGs(cierreTotalEsperado)})`} value={difTotal} />

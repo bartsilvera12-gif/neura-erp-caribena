@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
 import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
-import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
 import CobroCuenta from "@/components/ventas/CobroCuenta";
 import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import {
