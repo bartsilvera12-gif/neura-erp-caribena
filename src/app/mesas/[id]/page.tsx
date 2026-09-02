@@ -9,6 +9,7 @@ import NotaCocina from "@/components/mesas/NotaCocina";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
 import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
 import CobroCuenta from "@/components/ventas/CobroCuenta";
+import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import {
   actualizarItemMesa, agregarItemMesa, cancelarCuentaMesa,
   enviarComandaMesa, enviarMesaACaja, getMesaDetalle,
@@ -48,6 +49,15 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   /** Sesión viva de la mesa: es la que identifica la cuenta en la pantalla de cobro. */
   const [sesionId, setSesionId] = useState<string | null>(null);
   /** Panel de cobro desplegado. Arranca cerrado para no tapar el pedido. */
+  /**
+   * Si este usuario puede cobrar. El mozo tiene mesas y comandas pero no
+   * ventas: sin esto veía el cobro y recibía un error de permiso al apretar, y
+   * el que sí cobra veía un "Pasar a caja" que no necesita.
+   *
+   * Arranca en null —todavía no se sabe— para no mostrar ninguna de las dos
+   * cosas y que no aparezcan y desaparezcan al cargar la pantalla.
+   */
+  const [puedeCobrar, setPuedeCobrar] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const tmpCounter = useRef(0);
@@ -65,6 +75,16 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    let vivo = true;
+    void getModuleAccessCached().then((r) => {
+      if (!vivo) return;
+      const slugs = r.data.slugs ?? [];
+      setPuedeCobrar(Boolean(r.data.superAdmin) || slugs.includes("ventas"));
+    });
+    return () => { vivo = false; };
+  }, []);
 
   const markPending = (tmpId: string, on: boolean) =>
     setPendingIds((prev) => { const n = new Set(prev); if (on) n.add(tmpId); else n.delete(tmpId); return n; });
@@ -436,7 +456,7 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       {/* El cobro va siempre a la vista, sin desplegar. Estaba detrás de un
           botón que lo abría más abajo, fuera de la pantalla: se apretaba y
           parecía que no pasaba nada. Un cobro escondido no sirve de nada. */}
-      {hayItems && cuentaId && (
+      {hayItems && cuentaId && puedeCobrar === true && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="mb-4 text-sm font-semibold text-slate-800">Cobrar esta mesa</p>
           <CobroCuenta
@@ -468,7 +488,10 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
                 Enviar comanda
               </button>
             )}
-            {hayItems && (
+            {/* Sólo para quien no puede cobrar: el mozo suelta la mesa y la
+                toma quien cobra. El cajero no lo necesita —tiene el cobro acá
+                mismo— y verlo sólo lo tienta a dar un rodeo. */}
+            {hayItems && puedeCobrar === false && (
               <button type="button" onClick={onPasarACaja} disabled={busy}
                 className="rounded-xl border border-slate-300 px-5 py-4 text-base font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50">
                 Pasar a caja
