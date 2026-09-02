@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, Receipt, ScrollText, Search, SendHorizontal, Settings, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
+import { Activity, BarChart3, Building2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, History, LayoutDashboard, LayoutGrid, ListChecks, Megaphone, MessageCircle, Package, Receipt, ScrollText, Search, SendHorizontal, ShoppingCart, Sparkles, Star, Ticket, UserCog, Users, Utensils } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { getCurrentUser } from "@/lib/auth";
@@ -131,16 +131,13 @@ const MENU_STRUCTURE: MenuItem[] = [
     icon: ScrollText,
   },
   { key: "usuarios", slug: "usuarios", label: "Usuarios", href: "/usuarios", icon: UserCog },
-  {
-    key: "configuracion",
-    slug: "configuracion",
-    label: "Configuración",
-    href: "/configuracion",
-    icon: Settings,
-    children: [
-      { label: "Entidades bancarias", href: "/configuracion/entidades-bancarias" },
-    ],
-  },
+  // Configuración oculta del menú a pedido del local: se toca muy de vez en
+  // cuando y no tiene por qué estar a un clic de la caja.
+  //
+  // Sólo se saca del menú: las pantallas siguen funcionando entrando por URL
+  // (/configuracion, /configuracion/facturacion-electronica, etc.). El permiso
+  // lo sigue aplicando el servidor como siempre, así que esconderlo no habilita
+  // ni bloquea a nadie: es nada más sacarlo de la vista.
   { key: "crm", slug: "crm", label: "CRM Funnel", href: "/crm", icon: Sparkles },
   { key: "marketing", slug: "marketing", label: "Marketing Legacy", href: "/marketing", icon: Megaphone },
   { key: "marketing_ops", slug: "marketing_ops", label: "Marketing Ops", href: "/dashboard/marketing-ops", icon: Megaphone },
@@ -178,7 +175,7 @@ const MENU_SECTIONS: { label: string; keys: string[] }[] = [
   { label: "Operaciones", keys: ["inventario", "recetas", "compras", "gastos"] },
   { label: "Contable",    keys: ["reportes", "notas_credito"] },
   { label: "Marketing",   keys: ["campanas", "marketing", "marketing_ops", "sorteos"] },
-  { label: "Administración", keys: ["usuarios", "configuracion", "planes"] },
+  { label: "Administración", keys: ["usuarios", "planes"] },
 ];
 
 const SECTION_FALLBACK = "Otros";
