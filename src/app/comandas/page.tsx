@@ -10,6 +10,7 @@ import {
 } from "@/lib/comandas/storage";
 import type { ComandaCard } from "@/lib/comandas/types";
 import { SectorBadge } from "@/components/comandas/SectorBadge";
+import ImpresionAutomatica from "@/components/comandas/ImpresionAutomatica";
 
 function formatHora(iso: string | null) {
   if (!iso) return "—";
@@ -25,6 +26,9 @@ export default function ComandasPage() {
   const [error, setError] = useState<string | null>(null);
   const [verDetalle, setVerDetalle] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  // Con la impresión automática encendida la pantalla es la que dispara el
+  // papel: 15 segundos de espera se sienten en la cocina.
+  const [autoActivo, setAutoActivo] = useState(false);
 
   // La pantalla operativa solo trae comandas pendientes (estado = generada).
   const load = useCallback(async () => {
@@ -41,9 +45,9 @@ export default function ComandasPage() {
     let cancelled = false;
     const run = () => { if (!cancelled) void load(); };
     run();
-    const t = setInterval(run, 15000);
+    const t = setInterval(run, autoActivo ? 6000 : 15000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [load]);
+  }, [load, autoActivo]);
 
   function toggleDetalle(id: string) {
     setVerDetalle((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -223,6 +227,8 @@ export default function ComandasPage() {
         <p className="py-10 text-center text-slate-400">Cargando comandas…</p>
       ) : (
         <>
+          <ImpresionAutomatica pendientes={pendientes} onImpresa={load} onEstado={setAutoActivo} />
+
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-600">
               Comandas pendientes de imprimir <span className="ml-1 rounded-full bg-amber-100 px-2 text-xs text-amber-800">{pendientes.length}</span>
