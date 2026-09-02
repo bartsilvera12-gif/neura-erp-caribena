@@ -48,6 +48,17 @@ export default function CajaDetallePage({ params }: { params: Promise<{ id: stri
         </h1>
       </div>
 
+      {/* Reimprimir: el arqueo sale solo al cerrar, pero el papel se pierde, se
+          moja, o hace falta otra copia para la carpeta. */}
+      <a
+        href={`/api/caja/${c.id}/arqueo`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+      >
+        Imprimir arqueo
+      </a>
+
       {/* Resumen de caja */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-800">Resumen de caja</h2>

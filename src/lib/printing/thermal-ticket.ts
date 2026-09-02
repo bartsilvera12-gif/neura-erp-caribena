@@ -495,6 +495,10 @@ export function wrapTicketDocument(
   .totales .lbl { text-align: left; }
   .totales .val { text-align: right; white-space: nowrap; }
   .total-row { font-weight: bold; font-size: ${fontPx + 2}px; border-top: 1px solid #000; }
+  /* Renglón destacado del arqueo (total vendido, efectivo esperado, diferencia). */
+  .fuerte td { font-weight: bold; font-size: ${fontPx + 1}px; border-top: 1px solid #000; padding-top: 1mm; }
+  /* Firmas del arqueo: el papel se firma al entregar el turno. */
+  .firmas { font-size: ${fontPx}px; margin: 4mm 0 2mm; line-height: 2.6; }
   .obs, .estado { font-size: ${fontPx - 1}px; margin: 2mm 0; }
   .footer { font-size: ${fontPx - 1}px; text-align: center; margin-top: 3mm; font-style: italic; color: #000; }
   .footer-cocina { font-size: ${fontPx - 1}px; text-align: center; margin-top: 3mm; font-weight: 800; color: #000; }

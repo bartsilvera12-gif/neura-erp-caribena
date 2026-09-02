@@ -302,10 +302,30 @@ function CerrarCajaModal({
   async function submit() {
     setError(null);
     setSaving(true);
+
+    // La pestaña se abre dentro del clic. Si se abriera después de que responda
+    // el servidor, el navegador la trataría como emergente y la bloquearía.
+    let arqueoWin: Window | null = null;
+    try { arqueoWin = window.open("about:blank", "_blank"); } catch { arqueoWin = null; }
+
     // El backend cierra con el efectivo físico contado (diferencia = contado − esperado).
     const r = await cerrarCaja(contado, obs.trim() || null, caja.id);
     setSaving(false);
-    if (!r.success) { setError(r.error); return; }
+    if (!r.success) {
+      try { arqueoWin?.close(); } catch { /* nada que cerrar */ }
+      setError(r.error);
+      return;
+    }
+
+    // El arqueo sale impreso al cerrar: es el papel que se firma y se guarda
+    // con el dinero. Pedirlo aparte era invitar a que el turno se cerrara sin
+    // comprobante, y después nadie puede reconstruir con qué se cerró.
+    const href = `/api/caja/${caja.id}/arqueo?auto=1`;
+    try {
+      if (arqueoWin) arqueoWin.location.href = href;
+      else window.open(href, "_blank", "noopener");
+    } catch { /* queda disponible desde el detalle del cierre */ }
+
     onDone();
   }
 
