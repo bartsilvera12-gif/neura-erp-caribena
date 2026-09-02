@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/mesas/para-llevar — crea una sesión PARA LLEVAR (sin mesa).
- * Body: { nombre_cliente?: string }. Devuelve { sesion } (incluye numero_pl).
+ * Body: { nombre_cliente?: string, observacion?: string }. Devuelve { sesion }.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,9 +32,11 @@ export async function POST(request: NextRequest) {
     try { body = await request.json(); } catch { /* body opcional */ }
     const o = (body ?? {}) as Record<string, unknown>;
     const nombreCliente = o.nombre_cliente == null || o.nombre_cliente === "" ? null : String(o.nombre_cliente).slice(0, 120);
+    // Nota del pedido: la lee cocina en la comanda (ej. "delivery", "retira 21hs").
+    const observacion = o.observacion == null || o.observacion === "" ? null : String(o.observacion).slice(0, 200);
 
     const schema = await fetchDataSchemaForEmpresaId(auth.empresa_id);
-    const sesion = await abrirSesionParaLlevarPg(schema, auth.empresa_id, auth.usuarioCatalogId ?? null, nombreCliente);
+    const sesion = await abrirSesionParaLlevarPg(schema, auth.empresa_id, auth.usuarioCatalogId ?? null, nombreCliente, observacion);
     return NextResponse.json(successResponse({ sesion }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "No se pudo crear la sesión Para llevar.";

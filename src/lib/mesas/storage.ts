@@ -157,8 +157,17 @@ export function facturarMesa(
 // ── PARA LLEVAR ───────────────────────────────────────────────────────────────
 
 /** Crea una nueva sesión "Para llevar" (opcional: nombre del cliente). */
-export function crearParaLlevar(nombreCliente: string | null) {
-  return call<{ sesion: MesaSesion }>("/api/mesas/para-llevar", "POST", { nombre_cliente: nombreCliente });
+/**
+ * Crea una sesión "Para llevar".
+ *
+ * La nota va impresa en la comanda de cocina: ahí se escribe "delivery" o
+ * "retira 21:00", que es lo que decide si hay que llamar a un repartidor.
+ */
+export function crearParaLlevar(nombreCliente: string | null, observacion: string | null = null) {
+  return call<{ sesion: MesaSesion }>("/api/mesas/para-llevar", "POST", {
+    nombre_cliente: nombreCliente,
+    observacion,
+  });
 }
 
 /** Lista sesiones PL activas (abierta/por_cobrar) para el listado en /mesas. */

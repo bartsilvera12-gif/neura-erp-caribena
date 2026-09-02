@@ -50,15 +50,17 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
   const sesionIds = [...new Set(comandas.map((c) => c.sesion_id))];
 
   const sQ = await sb.from("mesa_sesiones")
-    .select("id, mesa_id, mozo_id, tipo, numero_pl, nombre_cliente")
+    .select("id, mesa_id, mozo_id, tipo, numero_pl, nombre_cliente, observacion")
     .eq("empresa_id", empresaId).in("id", sesionIds);
   const sesById = new Map<string, {
     mesa_id: string | null; mozo_id: string | null;
     tipo: "mesa" | "para_llevar"; numero_pl: number | null; nombre_cliente: string | null;
+    observacion: string | null;
   }>();
   for (const s of (sQ.data ?? []) as Array<{
     id: string; mesa_id: string | null; mozo_id: string | null;
     tipo: string | null; numero_pl: number | string | null; nombre_cliente: string | null;
+    observacion?: string | null;
   }>) {
     sesById.set(s.id, {
       mesa_id: s.mesa_id,
@@ -66,6 +68,7 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
       tipo: s.tipo === "para_llevar" ? "para_llevar" : "mesa",
       numero_pl: s.numero_pl == null ? null : Number(s.numero_pl),
       nombre_cliente: s.nombre_cliente,
+      observacion: s.observacion ?? null,
     });
   }
 
@@ -163,6 +166,7 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
       sesion_tipo: ses?.tipo ?? "mesa",
       numero_pl: ses?.numero_pl ?? null,
       nombre_cliente: ses?.nombre_cliente ?? null,
+      sesion_observacion: ses?.observacion ?? null,
       mozo_nombre: c.creado_por ? userNombre.get(c.creado_por) ?? null : null,
       total,
       items,

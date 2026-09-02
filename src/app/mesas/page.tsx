@@ -280,14 +280,27 @@ export default function MesasPage() {
           <h1 className="text-2xl font-bold text-slate-800">Mesas</h1>
           <p className="text-sm text-slate-500">Tocá una mesa para tomar el pedido.</p>
         </div>
-        <button
-          type="button"
-          onClick={abrirModal}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Crear mesas
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Un pedido para llevar se toma en el mismo momento que una mesa:
+              alguien llega al mostrador. Tenerlo en otro módulo obligaba a
+              salir del salón para algo que pasa acá. */}
+          <button
+            type="button"
+            onClick={() => router.push("/pedidos-para-llevar")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91]"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Para llevar
+          </button>
+          <button
+            type="button"
+            onClick={abrirModal}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Crear mesas
+          </button>
+        </div>
       </div>
 
       {/* Se busca por número, por nombre de la mesa y por mozo: con el salón

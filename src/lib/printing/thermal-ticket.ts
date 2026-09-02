@@ -481,6 +481,9 @@ export function wrapTicketDocument(
   .meta { font-size: ${fontPx - 1}px; text-align: center; margin: 1mm 0 2mm; }
   hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
   .pedido { font-size: ${fontPx}px; margin: 1mm 0 2mm; }
+  /* Nota del pedido (ej. "delivery"). Va destacada porque de eso depende que
+     cocina avise a tiempo para llamar al repartidor. */
+  .nota-pedido { font-size: ${fontPx + 3}px; font-weight: 800; text-transform: uppercase; border: 1.5px solid #000; padding: 1mm 2mm; margin: 1.5mm 0; text-align: center; }
   table { width: 100%; border-collapse: collapse; }
   td { vertical-align: top; padding: 0.5mm 0; }
   td.qty { width: 9mm; }

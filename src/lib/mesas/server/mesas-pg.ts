@@ -342,7 +342,9 @@ export async function abrirSesionParaLlevarPg(
   schema: string,
   empresaId: string,
   mozoId: string | null,
-  nombreCliente: string | null
+  nombreCliente: string | null,
+  /** Nota del pedido, visible en la comanda de cocina (ej. "delivery"). */
+  observacion: string | null = null
 ): Promise<MesaSesion> {
   const sb = createServiceRoleClientWithDbSchema(schema);
 
@@ -364,6 +366,7 @@ export async function abrirSesionParaLlevarPg(
       tipo: "para_llevar",
       numero_pl: numeroPl,
       nombre_cliente: nombre,
+      observacion: (observacion ?? "").trim() || null,
       estado: "abierta",
       mozo_id: mozoId,
     })

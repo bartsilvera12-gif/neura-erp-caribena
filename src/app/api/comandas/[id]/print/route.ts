@@ -98,9 +98,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
 
   const esParaLlevar = c.sesion_tipo === "para_llevar";
   const numeroPl = c.numero_pl != null ? `PL-${String(c.numero_pl).padStart(3, "0")}` : "PL";
+  // La nota del pedido va en grande y en su propia línea: es lo que le dice a
+  // cocina si esto es delivery o retiro, y de eso depende que avisen a tiempo
+  // para llamar al repartidor. Perdida entre el resto del encabezado, no la ven.
+  const notaPedido = (c.sesion_observacion ?? "").trim();
+  const notaHtml = notaPedido
+    ? `<div class="nota-pedido">${escapeHtml(notaPedido)}</div>`
+    : "";
+
   const encabezadoPedido = esParaLlevar
-    ? `<div><strong>PARA LLEVAR · ${escapeHtml(numeroPl)}</strong></div>${c.nombre_cliente ? `<div>Cliente: ${escapeHtml(c.nombre_cliente)}</div>` : ""}`
-    : `<div><strong>Mesa ${c.mesa_numero ?? "—"}</strong></div>`;
+    ? `<div><strong>PARA LLEVAR · ${escapeHtml(numeroPl)}</strong></div>${c.nombre_cliente ? `<div>Cliente: ${escapeHtml(c.nombre_cliente)}</div>` : ""}${notaHtml}`
+    : `<div><strong>Mesa ${c.mesa_numero ?? "—"}</strong></div>${notaHtml}`;
 
   const section = `<section class="paper last">
     <div class="sector-banner">${banner}</div>

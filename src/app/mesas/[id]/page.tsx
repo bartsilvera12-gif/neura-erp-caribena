@@ -244,18 +244,11 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
       setOkMsg("No hay productos que requieran producción.");
     } else {
       const partes = r.comandas.map((c) => `${c.sector === "pizzeria" ? "Pizzería" : "Plancha"} N°${c.numero}`);
-      setOkMsg(`Enviado a producción: ${partes.join(" · ")}.`);
-      // Se abre la impresión de cada sector en el acto. Antes la comanda quedaba
-      // registrada y alguien tenía que ir al tablero de Comandas a imprimirla:
-      // el mozo se iba creyendo que la cocina ya la tenía en papel.
-      for (const c of r.comandas) {
-        try {
-          void imprimirComanda(c.id);
-          window.open(comandaPrintUrl(c.id), "_blank", "noopener");
-        } catch {
-          /* si el navegador bloquea la ventana, la comanda igual está en el tablero */
-        }
-      }
+      // No se abre ninguna ventana de impresión acá. La comanda queda esperando
+      // en el tablero de Comandas y la imprime la cocina, que es donde está el
+      // papel. Abrirla en la caja obligaba al cajero a cerrar pestañas con el
+      // cliente enfrente, y encima el ticket salía de la impresora equivocada.
+      setOkMsg(`Enviado a cocina: ${partes.join(" · ")}. Lo imprimen ellos.`);
     }
     setTimeout(() => setOkMsg(null), 3000);
   }

@@ -50,6 +50,8 @@ export default function PedidosParaLlevarPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [nombre, setNombre] = useState("");
+  /** Nota del pedido. Sale impresa en la comanda de cocina. */
+  const [nota, setNota] = useState("");
   const [creating, setCreating] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -85,11 +87,12 @@ export default function PedidosParaLlevarPage() {
     setModalError(null);
     setCreating(true);
     const n = nombre.trim() || null;
-    const r = await crearParaLlevar(n);
+    const r = await crearParaLlevar(n, nota.trim() || null);
     setCreating(false);
     if (!r.success) { setModalError(r.error); return; }
     setModalOpen(false);
     setNombre("");
+    setNota("");
     router.push(`/mesas/pl/${r.sesion.id}`);
   }
 
@@ -158,7 +161,7 @@ export default function PedidosParaLlevarPage() {
         </div>
         <button
           type="button"
-          onClick={() => { setNombre(""); setModalError(null); setModalOpen(true); }}
+          onClick={() => { setNombre(""); setNota(""); setModalError(null); setModalOpen(true); }}
           className="rounded-xl bg-[#4FAEB2] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#3F8E91] active:scale-95"
         >
           + Nuevo Para llevar
@@ -334,16 +337,51 @@ export default function PedidosParaLlevarPage() {
             />
             <div className="px-5 pb-4 pt-5">
             <h3 className="text-lg font-bold text-slate-800">Nuevo Para llevar</h3>
-            <p className="mt-1 text-sm text-slate-500">Nombre del cliente (opcional). El correlativo PL se asigna automáticamente.</p>
+            <p className="mt-1 text-sm text-slate-500">El correlativo PL se asigna solo.</p>
+
+            <label className="mt-3 block text-xs font-medium text-slate-600">Nombre del cliente</label>
             <input
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ingresá un nombre"
+              placeholder="Ej: Ramón"
               maxLength={120}
               disabled={creating}
               autoFocus
-              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
+              onKeyDown={(e) => { if (e.key === "Enter") void onCrear(); }}
+            />
+
+            {/* La nota sale impresa y destacada en la comanda: es lo que le dice
+                a cocina si esto es delivery, y de eso depende que avisen a
+                tiempo para llamar al repartidor. Los dos atajos cubren casi
+                todos los casos sin tener que escribir. */}
+            <label className="mt-3 block text-xs font-medium text-slate-600">Nota para cocina</label>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {["Delivery", "Retira en el local"].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  disabled={creating}
+                  onClick={() => setNota((v) => (v === n ? "" : n))}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    nota === n
+                      ? "border-amber-500 bg-amber-50 text-amber-800"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="Ej: delivery, retira 21:00"
+              maxLength={200}
+              disabled={creating}
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 hover:border-[#4FAEB2]/60 focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20"
               onKeyDown={(e) => { if (e.key === "Enter") void onCrear(); }}
             />
             {modalError && <p className="mt-2 text-sm text-red-600"><AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden /> {modalError}</p>}

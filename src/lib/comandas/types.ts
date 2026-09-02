@@ -62,6 +62,8 @@ export interface ComandaCard {
   numero_pl?: number | null;
   /** Nombre opcional del cliente (solo cuando sesion_tipo='para_llevar'). */
   nombre_cliente?: string | null;
+  /** Nota del pedido, para que cocina sepa si es delivery, retiro, etc. */
+  sesion_observacion?: string | null;
   mozo_nombre: string | null;
   /** Suma de ítems vigentes (uso interno; el ticket de cocina NO muestra precio). */
   total: number;
