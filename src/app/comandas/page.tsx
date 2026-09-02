@@ -133,7 +133,23 @@ export default function ComandasPage() {
           </span>
         ) : null}
         <SectorBadge sector={c.sector} />
-        <p className="text-sm text-slate-600">Mesa <strong>{c.mesa_numero ?? "—"}</strong> · Mozo: {c.mozo_nombre ?? "—"}</p>
+        {/* Para llevar tiene que gritar: se prepara para empaquetar y alguien lo
+            espera o lo viene a buscar, no va a una mesa del salón. */}
+        {c.sesion_tipo === "para_llevar" ? (
+          <>
+            <span className="mt-1 inline-block rounded-md bg-violet-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+              Para llevar
+            </span>
+            <p className="text-sm text-slate-600">
+              <strong>{c.nombre_cliente?.trim() || `Pedido N°${c.numero_pl ?? "—"}`}</strong>
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-600">Mesa <strong>{c.mesa_numero ?? "—"}</strong> · Mozo: {c.mozo_nombre ?? "—"}</p>
+        )}
+        {c.sesion_observacion?.trim() ? (
+          <p className="mt-0.5 text-xs font-medium text-violet-700">Nota: {c.sesion_observacion}</p>
+        ) : null}
         <p className="text-xs text-slate-500">{vigentes} ítem(s)</p>
 
         {abierto && <ItemsList c={c} />}
@@ -231,7 +247,10 @@ export default function ComandasPage() {
                 {ultimasImpresas.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                     <span className="text-slate-700">
-                      <strong>N°{c.numero}</strong> · Mesa {c.mesa_numero ?? "—"} · {c.mozo_nombre ?? "—"}
+                      <strong>N°{c.numero}</strong> ·{" "}
+                      {c.sesion_tipo === "para_llevar"
+                        ? `Para llevar${c.nombre_cliente?.trim() ? ` · ${c.nombre_cliente}` : ""}`
+                        : `Mesa ${c.mesa_numero ?? "—"} · ${c.mozo_nombre ?? "—"}`}
                     </span>
                     <span className="text-xs text-slate-400">
                       impresa {formatHora(c.printed_at)}{c.print_count > 1 ? ` · ${c.print_count} impresiones` : ""}

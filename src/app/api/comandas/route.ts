@@ -17,8 +17,12 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const estadoRaw = url.searchParams.get("estado");
     const estado = estadoRaw && ESTADOS_COMANDA.includes(estadoRaw as EstadoComanda) ? (estadoRaw as EstadoComanda) : null;
-    // /comandas es SOLO para mesa. Los pedidos Para llevar se ven en /pedidos-para-llevar.
-    const comandas = await listarComandasPg(schema, auth.empresa_id, { estado, tipo: "mesa" });
+    // Cocina ve TODO: mesa y para llevar. Antes acá había un `tipo: "mesa"` y los
+    // pedidos Para llevar sólo aparecían en /pedidos-para-llevar, que es una
+    // pantalla de caja. Resultado: se mandaba la comanda de un delivery y en la
+    // cocina no aparecía nunca. La comida se prepara en el mismo lugar; separarla
+    // por dónde se cobra no tiene sentido para el que cocina.
+    const comandas = await listarComandasPg(schema, auth.empresa_id, { estado });
     return NextResponse.json(successResponse({ comandas }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "No se pudieron cargar las comandas.";
