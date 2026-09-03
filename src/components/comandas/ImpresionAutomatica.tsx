@@ -18,8 +18,9 @@ import type { ComandaCard } from "@/lib/comandas/types";
  * el que tiene que imprimir es el equipo de la cocina, no la caja, que abre la
  * misma pantalla y no quiere papel saliendo del otro lado del local.
  *
- * Sólo entran las comandas creadas DESPUÉS de encender el modo. Si no, prender
- * el interruptor con la cola acumulada largaba de golpe todo lo viejo.
+ * Sólo entran las comandas que aparecen DESPUÉS de encender el modo: al
+ * encenderlo se anota lo que ya estaba y eso no se imprime. Si no, prender el
+ * interruptor con la cola acumulada largaba de golpe todo lo viejo.
  */
 
 const CLAVE = "caribena.comandas.impresion-automatica";
@@ -34,10 +35,13 @@ interface Registro {
 
 export default function ImpresionAutomatica({
   pendientes,
+  cargando,
   onImpresa,
   onEstado,
 }: {
   pendientes: ComandaCard[];
+  /** El listado todavía no llegó: no se toma la foto inicial con datos a medias. */
+  cargando: boolean;
   /** Para refrescar el listado cuando una comanda pasa a impresa. */
   onImpresa: () => void;
   /** Avisa si el modo quedó encendido, para refrescar más seguido. */
@@ -45,11 +49,22 @@ export default function ImpresionAutomatica({
 }) {
   const [activo, setActivo] = useState(false);
   const [registro, setRegistro] = useState<Registro[]>([]);
-  // Desde cuándo cuentan las comandas. Se fija al encender.
-  const desdeRef = useRef<number>(0);
-  // Ya atendidas en esta sesión: evita reimprimir mientras el listado se
-  // refresca y la comanda todavía figura pendiente.
+  const [ultimaRevision, setUltimaRevision] = useState<Date | null>(null);
+  /**
+   * Comandas que esta pantalla no tiene que imprimir: las que ya estaban
+   * cuando se encendió el modo, más las que ya se atendieron.
+   *
+   * Antes esto era una comparación de fechas: imprimir lo creado después de
+   * encender. Fallaba, y feo, porque la fecha de la comanda la pone el servidor
+   * y la de "ahora" la ponía la PC de la cocina. Con el reloj de esa PC unos
+   * minutos adelantado —cosa comunísima en una máquina de local— TODA comanda
+   * nueva parecía vieja y no se imprimía ninguna, sin ningún error a la vista.
+   *
+   * Comparar identidades en vez de relojes no depende de la hora de nadie.
+   */
   const atendidasRef = useRef<Set<string>>(new Set());
+  /** La foto inicial ya se tomó: recién ahí lo que aparece es nuevo de verdad. */
+  const inicializadoRef = useRef(false);
   const trabajandoRef = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -58,7 +73,6 @@ export default function ImpresionAutomatica({
   useEffect(() => {
     try {
       if (localStorage.getItem(CLAVE) === "1") {
-        desdeRef.current = Date.now();
         setActivo(true);
         onEstado?.(true);
       }
@@ -69,8 +83,8 @@ export default function ImpresionAutomatica({
   const alternar = useCallback((v: boolean) => {
     setActivo(v);
     onEstado?.(v);
-    desdeRef.current = Date.now();
     atendidasRef.current = new Set();
+    inicializadoRef.current = false;
     try { localStorage.setItem(CLAVE, v ? "1" : "0"); } catch { /* da igual */ }
   }, [onEstado]);
 
@@ -116,11 +130,25 @@ export default function ImpresionAutomatica({
 
   useEffect(() => {
     if (!activo || trabajandoRef.current) return;
-    const nuevas = pendientes.filter(
-      (c) =>
-        !atendidasRef.current.has(c.id) &&
-        new Date(c.created_at).getTime() >= desdeRef.current
-    );
+
+    // La hora de la última revisión queda a la vista: si Chrome deja la ventana
+    // en segundo plano frena los temporizadores, la pantalla se congela sin
+    // avisar y no hay forma de saber que dejó de mirar. Un reloj quieto sí se
+    // nota.
+    if (!cargando) setUltimaRevision(new Date());
+
+    // Primera pasada: se anota lo que ya estaba y no se imprime nada. Sin esto,
+    // encender el interruptor con la cola acumulada largaba de golpe todo lo
+    // viejo. Se espera a que el listado esté cargado: absorber una lista vacía
+    // que todavía no llegó no anota nada, y después entra todo igual.
+    if (!inicializadoRef.current) {
+      if (cargando) return;
+      for (const c of pendientes) atendidasRef.current.add(c.id);
+      inicializadoRef.current = true;
+      return;
+    }
+
+    const nuevas = pendientes.filter((c) => !atendidasRef.current.has(c.id));
     if (nuevas.length === 0) return;
 
     trabajandoRef.current = true;
@@ -133,7 +161,7 @@ export default function ImpresionAutomatica({
       trabajandoRef.current = false;
       onImpresa();
     })();
-  }, [activo, pendientes, imprimirLote, onImpresa]);
+  }, [activo, cargando, pendientes, imprimirLote, onImpresa]);
 
   /**
    * Prueba de impresión, sin tocar ninguna comanda.
@@ -182,6 +210,14 @@ export default function ImpresionAutomatica({
           </span>
         </label>
         <div className="flex items-center gap-3">
+          {activo && ultimaRevision && (
+            <p className="text-xs text-slate-500">
+              Última revisión:{" "}
+              <span className="tabular-nums font-medium text-slate-700">
+                {ultimaRevision.toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            </p>
+          )}
           {registro.length > 0 && (
             <p className="text-xs text-slate-500">
               {registro.length} impresa(s) en este turno

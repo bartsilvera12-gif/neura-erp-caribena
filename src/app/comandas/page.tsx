@@ -258,7 +258,7 @@ export default function ComandasPage() {
         <p className="py-10 text-center text-slate-400">Cargando comandas…</p>
       ) : (
         <>
-          <ImpresionAutomatica pendientes={pendientes} onImpresa={load} onEstado={setAutoActivo} />
+          <ImpresionAutomatica pendientes={pendientes} cargando={loading} onImpresa={load} onEstado={setAutoActivo} />
 
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
