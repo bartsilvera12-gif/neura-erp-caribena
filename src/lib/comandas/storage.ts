@@ -66,3 +66,14 @@ export const cancelarComanda = (id: string) => postComanda(id, "cancelar");
  * cocina. Con Chrome en `--kiosk-printing` esto sale directo al papel.
  */
 export const comandaPrintUrl = (id: string) => `/api/comandas/${encodeURIComponent(id)}/print?auto=1`;
+
+/**
+ * Varias comandas en UN solo papel, y por lo tanto en un solo trabajo de
+ * impresión.
+ *
+ * Un pedido con pizza y hamburguesa genera dos comandas, una por sector. Salen
+ * una atrás de la otra, separadas por corte, sin que nadie apriete nada entre
+ * medio.
+ */
+export const comandasPrintUrl = (ids: string[]) =>
+  `/api/comandas/print?auto=1&ids=${ids.map(encodeURIComponent).join(",")}`;

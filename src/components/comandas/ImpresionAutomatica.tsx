@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Printer } from "lucide-react";
-import { comandaPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
+import { comandasPrintUrl, imprimirComanda } from "@/lib/comandas/storage";
 import type { ComandaCard } from "@/lib/comandas/types";
 
 /**
@@ -74,32 +74,45 @@ export default function ImpresionAutomatica({
     try { localStorage.setItem(CLAVE, v ? "1" : "0"); } catch { /* da igual */ }
   }, [onEstado]);
 
-  const imprimirUna = useCallback(
-    async (c: ComandaCard) => {
-      const hora = new Date().toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" });
-      // Primero se registra la impresión: si esto falla, no se imprime, porque
-      // la comanda seguiría figurando pendiente y saldría de nuevo en cada
-      // refresco.
+  /**
+   * Imprime un lote de comandas en un solo trabajo.
+   *
+   * Todas juntas y no de a una: un pedido con pizza y hamburguesa genera dos
+   * comandas, y dos `window.print()` seguidos en el mismo navegador se pisan —
+   * sale una sola, o salen mezcladas. En un único documento van separadas por
+   * corte de página y salen las dos.
+   */
+  const imprimirLote = useCallback(async (lote: ComandaCard[]) => {
+    const hora = new Date().toLocaleTimeString("es-PY", { hour: "2-digit", minute: "2-digit" });
+
+    // Primero se registra cada impresión. Si esto falla, esa comanda no entra
+    // al papel: seguiría figurando pendiente y saldría de nuevo en cada
+    // refresco, una y otra vez.
+    const marcadas: ComandaCard[] = [];
+    for (const c of lote) {
       const r = await imprimirComanda(c.id);
-      if (!r.success) {
-        setRegistro((p) => [{ id: c.id, numero: c.numero, hora, ok: false, detalle: r.error }, ...p].slice(0, 12));
-        return;
-      }
-      const marco = iframeRef.current;
-      if (!marco) return;
-      await new Promise<void>((resolve) => {
-        const listo = () => { marco.removeEventListener("load", listo); resolve(); };
-        marco.addEventListener("load", listo);
-        // El ticket lleva `auto=1`: se manda a imprimir solo al terminar de
-        // cargar, dentro del propio iframe.
-        marco.src = comandaPrintUrl(c.id);
-        // Red lenta o ticket que no carga: no se cuelga la cola.
-        setTimeout(resolve, 8000);
-      });
-      setRegistro((p) => [{ id: c.id, numero: c.numero, hora, ok: true }, ...p].slice(0, 12));
-    },
-    []
-  );
+      if (r.success) marcadas.push(c);
+      else setRegistro((p) => [{ id: c.id, numero: c.numero, hora, ok: false, detalle: r.error }, ...p].slice(0, 12));
+    }
+    if (marcadas.length === 0) return;
+
+    const marco = iframeRef.current;
+    if (!marco) return;
+    await new Promise<void>((resolve) => {
+      const listo = () => { marco.removeEventListener("load", listo); resolve(); };
+      marco.addEventListener("load", listo);
+      // El documento lleva `auto=1`: se manda a imprimir solo al terminar de
+      // cargar, dentro del propio iframe.
+      marco.removeAttribute("srcdoc");
+      marco.src = comandasPrintUrl(marcadas.map((c) => c.id));
+      // Red lenta o ticket que no carga: no se cuelga la cola.
+      setTimeout(resolve, 10000);
+    });
+    setRegistro((p) => [
+      ...marcadas.map((c) => ({ id: c.id, numero: c.numero, hora, ok: true })),
+      ...p,
+    ].slice(0, 12));
+  }, []);
 
   useEffect(() => {
     if (!activo || trabajandoRef.current) return;
@@ -112,15 +125,15 @@ export default function ImpresionAutomatica({
 
     trabajandoRef.current = true;
     void (async () => {
-      // De a una: dos window.print() encimados salen mezclados o se pierde uno.
-      for (const c of nuevas.slice().reverse()) {
-        atendidasRef.current.add(c.id);
-        try { await imprimirUna(c); } catch { /* queda en el registro como falla */ }
-      }
+      // De la más vieja a la más nueva, para que salgan en el orden en que se
+      // pidieron.
+      const lote = nuevas.slice().reverse();
+      for (const c of lote) atendidasRef.current.add(c.id);
+      try { await imprimirLote(lote); } catch { /* queda en el registro como falla */ }
       trabajandoRef.current = false;
       onImpresa();
     })();
-  }, [activo, pendientes, imprimirUna, onImpresa]);
+  }, [activo, pendientes, imprimirLote, onImpresa]);
 
   /**
    * Prueba de impresión, sin tocar ninguna comanda.

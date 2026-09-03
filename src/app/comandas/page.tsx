@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import {
-  cancelarComanda, comandaPrintUrl, getComandas, getComandasHistorial, imprimirComanda,
+  cancelarComanda, comandaPrintUrl, comandasPrintUrl, getComandas, getComandasHistorial, imprimirComanda,
 } from "@/lib/comandas/storage";
 import type { ComandaCard } from "@/lib/comandas/types";
 import { SectorBadge } from "@/components/comandas/SectorBadge";
@@ -63,6 +63,37 @@ export default function ComandasPage() {
     setBusy(null);
     if (!r.success) { try { w?.close(); } catch {} setError(r.error); return; }
     const href = comandaPrintUrl(c.id);
+    try { if (w) w.location.href = href; else window.open(href, "_blank", "noopener"); } catch {}
+    void load();
+  }
+
+  /**
+   * Imprime todas las pendientes de una vez, en un solo papel.
+   *
+   * Un pedido genera una comanda por sector, así que "imprimir lo que hay"
+   * suele ser más de una. Apretar Imprimir en cada tarjeta con la cocina llena
+   * es exactamente el tiempo que se quería ahorrar.
+   */
+  async function onImprimirTodas() {
+    const lote = pendientesVisibles;
+    if (lote.length === 0) return;
+    setError(null); setBusy("todas");
+    const w = window.open("about:blank", "_blank");
+    const marcadas: string[] = [];
+    for (const c of lote) {
+      const r = await imprimirComanda(c.id);
+      if (r.success) marcadas.push(c.id);
+    }
+    setBusy(null);
+    if (marcadas.length === 0) {
+      try { w?.close(); } catch {}
+      setError("No se pudo registrar la impresión de ninguna comanda.");
+      return;
+    }
+    if (marcadas.length < lote.length) {
+      setError(`Se imprimen ${marcadas.length} de ${lote.length}: las otras ya no estaban pendientes.`);
+    }
+    const href = comandasPrintUrl(marcadas);
     try { if (w) w.location.href = href; else window.open(href, "_blank", "noopener"); } catch {}
     void load();
   }
@@ -230,9 +261,21 @@ export default function ComandasPage() {
           <ImpresionAutomatica pendientes={pendientes} onImpresa={load} onEstado={setAutoActivo} />
 
           <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-600">
-              Comandas pendientes de imprimir <span className="ml-1 rounded-full bg-amber-100 px-2 text-xs text-amber-800">{pendientes.length}</span>
-            </h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-600">
+                Comandas pendientes de imprimir <span className="ml-1 rounded-full bg-amber-100 px-2 text-xs text-amber-800">{pendientes.length}</span>
+              </h2>
+              {pendientesVisibles.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => void onImprimirTodas()}
+                  disabled={busy !== null}
+                  className="rounded-lg bg-[#0EA5E9] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0284C7] disabled:opacity-50"
+                >
+                  {busy === "todas" ? "Imprimiendo…" : `Imprimir las ${pendientesVisibles.length}`}
+                </button>
+              )}
+            </div>
             {pendientes.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">No hay comandas pendientes de imprimir.</p>
             ) : (
