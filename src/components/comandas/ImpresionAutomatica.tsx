@@ -122,6 +122,32 @@ export default function ImpresionAutomatica({
     })();
   }, [activo, pendientes, imprimirUna, onImpresa]);
 
+  /**
+   * Prueba de impresión, sin tocar ninguna comanda.
+   *
+   * Sirve para separar dos fallas que desde afuera se ven igual: que el
+   * navegador no esté imprimiendo (falta el flag, la impresora no es la
+   * predeterminada) o que no estén entrando comandas. Si este papel sale, el
+   * camino hasta la ticketera funciona.
+   */
+  function probar() {
+    const marco = iframeRef.current;
+    if (!marco) return;
+    const ahora = new Date().toLocaleString("es-PY");
+    marco.removeAttribute("src");
+    marco.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>
+      @page { margin: 0; size: 80mm auto; }
+      body { font-family: ui-monospace, monospace; width: 80mm; padding: 6mm 4mm; }
+      h1 { font-size: 15px; text-align: center; margin: 0 0 6px; }
+      p { font-size: 12px; margin: 4px 0; }
+    </style></head><body>
+      <h1>PRUEBA DE IMPRESIÓN</h1>
+      <p>Si estás leyendo esto en papel, la impresión automática funciona.</p>
+      <p>${ahora}</p>
+      <script>setTimeout(function(){window.print();},300);<\/script>
+    </body></html>`;
+  }
+
   const fallas = registro.filter((r) => !r.ok).length;
 
   return (
@@ -142,12 +168,21 @@ export default function ImpresionAutomatica({
             {activo ? "Encendida" : "Apagada"}
           </span>
         </label>
-        {registro.length > 0 && (
-          <p className="text-xs text-slate-500">
-            {registro.length} impresa(s) en este turno
-            {fallas > 0 && <span className="ml-1 font-semibold text-red-600">· {fallas} con error</span>}
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {registro.length > 0 && (
+            <p className="text-xs text-slate-500">
+              {registro.length} impresa(s) en este turno
+              {fallas > 0 && <span className="ml-1 font-semibold text-red-600">· {fallas} con error</span>}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={probar}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Probar impresión
+          </button>
+        </div>
       </div>
 
       {activo ? (
@@ -176,13 +211,16 @@ export default function ImpresionAutomatica({
         </ul>
       )}
 
-      {/* El ticket se carga acá y se imprime solo. Oculto pero presente: un
-          iframe con display:none no imprime en todos los navegadores. */}
+      {/* El ticket se carga acá y se imprime solo.
+          Fuera de la pantalla pero con tamaño real: un iframe de 0×0 (o con
+          display:none) imprime en blanco en Chrome, que fue exactamente lo que
+          pasó la primera vez. Tiene que existir y tener alto y ancho. */}
       <iframe
         ref={iframeRef}
         title="Impresión de comandas"
         aria-hidden
-        className="pointer-events-none absolute h-0 w-0 border-0 opacity-0"
+        tabIndex={-1}
+        style={{ position: "fixed", left: "-10000px", top: 0, width: "400px", height: "600px", border: 0 }}
       />
     </div>
   );
