@@ -24,7 +24,6 @@ export default function ComandasPage() {
   const [ultimasImpresas, setUltimasImpresas] = useState<ComandaCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [verDetalle, setVerDetalle] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   // Con la impresión automática encendida la pantalla es la que dispara el
   // papel: 15 segundos de espera se sienten en la cocina.
@@ -49,9 +48,6 @@ export default function ComandasPage() {
     return () => { cancelled = true; clearInterval(t); };
   }, [load, autoActivo]);
 
-  function toggleDetalle(id: string) {
-    setVerDetalle((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  }
 
   // Imprimir: pre-abrimos la pestaña (gesto del usuario) y luego la apuntamos al
   // ticket, tras registrar la impresión en el server. La comanda pasa a `impresa`
@@ -139,7 +135,6 @@ export default function ComandasPage() {
 
   function Card({ c }: { c: ComandaCard }) {
     const vigentes = c.items.filter((i) => !i.cancelado).length;
-    const abierto = verDetalle.has(c.id);
     return (
       <div
         className={`rounded-xl border bg-white p-3 shadow-sm ${
@@ -187,16 +182,16 @@ export default function ComandasPage() {
         ) : null}
         <p className="text-xs text-slate-500">{vigentes} ítem(s)</p>
 
-        {abierto && <ItemsList c={c} />}
+        {/* Qué hay que cocinar y cuántos, siempre a la vista. Antes esto estaba
+            detrás de un botón "Ver detalle": la tarjeta decía "1 ítem(s)" y
+            había que abrirla para enterarse de que eran DOS hamburguesas. En
+            una cocina, un dato que exige un clic es un dato que no está. */}
+        <ItemsList c={c} />
 
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => onImprimir(c)} disabled={busy === c.id}
             className="flex-1 rounded-lg bg-[#0EA5E9] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#0284C7] active:scale-95 disabled:opacity-50">
             Imprimir
-          </button>
-          <button type="button" onClick={() => toggleDetalle(c.id)}
-            className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            {abierto ? "Ocultar" : "Ver detalle"}
           </button>
           <button type="button" onClick={() => onCancelar(c)} disabled={busy === c.id}
             className="rounded-lg border border-rose-200 px-3 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50">
