@@ -1057,7 +1057,7 @@ export async function facturarSesionPg(params: {
     observacion?: string | null;
   } | null;
   /** Descuento ya autorizado con clave. El reparto entre líneas lo hace la venta. */
-  descuento?: { monto: number; motivo: string | null; autorizadoPor: string | null } | null;
+  descuento?: { monto: number; motivo: string | null; autorizadoPor: string | null; maxPorcentaje?: number } | null;
 }): Promise<{ ventaId: string; numeroControl: string | null; yaFacturada: boolean }> {
   const sb = createServiceRoleClientWithDbSchema(params.schema);
 
@@ -1144,15 +1144,30 @@ export async function facturarSesionPg(params: {
     let sub = 0, iva = 0, tot = 0;
     for (const it of items) { sub += it.subtotal; iva += it.monto_iva; tot += it.total_linea; }
 
+    // El descuento se valida contra el total que calcula el servidor. El tope
+    // autorizado se revisa acá y no en la pantalla: es el único lugar que
+    // conoce a la vez cuánto es la cuenta y cuánto se permite descontar.
+    const descMonto = Math.round(Number(params.descuento?.monto) || 0);
+    if (descMonto > 0) {
+      if (descMonto >= tot) {
+        throw new Error("El descuento no puede ser igual o mayor al total de la cuenta.");
+      }
+      const max = params.descuento?.maxPorcentaje;
+      if (max != null && descMonto > Math.round((tot * max) / 100)) {
+        throw new Error(`El descuento supera el tope autorizado de ${max}%.`);
+      }
+    }
+    const totalACobrar = tot - descMonto;
+
     // El cobro repartido tiene que dar el total de la cuenta. Se valida contra
     // el total que calcula el servidor y no contra el que dice el navegador: si
     // no cerrara, el arqueo lo arrastraría hasta el cierre del turno. Se tolera
     // 1 Gs por el redondeo de los montos que teclea el cajero.
     if (params.pagos && params.pagos.length > 0) {
       const sumaPagos = params.pagos.reduce((acc, p) => acc + Number(p.monto), 0);
-      if (Math.abs(sumaPagos - tot) > 1) {
+      if (Math.abs(sumaPagos - totalACobrar) > 1) {
         throw new Error(
-          `El cobro suma ${Math.round(sumaPagos).toLocaleString("es-PY")} y la cuenta es de ${Math.round(tot).toLocaleString("es-PY")}.`
+          `El cobro suma ${Math.round(sumaPagos).toLocaleString("es-PY")} y la cuenta es de ${Math.round(totalACobrar).toLocaleString("es-PY")}.`
         );
       }
     }
