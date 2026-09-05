@@ -38,6 +38,16 @@ import type { CuentaBancaria } from "@/lib/conciliacion/types";
  */
 type Metodo = "efectivo" | "tarjeta" | "transferencia" | "qr";
 
+/**
+ * Procesadores de tarjeta que se usan en el local.
+ *
+ * Escritos como lista y no a mano libre porque el nombre después hay que
+ * cruzarlo con la liquidación: "bancard", "Bancard SA" y "bancar" son el mismo
+ * POS y tres filas distintas en cualquier reporte. Queda "Otro" para lo que no
+ * esté acá.
+ */
+const PROCESADORES = ["Bancard", "Dinelco", "Ueno"];
+
 const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none bg-white text-sm";
 
@@ -89,6 +99,8 @@ export default function CobroCuenta({
   const metodo: Metodo = lineasCobro[0]?.metodo ?? "efectivo";
   const [montoRecibido, setMontoRecibido] = useState("");
   const [pago, setPago] = useState<PagoConciliacionInput>({});
+  /** El procesador elegido es "Otro": se escribe cuál. */
+  const [otroProcesador, setOtroProcesador] = useState(false);
 
   useEffect(() => { getCuentasBancarias().then(setCuentas); }, []);
   useEffect(() => { getCajaAbierta().then((c) => setSinCaja(!c)); }, []);
@@ -252,7 +264,7 @@ export default function CobroCuenta({
           <label className="mb-1 block text-xs text-gray-600">Método de pago</label>
           <CobroRepartido
             lineas={lineasCobro}
-            onChange={(l) => { setLineasCobro(l); setPago({}); }}
+            onChange={(l) => { setLineasCobro(l); setPago({}); setOtroProcesador(false); }}
             total={totalACobrar}
             inputClass={inputClass}
           />
@@ -293,9 +305,34 @@ export default function CobroCuenta({
           </div>
         )}
 
-        {/* Tarjeta → POS/banco + N° de operación. */}
+        {/* Tarjeta → procesador (POS) + banco + N° de operación. */}
         {metodo === "tarjeta" && (
           <div className="space-y-2">
+            {/* Por cuál POS pasó. Sin este dato, conciliar es adivinar: cada
+                procesador liquida por su lado y con su propio calendario, y el
+                N° de operación solo no dice contra qué extracto cruzarlo. */}
+            <SelectField
+              value={PROCESADORES.includes(pago.entidad ?? "") ? (pago.entidad as string) : (pago.entidad ? "Otro" : "")}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPago((p) => ({ ...p, entidad: v === "Otro" ? "" : v || null }));
+                setOtroProcesador(v === "Otro");
+              }}
+              className={inputClass}
+            >
+              <option value="">Procesador (POS)…</option>
+              {PROCESADORES.map((p) => <option key={p} value={p}>{p}</option>)}
+              <option value="Otro">Otro</option>
+            </SelectField>
+            {otroProcesador && (
+              <input
+                value={pago.entidad ?? ""}
+                onChange={(e) => setPago((p) => ({ ...p, entidad: e.target.value }))}
+                placeholder="¿Cuál?"
+                className={inputClass}
+                autoFocus
+              />
+            )}
             {cuentas.length > 0 && (
               <SelectField value={pago.cuenta_bancaria_id ?? ""} onChange={(e) => setPago((p) => ({ ...p, cuenta_bancaria_id: e.target.value || null }))} className={inputClass}>
                 <option value="">POS / banco…</option>

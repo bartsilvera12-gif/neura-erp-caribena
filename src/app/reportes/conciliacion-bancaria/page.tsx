@@ -117,7 +117,15 @@ export default function ConciliacionPage() {
                     <td className="px-3 py-2.5">{r.medio_pago === "transferencia" ? "Transfer." : "Tarjeta"}{r.tipo_tarjeta ? ` (${r.tipo_tarjeta})` : ""}</td>
                     <td className="px-3 py-2.5 text-xs">
                       {r.cuenta_nombre ?? "—"}
-                      {r.entidad ? <span className="block text-[10px] text-slate-400">Titular: {r.entidad}</span> : null}
+                      {/* El mismo campo guarda dos cosas distintas según el
+                          medio: en transferencia es quién mandó la plata, en
+                          tarjeta es por qué POS pasó. Etiquetarlo siempre como
+                          "Titular" hacía leer "Titular: Bancard". */}
+                      {r.entidad ? (
+                        <span className="block text-[10px] text-slate-400">
+                          {r.medio_pago === "tarjeta" ? "POS" : "Titular"}: {r.entidad}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5 text-xs">{r.referencia ?? "—"}</td>
                     <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{formatGs(r.monto)}</td>
