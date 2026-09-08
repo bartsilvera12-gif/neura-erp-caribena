@@ -90,6 +90,12 @@ export default function NuevaVentaPage() {
   const [pedidoClienteTelefono, setPedidoClienteTelefono] = useState("");
   const [pedidoDireccion, setPedidoDireccion] = useState("");
   const [pedidoObservacion, setPedidoObservacion] = useState("");
+  /**
+   * Costo de delivery informado al cliente. Pass-through: NO es ingreso del
+   * negocio, así que no se suma al TOTAL contable ni al cobro. Sólo se muestra
+   * y se guarda cuando la modalidad es delivery.
+   */
+  const [costoDelivery, setCostoDelivery] = useState(0);
 
   // ── Cobro (solo CONTADO, no se persiste — solo ayuda al cajero) ───────────
   const [montoRecibido, setMontoRecibido] = useState("");
@@ -230,6 +236,13 @@ export default function NuevaVentaPage() {
     });
     return () => { cancelled = true; };
   }, []);
+
+  // El costo de delivery sólo existe en modalidad delivery. Si el cajero cargó
+  // un monto y después pasa a Local o Retiro, se limpia para que no viaje al
+  // servidor ni se muestre en el resumen.
+  useEffect(() => {
+    if (modalidad !== "delivery") setCostoDelivery(0);
+  }, [modalidad]);
 
   // ── Cálculos ───────────────────────────────────────────────────────────────
   const tipoCambioNum = 1;
@@ -433,6 +446,8 @@ export default function NuevaVentaPage() {
         cliente_telefono: pedidoClienteTelefono.trim() || null,
         direccion_entrega: pedidoDireccion.trim() || null,
         observacion: pedidoObservacion.trim() || null,
+        // Sólo delivery lleva costo; en el resto va 0 (el server lo revalida).
+        costo_delivery: modalidad === "delivery" ? costoDelivery : 0,
       }
     );
 
@@ -622,7 +637,23 @@ export default function NuevaVentaPage() {
                       className={inputClass}
                     />
                   </div>
-                  <div className="lg:col-span-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Costo de delivery (Gs.)
+                    </label>
+                    <MontoInput
+                      value={costoDelivery === 0 ? "" : costoDelivery}
+                      onChange={(n) => setCostoDelivery(Math.max(0, Math.round(n)))}
+                      placeholder="Ej: 15.000"
+                      className={inputClass}
+                      decimals={false}
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      No es ingreso del negocio: se le informa al cliente pero no
+                      entra en el total de la venta.
+                    </p>
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Observación</label>
                     <input
                       type="text"
@@ -871,6 +902,21 @@ export default function NuevaVentaPage() {
                       <span>TOTAL</span>
                       <span className="tabular-nums">{formatGs(totalGeneral)}</span>
                     </div>
+                    {/* Delivery: informativo. El TOTAL de arriba es la venta real
+                        del negocio (lo que va a caja/IVA/reportes); esto es lo que
+                        se le cobra de más al cliente por el envío. */}
+                    {modalidad === "delivery" && (
+                      <>
+                        <div className="flex justify-between text-sm text-gray-600 pt-2">
+                          <span>Delivery</span>
+                          <span className="tabular-nums font-medium">{formatGs(costoDelivery)}</span>
+                        </div>
+                        <div className="flex justify-between text-base font-bold text-amber-700 pt-2 border-t border-gray-200">
+                          <span>Total a cobrar al cliente</span>
+                          <span className="tabular-nums">{formatGs(totalGeneral + costoDelivery)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {tipoVenta === "CONTADO" && (

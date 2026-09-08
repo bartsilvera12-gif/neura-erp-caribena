@@ -13,6 +13,12 @@ export type PedidoCocinaInput = {
   cliente_telefono?: string | null;
   direccion_entrega?: string | null;
   observacion?: string | null;
+  /**
+   * Costo de delivery informado al cliente. Es un importe pass-through: NO es
+   * ingreso del negocio, así que no entra en `total` ni en el cobro. Sólo aplica
+   * cuando la modalidad es "delivery"; en el resto se ignora (queda en 0).
+   */
+  costo_delivery?: number | null;
 };
 
 /**

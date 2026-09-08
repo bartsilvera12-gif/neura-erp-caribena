@@ -155,6 +155,8 @@ interface PedidoBrief {
   cliente_telefono?: string | null;
   direccion_entrega?: string | null;
   observacion?: string | null;
+  /** Costo de delivery informado al cliente (pass-through, no es venta.total). */
+  costo_delivery?: number | null;
 }
 
 // ── Render de cada copia ───────────────────────────────────────────────────
@@ -212,6 +214,10 @@ function renderCopia(opts: {
   const subtotal = Number(venta.subtotal);
   const ivaTotal = Number(venta.monto_iva);
   const total = Number(venta.total);
+  // Delivery: sólo informativo. `total` (venta.total) sigue siendo la venta real
+  // del negocio; al cliente se le muestra Productos + Delivery = TOTAL a cobrar.
+  const costoDelivery = Number(brief?.costo_delivery) || 0;
+  const esDelivery = brief?.modalidad === "delivery" && costoDelivery > 0;
 
   const datosPedido: string[] = [];
   if (modalidad) {
@@ -233,7 +239,11 @@ function renderCopia(opts: {
          <tbody>
            <tr><td class="lbl">Subtotal</td><td class="val">${formatGs(subtotal)}</td></tr>
            ${ivaTotal > 0 ? `<tr><td class="lbl">IVA</td><td class="val">${formatGs(ivaTotal)}</td></tr>` : ""}
-           <tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(total)}</td></tr>
+           ${esDelivery
+             ? `<tr><td class="lbl">Productos</td><td class="val">${formatGs(total)}</td></tr>
+                <tr><td class="lbl">Delivery</td><td class="val">${formatGs(costoDelivery)}</td></tr>
+                <tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(total + costoDelivery)}</td></tr>`
+             : `<tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(total)}</td></tr>`}
            <tr><td class="lbl">Pago</td><td class="val">${metodoPagoLabel(venta.metodo_pago)}</td></tr>
          </tbody>
        </table>`
@@ -435,6 +445,7 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
       subtotal: Number(venta.subtotal),
       monto_iva: Number(venta.monto_iva),
       total: Number(venta.total),
+      costo_delivery: Number(brief?.costo_delivery) || 0,
       items: items.map((it) => ({
         cantidad: Number(it.cantidad),
         nombre: it.producto_nombre,

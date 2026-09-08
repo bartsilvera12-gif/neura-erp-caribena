@@ -51,6 +51,12 @@ export interface ComandaInput {
   subtotal?: number | null;
   monto_iva?: number | null;
   total?: number | null;
+  /**
+   * Costo de delivery informado al cliente. Pass-through: NO forma parte de
+   * `total` (la venta real del negocio). Sólo se imprime como línea aparte en
+   * la copia cliente de un pedido delivery.
+   */
+  costo_delivery?: number | null;
   items: ComandaItemInput[];
 }
 
@@ -79,6 +85,10 @@ export interface NormalizedComanda {
   subtotal: number;
   montoIva: number;
   total: number;
+  /** Costo de delivery informado al cliente (no está incluido en `total`). */
+  costoDelivery: number;
+  /** true sólo si es delivery con costo > 0: dispara la línea de delivery. */
+  esDelivery: boolean;
   items: NormalizedComandaItem[];
   haySector: { pizzeria: boolean; plancha: boolean };
 }
@@ -221,6 +231,8 @@ export function normalizeComandaData(input: ComandaInput): NormalizedComanda {
     subtotal: Number(input.subtotal ?? 0) || 0,
     montoIva: Number(input.monto_iva ?? 0) || 0,
     total: Number(input.total ?? 0) || 0,
+    costoDelivery: Math.max(0, Number(input.costo_delivery ?? 0) || 0),
+    esDelivery: input.modalidad === "delivery" && (Number(input.costo_delivery ?? 0) || 0) > 0,
     items,
     haySector: {
       pizzeria: items.some((i) => i.sector === "pizzeria"),
@@ -318,7 +330,14 @@ export function buildComandaTicketText(
     L.push(rule(width));
     L.push(lr("Subtotal", formatGs(data.subtotal), width));
     if (data.montoIva > 0) L.push(lr("IVA", formatGs(data.montoIva), width));
-    L.push(lr("TOTAL", formatGs(data.total), width));
+    if (data.esDelivery) {
+      // Productos = venta real; Delivery aparte; TOTAL = lo que paga el cliente.
+      L.push(lr("Productos", formatGs(data.total), width));
+      L.push(lr("Delivery", formatGs(data.costoDelivery), width));
+      L.push(lr("TOTAL", formatGs(data.total + data.costoDelivery), width));
+    } else {
+      L.push(lr("TOTAL", formatGs(data.total), width));
+    }
     L.push(lr("Pago", data.metodoPagoLabel, width));
   } else if (opts.showTotal) {
     L.push(rule(width));
@@ -421,7 +440,11 @@ export function buildComandaTicketHtml(
        <table class="totales"><tbody>
          <tr><td class="lbl">Subtotal</td><td class="val">${formatGs(data.subtotal)}</td></tr>
          ${data.montoIva > 0 ? `<tr><td class="lbl">IVA</td><td class="val">${formatGs(data.montoIva)}</td></tr>` : ""}
-         <tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(data.total)}</td></tr>
+         ${data.esDelivery
+           ? `<tr><td class="lbl">Productos</td><td class="val">${formatGs(data.total)}</td></tr>
+              <tr><td class="lbl">Delivery</td><td class="val">${formatGs(data.costoDelivery)}</td></tr>
+              <tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(data.total + data.costoDelivery)}</td></tr>`
+           : `<tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(data.total)}</td></tr>`}
          <tr><td class="lbl">Pago</td><td class="val">${escapeHtml(data.metodoPagoLabel)}</td></tr>
        </tbody></table>`
     : opts.showTotal

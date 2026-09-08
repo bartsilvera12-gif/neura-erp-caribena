@@ -29,6 +29,13 @@ export interface CreateVentaPedidoCocinaInput {
   cliente_telefono: string | null;
   direccion_entrega: string | null;
   observacion: string | null;
+  /**
+   * Costo de delivery informado al cliente (guaraníes). Pass-through: NO se
+   * suma a `ventas.total`, ni al cobro, ni al IVA, ni al arqueo. Se guarda junto
+   * al pedido (proyectos) sólo como dato informativo. Se espera 0 salvo en
+   * modalidad "delivery" (el route ya lo fuerza a 0 en el resto).
+   */
+  costo_delivery: number;
 }
 
 export interface CreateVentaPgParams {
@@ -445,6 +452,12 @@ export async function createVentaTransaccionalPg(
         precio_venta: it.precio_venta,
         total_linea: it.total_linea,
       }));
+      // Sólo delivery lleva costo; en local/retiro se ignora y queda en 0 aunque
+      // el cliente lo haya tecleado antes de cambiar de modalidad.
+      const costoDelivery =
+        params.pedidoCocina.modalidad === "delivery"
+          ? Math.max(0, Math.round(Number(params.pedidoCocina.costo_delivery) || 0))
+          : 0;
       const briefData = {
         modalidad: params.pedidoCocina.modalidad,
         mesa: params.pedidoCocina.mesa,
@@ -452,6 +465,8 @@ export async function createVentaTransaccionalPg(
         cliente_telefono: params.pedidoCocina.cliente_telefono,
         direccion_entrega: params.pedidoCocina.direccion_entrega,
         observacion: params.pedidoCocina.observacion,
+        // Informativo: NO es ingreso. Va en el pedido, nunca en ventas.total.
+        costo_delivery: costoDelivery,
         items: itemsSnapshot,
         venta_id: ventaId,
         numero_control: numeroControl,
@@ -484,6 +499,10 @@ export async function createVentaTransaccionalPg(
         prioridad: "normal",
         monto_vendido: params.totalDeclarado,
         fecha_ingreso: fechaIso,
+        // El costo de delivery viaja dentro de brief_data (es un dato del
+        // pedido, informativo). NO se guarda en `ventas` ni en una columna
+        // aparte: no es ingreso del negocio. Los pedidos históricos sin la
+        // clave se leen como 0.
         brief_data: briefData,
         metadata,
       });

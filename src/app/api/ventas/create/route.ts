@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
       cliente_telefono: string | null;
       direccion_entrega: string | null;
       observacion: string | null;
+      costo_delivery: number;
     };
     let pedidoCocina: PedidoCocinaParsed | null = null;
     if (pedidoRaw && typeof pedidoRaw === "object") {
@@ -197,6 +198,15 @@ export async function POST(request: NextRequest) {
       const cliTel = trim(pedidoRaw.cliente_telefono);
       const direccion = trim(pedidoRaw.direccion_entrega);
       const obs = trim(pedidoRaw.observacion);
+      // Costo de delivery: sólo se acepta (>= 0) en modalidad delivery. En
+      // local/retiro se descarta, así nunca se persiste un monto de una
+      // modalidad que el cajero cambió después. Es informativo: no toca el
+      // total de la venta ni el cobro.
+      const costoDeliveryRaw = Number(pedidoRaw.costo_delivery);
+      const costoDelivery =
+        m === "delivery" && Number.isFinite(costoDeliveryRaw) && costoDeliveryRaw > 0
+          ? Math.round(costoDeliveryRaw)
+          : 0;
       // Datos de modalidad opcionales: no se rechaza la venta si faltan
       // teléfono/dirección en Delivery (la caja no debe frenarse por eso).
       pedidoCocina = {
@@ -206,6 +216,7 @@ export async function POST(request: NextRequest) {
         cliente_telefono: cliTel || null,
         direccion_entrega: direccion || null,
         observacion: obs || null,
+        costo_delivery: costoDelivery,
       };
     }
 
