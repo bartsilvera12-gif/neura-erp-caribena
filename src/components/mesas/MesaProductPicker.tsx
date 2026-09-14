@@ -90,15 +90,27 @@ export default function MesaProductPicker({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-900/60 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
-      <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-200 p-3">
+    <div className="fixed inset-0 z-[120] flex items-stretch justify-center bg-slate-900/60 backdrop-blur-sm sm:items-start sm:p-4" onClick={onClose}>
+      {/*
+        En móvil el modal ocupa toda la pantalla (h-[100dvh]) para que la lista
+        de productos tenga altura real donde crecer. Antes usaba sólo
+        max-h-[96dvh]: con listas más altas que la pantalla, el contenedor
+        interno crecía por su contenido y overflow-y-auto no llegaba a activarse,
+        dejando los últimos productos por debajo del borde sin forma de bajar.
+        min-h-0 en la grilla es imprescindible para que flex-1 realmente pueda
+        achicarse dentro del flex-col con overflow.
+      */}
+      <div
+        className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[96dvh] sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-none items-center justify-between border-b border-slate-200 p-3">
           <h3 className="text-lg font-semibold text-slate-800">Agregar productos</h3>
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100">Cerrar</button>
         </div>
 
         {/* Buscador + categorías */}
-        <div className="border-b border-slate-200 p-3">
+        <div className="flex-none border-b border-slate-200 p-3">
           <input
             value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto…"
             className="mb-3 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-[#0EA5E9]"
@@ -112,7 +124,10 @@ export default function MesaProductPicker({
         </div>
 
         {/* Grid productos */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3"
+          style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        >
           {feedback && <div className="mb-3 flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"><Check className="h-4 w-4 shrink-0" aria-hidden />{feedback}</div>}
           {loading ? (
             <p className="py-10 text-center text-slate-400">Cargando productos…</p>
@@ -153,7 +168,7 @@ export default function MesaProductPicker({
 
         {/* Panel cantidad/observación */}
         {sel && (
-          <div className="border-t border-slate-200 bg-slate-50 p-3">
+          <div className="flex-none border-t border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-800">{sel.nombre}</p>

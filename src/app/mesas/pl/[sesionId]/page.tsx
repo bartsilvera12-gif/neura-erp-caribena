@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Pizza, Replace, X } from "lucide-react";
+import { AlertTriangle, Pizza, Printer, Replace, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
@@ -231,6 +231,17 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
     setTimeout(() => setOkMsg(null), 3000);
   }
 
+  /**
+   * Precuenta: HTML de sólo lectura que abre en una pestaña nueva y se auto
+   * imprime. No registra pago, no cierra la sesión, no toca caja.
+   */
+  function onImprimirPrecuenta() {
+    setError(null);
+    const url = `/api/mesas/sesiones/${sesionId}/precuenta?auto=1`;
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) setError("No se pudo abrir la ventana de impresión. Habilitá los pop-ups del navegador para esta página.");
+  }
+
   async function onCancelarCuenta() {
     if (!(await confirmar(`¿Cancelar el pedido ${formatPL(sesion?.numero_pl ?? null)}? Esto no factura ni cobra nada.`))) return;
     setBusy(true);
@@ -340,6 +351,20 @@ export default function ParaLlevarDetallePage({ params }: { params: Promise<{ se
           <span className="text-base font-bold text-slate-900">TOTAL</span>
           <span className="text-xl font-extrabold tabular-nums text-slate-900">{formatGs(total)}</span>
         </div>
+        {/* Precuenta informativa; no toca caja ni cierra el pedido. */}
+        {hayItems && (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={onImprimirPrecuenta}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95"
+              title="Imprimir precuenta (no cobra, no cierra el pedido)"
+            >
+              <Printer className="h-4 w-4" aria-hidden />
+              Imprimir precuenta
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Mismo criterio que en la mesa: quien puede cobrar lo hace acá mismo, y

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Pizza } from "lucide-react";
+import { AlertTriangle, Pizza, Printer } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -334,6 +334,24 @@ export default function FacturarMesaPage({ params }: { params: Promise<{ sesionI
                 <span>TOTAL</span><span className="tabular-nums">{formatGs(total)}</span>
               </div>
             </div>
+
+            {/* Precuenta: el cliente pide "la cuenta" antes de elegir cómo
+                pagar. Es sólo lectura — no registra venta, pago ni cierra la
+                sesión — y se puede imprimir varias veces. */}
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const w = window.open(`/api/mesas/sesiones/${sesionId}/precuenta?auto=1`, "_blank", "noopener,noreferrer");
+                  if (!w) setError("No se pudo abrir la ventana de impresión. Habilitá los pop-ups del navegador.");
+                }}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                title="Imprimir precuenta (no cobra, no cierra la mesa)"
+              >
+                <Printer className="h-4 w-4" aria-hidden />
+                Imprimir precuenta
+              </button>
+            )}
 
             <CobroCuenta
               sesionId={sesionId}

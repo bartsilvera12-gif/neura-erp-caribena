@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmar } from "@/components/ui/ConfirmDialog";
-import { AlertTriangle, Pizza, Replace, X } from "lucide-react";
+import { AlertTriangle, Pizza, Printer, Replace, X } from "lucide-react";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MesaProductPicker from "@/components/mesas/MesaProductPicker";
@@ -279,6 +279,19 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
     router.push("/mesas");
   }
 
+  /**
+   * Abre el HTML de la precuenta en una pestaña nueva; el propio documento hace
+   * `window.print()` al cargar. Es sólo lectura: no toca stock, caja, sesión ni
+   * facturación, se puede imprimir tantas veces como haga falta.
+   */
+  function onImprimirPrecuenta() {
+    if (!cuentaId) return;
+    setError(null);
+    const url = `/api/mesas/sesiones/${cuentaId}/precuenta?auto=1`;
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) setError("No se pudo abrir la ventana de impresión. Habilitá los pop-ups del navegador para esta página.");
+  }
+
   async function onCancelarCuenta() {
     // Una mesa sin nada cargado no tiene cuenta que perder: liberarla no
     // descarta consumo, sólo la devuelve al salón. Preguntar ahí es ruido.
@@ -440,6 +453,22 @@ export default function MesaDetallePage({ params }: { params: Promise<{ id: stri
           <span className="text-base font-bold text-slate-900">TOTAL</span>
           <span className="text-xl font-extrabold tabular-nums text-slate-900">{formatGs(total)}</span>
         </div>
+        {/* Imprimir precuenta: informativo, no cobra ni cierra la mesa. Se
+            muestra siempre que haya cuenta cargada (incluso ya en "por cobrar"),
+            porque el cliente puede pedir el papel varias veces antes de pagar. */}
+        {hayItems && cuentaId && (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={onImprimirPrecuenta}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95"
+              title="Imprimir precuenta (no cobra, no cierra la mesa)"
+            >
+              <Printer className="h-4 w-4" aria-hidden />
+              Imprimir precuenta
+            </button>
+          </div>
+        )}
       </div>
 
       {/* El cobro vive acá, en la misma pantalla de la mesa. Tener que salir a
