@@ -18,7 +18,7 @@
  */
 
 /** Estado por defecto del bloqueo (lo que controla el commit/rollback). */
-export const ACCESO_BLOQUEADO_DEFAULT = true;
+export const ACCESO_BLOQUEADO_DEFAULT = false;
 
 /** Mensaje que ven los usuarios bloqueados. */
 export const MENSAJE_MANTENIMIENTO =
