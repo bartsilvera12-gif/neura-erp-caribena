@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import ZentraLoader from "@/components/ZentraLoader";
 import { BootProvider, useBoot } from "@/components/BootContext";
-import { getCurrentUser, getSession } from "@/lib/auth";
+import { getCurrentUser, getSession, signOut } from "@/lib/auth";
 import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import { isBootstrapSuperAdminEmail } from "@/lib/auth/super-admin-bootstrap-email";
+import { accesoBloqueado, MENSAJE_MANTENIMIENTO } from "@/lib/acceso/mantenimiento";
 import {
   firstAccessibleHref,
   isModuleSlugGranted,
@@ -42,6 +43,8 @@ function AuthGuardInner({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [access, setAccess] = useState<ModuleAccess | null>(null);
   const [blockedSlug, setBlockedSlug] = useState<string | null>(null);
+  // Modo mantenimiento: bloquea a los usuarios normales (super_admin exento).
+  const [bloqueado, setBloqueado] = useState(false);
   const { sidebarReady } = useBoot();
 
   const isPublic = useMemo(
@@ -96,6 +99,18 @@ function AuthGuardInner({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Modo mantenimiento: los usuarios normales no pueden ingresar al ERP.
+      // super_admin queda exento para poder administrar. Reversible; no toca datos.
+      if (accesoBloqueado() && !superAdmin) {
+        if (!cancelled) {
+          setBloqueado(true);
+          setAccess(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) setBloqueado(false);
       setAccess({
         superAdmin,
         slugs: new Set(slugs),
@@ -160,6 +175,32 @@ function AuthGuardInner({ children }: { children: React.ReactNode }) {
   // Así el sidebar/dashboard ya están fetcheando sus datos al desaparecer el loader.
   // Esperamos a que termine la auth Y a que el Sidebar reporte que cargó sus módulos.
   const showLoader = !isPublic && (loading || !sidebarReady);
+
+  if (bloqueado) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center bg-gray-50">
+        <div className="max-w-md w-full bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+          <div className="mb-3 flex justify-center text-amber-500" aria-hidden><AlertTriangle className="h-10 w-10" aria-hidden /></div>
+          <h1 className="text-lg font-semibold text-gray-900 mb-2">
+            Acceso temporalmente deshabilitado
+          </h1>
+          <p className="text-sm text-gray-600 mb-6">
+            {MENSAJE_MANTENIMIENTO}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try { await signOut(); } catch { /* ignore */ }
+              router.push("/login");
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (blockedSlug && access) {
     const fallback = firstAccessibleHref(access.slugs, {

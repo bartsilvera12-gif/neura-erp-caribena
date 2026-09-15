@@ -5,13 +5,16 @@ import type { User } from "@supabase/supabase-js";
 import { usuarioEmailLookupVariants } from "@/lib/auth/usuario-email-variants";
 import { supabaseDbSchemaOption, type AppSupabaseClient } from "@/lib/supabase/schema";
 import { createServiceRoleClient } from "@/lib/supabase/service-admin";
+import { accesoBloqueado } from "@/lib/acceso/mantenimiento";
+import { isBootstrapSuperAdminEmail } from "@/lib/auth/super-admin-bootstrap-email";
 
 export type ApiAuthFailureCode =
   | "missing_public_env"
   | "no_session"
   | "usuario_query_error"
   | "usuario_zero_rows"
-  | "empresa_id_null";
+  | "empresa_id_null"
+  | "acceso_bloqueado";
 
 export type ApiAuthContext = {
   user: User;
@@ -239,6 +242,17 @@ async function resolveApiAuthContextUncached(
   const usuarioRol = row.rol ?? null;
   const usuarioNombre = row.nombre ?? null;
   const usuarioCatalogId = typeof row.id === "string" ? row.id : null;
+
+  // Bloqueo de acceso (modo mantenimiento). Reversible y sin tocar datos: sólo
+  // deniega el contexto a los usuarios normales. `super_admin` y los correos
+  // bootstrap de NEURA quedan exentos para poder seguir administrando.
+  if (
+    accesoBloqueado() &&
+    usuarioRol !== "super_admin" &&
+    !isBootstrapSuperAdminEmail(user.email)
+  ) {
+    return { ok: false, code: "acceso_bloqueado" };
+  }
 
   if (empresa_id) {
     return {

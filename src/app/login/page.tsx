@@ -7,6 +7,7 @@ import { AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { signIn } from "@/lib/auth";
 import { getModuleAccessCached } from "@/lib/modulos/module-access-cache";
 import { firstAccessibleHref } from "@/lib/modulos/route-slug-map";
+import { accesoBloqueado, MENSAJE_MANTENIMIENTO } from "@/lib/acceso/mantenimiento";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -78,6 +79,12 @@ export default function LoginPage() {
         <p className="text-center text-sm text-sky-100/90">Iniciá sesión para continuar</p>
 
         <div className="w-full rounded-2xl border border-white/20 bg-white/[0.97] p-5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.38)] backdrop-blur-md sm:p-6">
+          {accesoBloqueado() && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              <span aria-hidden><AlertTriangle className="mt-0.5 inline h-4 w-4 align-[-0.125em]" aria-hidden /></span>
+              <span>{MENSAJE_MANTENIMIENTO}</span>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-[#0F172A]">Correo electrónico</label>
