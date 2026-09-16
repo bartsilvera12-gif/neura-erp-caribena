@@ -93,8 +93,11 @@ export function seccionComanda(c: ComandaCard, ultima: boolean): { section: stri
           <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name">${escapeHtml(nombre)}</td><td class="amt">${formatGs(it.total)}</td></tr>
           <tr class="sub"><td></td><td colspan="2">${it.cantidad} × ${formatGs(it.precio_unitario)}</td></tr>${obs}`;
       }
+      // Comanda de cocina: la cantidad va EN LÍNEA con el nombre y más grande.
+      // Antes iba en una columna angosta a la izquierda que algunas ticketeras
+      // recortan o imprimen tenue, y cocina no veía cuántas unidades preparar.
       return `
-        <tr><td class="qty"><strong>${it.cantidad}×</strong></td><td class="name" colspan="2"><strong>${escapeHtml(nombre)}</strong></td></tr>${obs}`;
+        <tr><td class="name" colspan="3"><strong><span style="font-size:1.4em">${it.cantidad}×</span> ${escapeHtml(nombre)}</strong></td></tr>${obs}`;
     })
     .join("");
 

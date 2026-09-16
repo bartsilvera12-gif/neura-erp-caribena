@@ -3,7 +3,7 @@
 import { confirmar } from "@/components/ui/ConfirmDialog";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BuscadorLista, { coincideBusqueda } from "@/components/ui/BuscadorLista";
 import {
   cancelarComanda, comandaPrintUrl, comandasPrintUrl, getComandas, getComandasHistorial, imprimirComanda,
@@ -29,24 +29,52 @@ export default function ComandasPage() {
   // papel: 15 segundos de espera se sienten en la cocina.
   const [autoActivo, setAutoActivo] = useState(false);
 
-  // La pantalla operativa solo trae comandas pendientes (estado = generada).
-  const load = useCallback(async () => {
-    const [pend, hist] = await Promise.all([
-      getComandas("generada"),
-      getComandasHistorial({ estado: "impresa" }),
-    ]);
-    setPendientes(pend);
-    setUltimasImpresas(hist.slice(0, 5));
-    setLoading(false);
+  /**
+   * Evita que los ciclos de refresco se apilen. Antes, si el server tardaba,
+   * el `setInterval` seguía disparando `load()` y las llamadas se acumulaban
+   * hasta congelar la pestaña. Con este guard, un ciclo nuevo se saltea si el
+   * anterior sigue en curso.
+   */
+  const cargandoRef = useRef(false);
+
+  // Refresco RÁPIDO: solo las comandas pendientes (dato operativo liviano). Es
+  // lo que tiene que aparecer al instante en cocina.
+  const loadPendientes = useCallback(async () => {
+    if (cargandoRef.current) return;
+    cargandoRef.current = true;
+    try {
+      const pend = await getComandas("generada");
+      setPendientes(pend);
+      setLoading(false);
+    } finally {
+      cargandoRef.current = false;
+    }
   }, []);
+
+  // El historial (consulta pesada, hasta 500 filas) NO va en el ciclo rápido:
+  // se trae al entrar y después de imprimir/cancelar. Sacarlo del intervalo baja
+  // muchísimo la carga y ayuda a que la pantalla no se congele.
+  const loadHistorial = useCallback(async () => {
+    const hist = await getComandasHistorial({ estado: "impresa" });
+    setUltimasImpresas(hist.slice(0, 5));
+  }, []);
+
+  /** Refresco completo tras una acción (imprimir / cancelar). */
+  const refrescar = useCallback(() => {
+    void loadPendientes();
+    void loadHistorial();
+  }, [loadPendientes, loadHistorial]);
 
   useEffect(() => {
     let cancelled = false;
-    const run = () => { if (!cancelled) void load(); };
+    const run = () => { if (!cancelled) void loadPendientes(); };
     run();
-    const t = setInterval(run, autoActivo ? 6000 : 15000);
+    void loadHistorial();
+    // Más seguido para que la comanda enviada aparezca casi al instante en
+    // cocina (antes eran 6s con auto / 15s sin auto).
+    const t = setInterval(run, autoActivo ? 3000 : 5000);
     return () => { cancelled = true; clearInterval(t); };
-  }, [load, autoActivo]);
+  }, [loadPendientes, loadHistorial, autoActivo]);
 
 
   // Imprimir: pre-abrimos la pestaña (gesto del usuario) y luego la apuntamos al
@@ -60,7 +88,7 @@ export default function ComandasPage() {
     if (!r.success) { try { w?.close(); } catch {} setError(r.error); return; }
     const href = comandaPrintUrl(c.id);
     try { if (w) w.location.href = href; else window.open(href, "_blank", "noopener"); } catch {}
-    void load();
+    refrescar();
   }
 
   /**
@@ -91,7 +119,7 @@ export default function ComandasPage() {
     }
     const href = comandasPrintUrl(marcadas);
     try { if (w) w.location.href = href; else window.open(href, "_blank", "noopener"); } catch {}
-    void load();
+    refrescar();
   }
 
   async function onCancelar(c: ComandaCard) {
@@ -100,7 +128,7 @@ export default function ComandasPage() {
     const r = await cancelarComanda(c.id);
     setBusy(null);
     if (!r.success) { setError(r.error); return; }
-    void load();
+    refrescar();
   }
 
   function ItemsList({ c }: { c: ComandaCard }) {
@@ -253,7 +281,7 @@ export default function ComandasPage() {
         <p className="py-10 text-center text-slate-400">Cargando comandas…</p>
       ) : (
         <>
-          <ImpresionAutomatica pendientes={pendientes} cargando={loading} onImpresa={load} onEstado={setAutoActivo} />
+          <ImpresionAutomatica pendientes={pendientes} cargando={loading} onImpresa={refrescar} onEstado={setAutoActivo} />
 
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
