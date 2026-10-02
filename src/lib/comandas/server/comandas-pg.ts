@@ -1,5 +1,6 @@
 import { consumirInsumosDeComanda } from "@/lib/recetas/server/consumo-pg";
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
+import { inPorTandas } from "@/lib/supabase/in-por-tandas";
 import type {
   TipoComanda, ComandaCard, ComandaHistorialFiltros, ComandaItem, EstadoComanda } from "@/lib/comandas/types";
 
@@ -35,7 +36,8 @@ async function resolveSectoresProducto(
   const out = new Map<string, "pizzeria" | "plancha" | null>();
   const uniq = [...new Set(productoIds.filter(Boolean))];
   if (!uniq.length) return out;
-  const q = await sb.from("productos").select("id, sector_produccion").eq("empresa_id", empresaId).in("id", uniq);
+  const q = await inPorTandas(uniq, (tanda) =>
+    sb.from("productos").select("id, sector_produccion").eq("empresa_id", empresaId).in("id", tanda));
   for (const r of (q.data ?? []) as Array<{ id: string; sector_produccion: string | null }>) {
     const s = r.sector_produccion;
     out.set(r.id, s === "pizzeria" || s === "plancha" ? s : null);
@@ -49,9 +51,11 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
   const comandaIds = comandas.map((c) => c.id);
   const sesionIds = [...new Set(comandas.map((c) => c.sesion_id))];
 
-  const sQ = await sb.from("mesa_sesiones")
+  // Por tandas: con cientos de sesiones la URL pasaba los 16 KB y la API la rechazaba (414),
+  // así que las comandas salían sin mesa ni mozo.
+  const sQ = await inPorTandas(sesionIds, (tanda) => sb.from("mesa_sesiones")
     .select("id, mesa_id, mozo_id, tipo, numero_pl, nombre_cliente, observacion")
-    .eq("empresa_id", empresaId).in("id", sesionIds);
+    .eq("empresa_id", empresaId).in("id", tanda));
   const sesById = new Map<string, {
     mesa_id: string | null; mozo_id: string | null;
     tipo: "mesa" | "para_llevar"; numero_pl: number | null; nombre_cliente: string | null;
@@ -75,7 +79,8 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
   const mesaIds = [...new Set([...sesById.values()].map((s) => s.mesa_id).filter((id): id is string => !!id))];
   const mesaNum = new Map<string, number>();
   if (mesaIds.length) {
-    const mQ = await sb.from("mesas").select("id, numero").eq("empresa_id", empresaId).in("id", mesaIds);
+    const mQ = await inPorTandas(mesaIds, (tanda) =>
+      sb.from("mesas").select("id, numero").eq("empresa_id", empresaId).in("id", tanda));
     for (const m of (mQ.data ?? []) as Array<{ id: string; numero: number | string }>) mesaNum.set(m.id, num(m.numero));
   }
 
@@ -100,9 +105,9 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
   const allProductoIds: string[] = [];
 
   if (batchIds.length) {
-    const q = await sb.from("mesa_sesion_items").select(ITEM_SEL)
-      .eq("empresa_id", empresaId).in("produccion_batch_id", batchIds)
-      .order("created_at", { ascending: true });
+    const q = await inPorTandas(batchIds, (tanda) => sb.from("mesa_sesion_items").select(ITEM_SEL)
+      .eq("empresa_id", empresaId).in("produccion_batch_id", tanda)
+      .order("created_at", { ascending: true }));
     for (const it of (q.data ?? []) as ItemRow[]) {
       const b = String(it.produccion_batch_id);
       const list = itemsByBatch.get(b) ?? [];
@@ -111,9 +116,9 @@ async function armarCards(sb: Sb, empresaId: string, comandas: ComandaRow[]): Pr
     }
   }
   if (legacyIds.length) {
-    const q = await sb.from("mesa_sesion_items").select(ITEM_SEL)
-      .eq("empresa_id", empresaId).in("comanda_id", legacyIds)
-      .order("created_at", { ascending: true });
+    const q = await inPorTandas(legacyIds, (tanda) => sb.from("mesa_sesion_items").select(ITEM_SEL)
+      .eq("empresa_id", empresaId).in("comanda_id", tanda)
+      .order("created_at", { ascending: true }));
     for (const it of (q.data ?? []) as ItemRow[]) {
       const cid = String(it.comanda_id);
       const list = itemsByLegacyComanda.get(cid) ?? [];
