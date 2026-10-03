@@ -142,15 +142,31 @@ export function seccionComanda(c: ComandaCard, ultima: boolean): { section: stri
 }
 
 /**
+ * Cuántas copias iguales de CADA comanda se imprimen.
+ *
+ * Pedido de Caribeña: cada comanda de cocina sale por duplicado — una copia
+ * queda en la cocina para preparar el pedido y la otra se manda junto con el
+ * plato terminado, para saber a qué mesa va. Las dos son idénticas y llevan el
+ * número de mesa y el detalle completo (es la misma sección repetida).
+ */
+const COPIAS_POR_COMANDA = 2;
+
+/**
  * Documento listo para imprimir, con una comanda o con varias.
  *
  * Varias comandas van en UN solo documento y por lo tanto en un solo trabajo de
  * impresión: separadas por corte de página, salen una atrás de la otra sin que
- * nadie apriete nada entre medio.
+ * nadie apriete nada entre medio. Cada comanda se repite `COPIAS_POR_COMANDA`
+ * veces (ver arriba).
  */
 export function documentoComandas(comandas: ComandaCard[], widthMm: 58 | 80): string {
-  const partes = comandas.map((c, i) => seccionComanda(c, i === comandas.length - 1));
-  const title = partes.length === 1 ? partes[0].title : `${partes.length} comandas`;
+  // Cada comanda se duplica en papeles idénticos (una para cocina, otra para el
+  // plato). Las copias de una misma comanda salen una atrás de la otra.
+  const expandidas = comandas.flatMap((c) =>
+    Array.from({ length: COPIAS_POR_COMANDA }, () => c)
+  );
+  const partes = expandidas.map((c, i) => seccionComanda(c, i === expandidas.length - 1));
+  const title = comandas.length === 1 ? partes[0].title : `${comandas.length} comandas`;
   return wrapTicketDocument(partes.map((p) => p.section).join("\n"), {
     widthMm,
     title: `${title} — ${NEGOCIO}`,
