@@ -121,7 +121,9 @@ async function resolveApiAuthContextUncached(
   let userScopedSupabase: AppSupabaseClient;
 
   if (bearer) {
-    const authOnly = createClient(url, anonKey);
+    // Sin autoRefreshToken: en el servidor cada cliente con las opciones por defecto deja un
+    // setInterval de refresco para siempre y nunca se libera: una fuga por cada request con Bearer.
+    const authOnly = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data, error } = await authOnly.auth.getUser(bearer);
     if (error || !data.user?.id) {
       return { ok: false, code: "no_session", detail: error?.message };

@@ -21,7 +21,9 @@ export async function getAuthUserForApiRoute(request: Request): Promise<User | n
 
   const bearer = extractBearerTokenFromRequest(request);
   if (bearer) {
-    const c = createClient(url, anonKey);
+    // Sin autoRefreshToken: en el servidor cada cliente con las opciones por defecto deja un
+    // setInterval de refresco para siempre y el cliente nunca se libera (fuga de memoria).
+    const c = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data, error } = await c.auth.getUser(bearer);
     if (!error && data.user?.id) return data.user;
   }
