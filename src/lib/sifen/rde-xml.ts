@@ -431,7 +431,20 @@ export function buildOfficialRdeFacturaElectronicaXml(
   gEmisParts.push("</gEmis>");
 
   const recParts: string[] = ["<gDatRec>"];
-  if (
+  if (receptor.sifen_innominado === true) {
+    // Receptor innominado ("Sin Nombre"): venta B2C al consumidor final que no
+    // da sus datos. iTipIDRec=5 (Innominado) con dNumIDRec="0" y dNomRec fijo.
+    // Mismo esqueleto que la rama B2C sin RUC (abajo), sin dirección ni contacto.
+    recParts.push(textEl("iNatRec", "2"));
+    recParts.push(textEl("iTiOpe", "2"));
+    recParts.push(textEl("cPaisRec", "PRY"));
+    recParts.push(textEl("dDesPaisRe", "Paraguay"));
+    recParts.push(textEl("iTipIDRec", "5"));
+    recParts.push(textEl("dDTipIDRec", "Innominado"));
+    recParts.push(textEl("dNumIDRec", "0"));
+    recParts.push(textEl("dNomRec", "Sin Nombre"));
+    recParts.push(textEl("dNumCasRec", "0"));
+  } else if (
     receptor.sifen_receptor_config_manual === true &&
     receptor.sifen_i_nat_rec != null &&
     receptor.sifen_i_ti_ope != null

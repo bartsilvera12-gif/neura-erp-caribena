@@ -31,7 +31,7 @@ export async function loadValidatedSifenPayload(
 
   const { data: factura, error: errFactura } = await supabase
     .from("facturas")
-    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc, cliente_documento, cliente_email")
+    .select("id, cliente_id, numero_factura, fecha, tipo, moneda, monto, saldo, cliente_razon_social, cliente_ruc, cliente_documento, cliente_email, receptor_sin_nombre")
     .eq("id", fid)
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -44,6 +44,7 @@ export async function loadValidatedSifenPayload(
   }
 
   const clienteId = (factura.cliente_id as string | null) ?? null;
+  const receptorSinNombre = factura.receptor_sin_nombre === true;
 
   const [itemsRes, clienteRes, configRes, electronicaRes] = await Promise.all([
     supabase
@@ -145,6 +146,7 @@ export async function loadValidatedSifenPayload(
       moneda: factura.moneda as string,
       monto: factura.monto,
       saldo: factura.saldo,
+      receptor_sin_nombre: receptorSinNombre,
     },
     items: (itemsRes.data ?? []) as BuildSifenPayloadInput["items"],
     cliente: clienteInput,

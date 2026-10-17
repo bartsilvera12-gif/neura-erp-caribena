@@ -19,6 +19,11 @@
 import { getChatPostgresPool, quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
 import { sqlDiaLocal } from "@/lib/fechas/zona-paraguay";
+import {
+  NOMBRE_RECEPTOR_SIN_NOMBRE,
+  superaTopeFacturaSinNombre,
+  avisoTopeFacturaSinNombre,
+} from "@/lib/facturacion/factura-sin-nombre";
 import type { Pool } from "pg";
 
 function pool(): Pool {
@@ -33,7 +38,8 @@ export class FacturarVentaError extends Error {
       | "venta_inexistente"
       | "venta_anulada"
       | "ya_facturada"
-      | "sin_items",
+      | "sin_items"
+      | "supera_tope_sin_nombre",
     message: string,
     /** Cuando ya estaba facturada, a dónde mandar al usuario. */
     public facturaId: string | null = null
@@ -53,6 +59,11 @@ export interface FacturarVentaInput {
   email?: string | null;
   /** Cédula, cuando la factura va a nombre de una persona sin RUC. */
   documento?: string | null;
+  /**
+   * Factura "Sin Nombre" (receptor innominado). Con true se ignora RUC, razón
+   * social y cédula: la factura sale a "Sin Nombre" y el DE va B2C innominado.
+   */
+  innominado?: boolean;
   /** Cliente del ERP, si la venta se le atribuye a uno. */
   clienteId?: string | null;
   /**
@@ -131,6 +142,13 @@ export async function facturarVentaPg(
       );
     }
 
+    // Factura "Sin Nombre": tope de monto. Por encima del tope se le pide el RUC
+    // al cliente, así no se manda a la SET una venta grande sin identificar.
+    const innominado = input.innominado === true;
+    if (innominado && superaTopeFacturaSinNombre(Number(venta.total) || 0)) {
+      throw new FacturarVentaError("supera_tope_sin_nombre", avisoTopeFacturaSinNombre());
+    }
+
     const { rows: items } = await client.query<{
       producto_nombre: string;
       item_display_name: string | null;
@@ -173,8 +191,10 @@ export async function facturarVentaPg(
     // B2B; con cédula es una persona que no es contribuyente y sale como B2C.
     // Guardarlo mal acá hace que el SET rechace el lote más adelante.
     let clienteCreadoId: string | null = null;
-    const idClienteFinal = input.clienteId ?? venta.cliente_id ?? null;
-    if (!idClienteFinal && input.guardarCliente && (input.ruc || input.documento)) {
+    // Una factura innominada no se le atribuye a nadie, aunque la venta tuviera
+    // un cliente cargado: por definición va "Sin Nombre".
+    const idClienteFinal = innominado ? null : (input.clienteId ?? venta.cliente_id ?? null);
+    if (!innominado && !idClienteFinal && input.guardarCliente && (input.ruc || input.documento)) {
       const conRuc = !!limpio(input.ruc);
       const nombre = limpio(input.razonSocial);
 
@@ -240,16 +260,24 @@ export async function facturarVentaPg(
     const aCredito = venta.tipo_venta === "CREDITO";
     const total = Number(venta.total) || 0;
 
+    // Con innominado, el receptor es "Sin Nombre" y no hay RUC ni cédula; esa
+    // marca es la que después elige la rama innominada al armar el DE.
+    const razonSocialFactura = innominado
+      ? NOMBRE_RECEPTOR_SIN_NOMBRE
+      : limpio(input.razonSocial);
+    const rucFactura = innominado ? null : limpio(input.ruc);
+    const documentoFactura = innominado ? null : limpio(input.documento);
+
     const { rows: facRows } = await client.query<{ id: string }>(
       `INSERT INTO ${tF} (
          empresa_id, cliente_id, numero_factura, fecha, fecha_vencimiento,
          monto, saldo, estado, tipo, moneda,
          cliente_razon_social, cliente_ruc, cliente_documento, cliente_email,
-         observaciones, origen_venta_id
+         observaciones, origen_venta_id, receptor_sin_nombre
        ) VALUES (
          $1::uuid, $2::uuid, $3, $4::date, $4::date,
          $5::numeric, $6::numeric, $7, $8, $9,
-         $10, $11, $12, $13, $14, $15::uuid
+         $10, $11, $12, $13, $14, $15::uuid, $16::boolean
        ) RETURNING id`,
       [
         empresaId,
@@ -261,12 +289,13 @@ export async function facturarVentaPg(
         aCredito ? "Pendiente" : "Pagado",
         aCredito ? "credito" : "contado",
         venta.moneda === "USD" ? "USD" : "GS",
-        limpio(input.razonSocial),
-        limpio(input.ruc),
-        limpio(input.documento),
+        razonSocialFactura,
+        rucFactura,
+        documentoFactura,
         limpio(input.email),
         limpio(venta.observaciones),
         venta.id,
+        innominado,
       ]
     );
     const facturaId = facRows[0].id;

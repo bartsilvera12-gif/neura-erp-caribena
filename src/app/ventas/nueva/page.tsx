@@ -8,13 +8,13 @@ import ProductPickerModal, { type ProductoPickerItem, type AgregarVentaPayload }
 import SmartSearchSelect, { type SmartOption } from "@/components/ui/SmartSearchSelect";
 import MitadMitadPicker, { type MitadMitadResult } from "@/components/ventas/MitadMitadPicker";
 import SelectorComprobante, {
+  comprobanteAPayload,
   comprobanteListo,
+  esFactura,
   type TipoComprobante,
 } from "@/components/ventas/SelectorComprobante";
 import {
   RECEPTOR_VACIO,
-  receptorAPayload,
-  validarReceptor,
   type DatosReceptor,
 } from "@/components/ventas/ReceptorFactura";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -258,7 +258,7 @@ export default function NuevaVentaPage() {
    * la enorme mayoría de las ventas no lleva factura; la factura se emite sólo
    * cuando la piden, con los datos del receptor que exige el SET.
    */
-  const comprobanteValido = comprobanteListo(comprobante, receptor);
+  const comprobanteValido = comprobanteListo(comprobante, receptor, totalGeneral);
   const pedidoValido = modalidad !== "" && comprobanteValido;
   const cobroCierra = tipoVenta !== "CONTADO" || cobroValido(lineasCobro, totalGeneral);
   const ventaValida   = items.length > 0 && pedidoValido && !sinCaja && cobroCierra;
@@ -416,7 +416,7 @@ export default function NuevaVentaPage() {
     // navegador no bloquea la apertura de varias pestañas. Luego las redirigimos.
     // Con factura el cliente se lleva el KUDE, no un ticket: se abren sólo las
     // copias de cocina, que hacen falta igual.
-    const copiasTicket = sectoresParaTicket(items, comprobante !== "factura");
+    const copiasTicket = sectoresParaTicket(items, !esFactura(comprobante));
     const ventanasTicket = copiasTicket.map(() => {
       try { return window.open("about:blank", "_blank"); } catch { return null; }
     });
@@ -471,12 +471,12 @@ export default function NuevaVentaPage() {
     // La factura se emite después de la venta y no junto con ella: si algo
     // falla emitiendo, la venta ya está cobrada y la comida ya salió a cocina.
     // El cajero puede reintentar desde el listado sin perder nada.
-    if (comprobante === "factura") {
+    if (esFactura(comprobante)) {
       try {
         const res = await fetchWithSupabaseSession(`/api/ventas/${ventaId}/facturar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(receptorAPayload(receptor)),
+          body: JSON.stringify(comprobanteAPayload(comprobante, receptor)),
         });
         const body = await res.json();
         if (res.ok && body?.success !== false && body?.data?.facturaId) {
@@ -718,6 +718,7 @@ export default function NuevaVentaPage() {
                 onChange={setComprobante}
                 receptor={receptor}
                 onReceptorChange={setReceptor}
+                total={totalGeneral}
               />
             </div>
           </div>
