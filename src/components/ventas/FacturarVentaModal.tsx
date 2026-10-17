@@ -9,6 +9,11 @@ import ReceptorFactura, {
   validarReceptor,
   type DatosReceptor,
 } from "@/components/ventas/ReceptorFactura";
+import {
+  avisoTopeFacturaSinNombre,
+  superaTopeFacturaSinNombre,
+  TOPE_FACTURA_SIN_NOMBRE_GS,
+} from "@/lib/facturacion/factura-sin-nombre";
 
 /**
  * Emite la factura de una venta ya cobrada, desde el listado.
@@ -32,8 +37,11 @@ export default function FacturarVentaModal({
   onEmitida: (facturaId: string) => void;
 }) {
   const [receptor, setReceptor] = useState<DatosReceptor>(RECEPTOR_VACIO);
+  const [sinNombre, setSinNombre] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const topeSuperado = superaTopeFacturaSinNombre(total);
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) {
@@ -44,15 +52,19 @@ export default function FacturarVentaModal({
   }, [onClose, enviando]);
 
   async function emitir() {
-    const falta = validarReceptor(receptor);
-    if (falta) return setError(falta);
+    if (sinNombre) {
+      if (topeSuperado) return setError(avisoTopeFacturaSinNombre());
+    } else {
+      const falta = validarReceptor(receptor);
+      if (falta) return setError(falta);
+    }
     setError(null);
     setEnviando(true);
     try {
       const res = await fetchWithSupabaseSession(`/api/ventas/${ventaId}/facturar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(receptorAPayload(receptor)),
+        body: JSON.stringify(sinNombre ? { sin_nombre: true } : receptorAPayload(receptor)),
       });
       const body = await res.json();
       if (!res.ok || body?.success === false) {
@@ -96,12 +108,38 @@ export default function FacturarVentaModal({
             el envío al SET se hace después, desde el detalle.
           </p>
 
-          <ReceptorFactura
-            valor={receptor}
-            onChange={(d) => { setReceptor(d); setError(null); }}
-            disabled={enviando}
-            autoFocus
-          />
+          <label className="mb-3 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              disabled={enviando}
+              checked={sinNombre}
+              onChange={(e) => { setSinNombre(e.target.checked); setError(null); }}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#4FAEB2] focus:ring-[#4FAEB2]"
+            />
+            <span>
+              <span className="font-medium">Sin nombre</span> — el cliente no da datos.
+              <span className="mt-0.5 block text-xs text-slate-500">
+                Sale como &ldquo;Sin Nombre&rdquo;, sin pedir RUC. Hasta Gs.{" "}
+                {TOPE_FACTURA_SIN_NOMBRE_GS.toLocaleString("es-PY")}.
+              </span>
+            </span>
+          </label>
+
+          {sinNombre ? (
+            topeSuperado && (
+              <p className="text-sm text-amber-700">
+                <AlertTriangle className="inline h-4 w-4 align-[-0.125em]" aria-hidden />{" "}
+                {avisoTopeFacturaSinNombre()}
+              </p>
+            )
+          ) : (
+            <ReceptorFactura
+              valor={receptor}
+              onChange={(d) => { setReceptor(d); setError(null); }}
+              disabled={enviando}
+              autoFocus
+            />
+          )}
 
           {error && (
             <p className="mt-3 text-sm text-red-600">
@@ -121,7 +159,7 @@ export default function FacturarVentaModal({
           </button>
           <button
             type="button"
-            disabled={enviando}
+            disabled={enviando || (sinNombre && topeSuperado)}
             onClick={emitir}
             className="rounded-xl bg-[#4FAEB2] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3F8E91] disabled:opacity-50"
           >

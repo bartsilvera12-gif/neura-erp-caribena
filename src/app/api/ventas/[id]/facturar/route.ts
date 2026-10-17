@@ -29,17 +29,20 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     const ruc = texto(body.ruc);
     const razonSocial = texto(body.razon_social);
     const email = texto(body.email);
+    // Factura "Sin Nombre" (receptor innominado): se factura igual aunque el
+    // cliente no dé sus datos. En ese modo no se exige RUC ni razón social.
+    const sinNombre = body.sin_nombre === true;
 
     // El local factura siempre a nombre de un contribuyente: sin RUC no hay
     // factura, hay ticket. La regla se valida acá y no sólo en la pantalla
-    // porque la pantalla se puede saltear.
-    if (!ruc) {
+    // porque la pantalla se puede saltear. No aplica al modo "sin nombre".
+    if (!sinNombre && !ruc) {
       return NextResponse.json(
         errorResponse("Para facturar hace falta el RUC del cliente."),
         { status: 400 }
       );
     }
-    if (!razonSocial) {
+    if (!sinNombre && !razonSocial) {
       return NextResponse.json(
         errorResponse("Falta la razón social del cliente."),
         { status: 400 }
@@ -48,11 +51,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
     const out = await facturarVentaPg(schema, tenant.auth.empresa_id, {
       ventaId: id,
-      razonSocial,
-      ruc,
+      razonSocial: sinNombre ? null : razonSocial,
+      ruc: sinNombre ? null : ruc,
       email,
-      clienteId: texto(body.cliente_id),
-      guardarCliente: body.guardar_cliente === true,
+      clienteId: sinNombre ? null : texto(body.cliente_id),
+      guardarCliente: !sinNombre && body.guardar_cliente === true,
+      innominado: sinNombre,
     });
 
     // Se arranca a emitir acá y no cuando el navegador termine de abrir la

@@ -13,12 +13,13 @@ import CobroRepartido, {
   type LineaCobro,
 } from "@/components/ventas/CobroRepartido";
 import SelectorComprobante, {
+  comprobanteAPayload,
   comprobanteListo,
+  esFactura,
   type TipoComprobante,
 } from "@/components/ventas/SelectorComprobante";
 import {
   RECEPTOR_VACIO,
-  receptorAPayload,
   type DatosReceptor,
 } from "@/components/ventas/ReceptorFactura";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -127,7 +128,7 @@ export default function CobroCuenta({
 
   async function cobrar() {
     if (!habilitado || sinCaja) return;
-    if (!comprobanteListo(comprobante, receptor)) return;
+    if (!comprobanteListo(comprobante, receptor, totalACobrar)) return;
 
     // Cobrar algo que la cocina nunca recibió es cobrarle al cliente comida que
     // no se va a preparar. Se avisa antes, no después.
@@ -172,13 +173,13 @@ export default function CobroCuenta({
 
     // Con factura el comprobante es el KUDE, no el ticket: se emite acá mismo y
     // la pantalla del documento lo abre sola al aprobarse.
-    if (comprobante === "factura") {
+    if (esFactura(comprobante)) {
       try { ticketWin?.close(); } catch { /* la pestaña ya no hace falta */ }
       try {
         const res = await fetchWithSupabaseSession(`/api/ventas/${r.ventaId}/facturar`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(receptorAPayload(receptor)),
+          body: JSON.stringify(comprobanteAPayload(comprobante, receptor)),
         });
         const body = await res.json();
         if (res.ok && body?.success !== false && body?.data?.facturaId) {
@@ -207,7 +208,8 @@ export default function CobroCuenta({
     router.push(volverA);
   }
 
-  const puedeCobrar = habilitado && !sinCaja && !busy && comprobanteListo(comprobante, receptor);
+  const puedeCobrar =
+    habilitado && !sinCaja && !busy && comprobanteListo(comprobante, receptor, totalACobrar);
 
   return (
     <div className="space-y-4">
@@ -356,6 +358,7 @@ export default function CobroCuenta({
           onChange={setComprobante}
           receptor={receptor}
           onReceptorChange={setReceptor}
+          total={totalACobrar}
         />
       </div>
 

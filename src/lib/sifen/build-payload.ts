@@ -42,6 +42,8 @@ export interface SifenBuildFacturaRow {
   moneda: string;
   monto: unknown;
   saldo: unknown;
+  /** Factura emitida a receptor innominado ("Sin Nombre"): el DE sale B2C sin identificar al cliente. */
+  receptor_sin_nombre?: boolean;
 }
 
 export interface SifenBuildItemRow {
@@ -255,6 +257,25 @@ function validateReceptor(
   factura: SifenBuildFacturaRow,
   cliente: SifenBuildClienteRow | null
 ): { ok: true; receptor: SifenPayloadReceptor } | { ok: false; error: string } {
+  // Factura "Sin Nombre": receptor innominado, no se exige cliente ni RUC/CI.
+  // Tiene prioridad sobre todo lo demás; el DE arma la rama innominada (B2C).
+  if (factura.receptor_sin_nombre === true) {
+    return {
+      ok: true,
+      receptor: {
+        cliente_id: "",
+        nombre: "Sin Nombre",
+        documento: null,
+        ruc: null,
+        es_contribuyente_py: false,
+        direccion: null,
+        telefono: null,
+        email: null,
+        receptor_extranjero: false,
+        sifen_innominado: true,
+      },
+    };
+  }
   if (!cliente) {
     return {
       ok: false,
